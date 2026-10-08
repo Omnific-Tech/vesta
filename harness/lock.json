@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "generation": "b751e3b58073d9e6a6e8589cda46e205",
+  "repositories": {
+    "app": "0bc6492bab8b72ee03b11919397f8258564f696f"
+  },
+  "oracle": {
+    "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/failures.md": "3e646558afcb76fcb226c99fa08df765f3d18f1c6e39b04c5fbe39838d8afe6f",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/plan.md": "2b2de02d8f9e3610487f526e6ada28f97a61f1e507c622bb4c70ab2d0b4fd6b4",
+    "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "21ff6f1e9958903cd10ec52c481aa749c27056024d71067daa7a083ebec33376",
+    "app:harness/artifacts/features.md": "cf51b212f1d203688b7c6aa168fa222ab9bb16f85cd307732ffe99a8d114929a",
+    "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
+    "app:harness/harness.yaml": "85b0cddbaae2c40bd20d38b7f0978c221a7585c4ebe27b44b08984eb1a1455e8",
+    "app:harness/scenarios/SESSION-INTEGRATION/claude.yaml": "214c4a273efcef778f4091f98a5f6893155550f5715cc07bcf24d3c1ab1b49be",
+    "app:harness/scenarios/SESSION-INTEGRATION/codex.yaml": "cb6c0429f918fbc4c41efa5b1554bfc803fefdacb8c8dcbd0ea245153e6b1537",
+    "app:harness/tasks/PROBE-001.json": "cfa515c7915f4673444954f8a91bd619a28ffe531fc397d42422ac445d22721b"
+  },
+  "modes": {
+    "PROBE-001": "quick"
+  },
+  "amendments": []
+}
