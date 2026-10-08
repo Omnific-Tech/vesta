@@ -1,0 +1,4 @@
+
+# Telos local execution exclusions
+harness/runs/
+harness/.telos/
