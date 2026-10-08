@@ -2,3 +2,4 @@
 # Telos local execution exclusions
 harness/runs/
 harness/.telos/
+node_modules/

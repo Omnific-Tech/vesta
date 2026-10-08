@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=22.17.1" },
+  "dependencies": { "node-pty": "1.1.0" },
   "scripts": {
     "probe:claude": "node --experimental-strip-types experiments/run.ts claude",
     "probe:codex": "node --experimental-strip-types experiments/run.ts codex",
