@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "PROBE-001",
+  "mode": "quick",
+  "scope": "Run bounded disposable TypeScript experiments of Claude in-process mods and Codex owning-server submission; report native supported, unsupported or blocked outcomes without claiming cache retention.",
+  "implementor_id": "gpt-6.1-sol-medium",
+  "dependencies": [],
+  "risk_tags": [],
+  "acceptance": [
+    { "id": "AC-CLAUDE", "description": "Observe real Claude mod attachment and same-session keepalive/continuity, or retain explicit native unsupported evidence." },
+    { "id": "AC-CODEX", "description": "Observe real Codex owning-server attachment and same-thread keepalive/continuity, or retain explicit native unsupported evidence; saved-session resume is forbidden." },
+    { "id": "AC-EVIDENCE", "description": "Produce invocation-local native observations, versions, commands, identities, tool events, structured outcomes and precise limitations." },
+    { "id": "AC-ISOLATION", "description": "Leave personal configuration and existing sessions untouched; clean up only owned experiment resources." }
+  ],
+  "verification": ["claude-session-probe", "codex-session-probe"]
+}

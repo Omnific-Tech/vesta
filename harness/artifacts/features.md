@@ -7,6 +7,7 @@ meaningful behavior/interface changes, not ordinary fixes or assignment history.
 
 | Feature ID | Capability description | Owning module | Contract revision (optional) |
 | --- | --- | --- | --- |
+| SESSION-INTEGRATION | Observe and submit a bounded keepalive through the owning live coding session | experiments/ | |
 
 Current specs/contracts belong under `artifacts/FEATURE/`; per-assignment plan,
 handoff and completed task snapshots belong under `changes/CHANGE/` there. This

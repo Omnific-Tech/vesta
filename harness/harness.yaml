@@ -1,9 +1,11 @@
 schema_version: 1
 project_id: vesta
-mode: standard
+mode: quick
 repositories:
   - id: app
     path: .
-verification_inputs: []
+verification_inputs:
+  - repo: app
+    path: experiments/acceptance.ts
 retention:
   max_runs_per_task: 5
