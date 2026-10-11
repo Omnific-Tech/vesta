@@ -50,7 +50,7 @@ export function verifySetupEvidence(e: SetupEvidence, directory: string) {
   assert.equal(steps.afterUninstall.theme, 'light', 'user edit made after install survives uninstall');
   assert.equal(steps.afterUninstall.env.UNRELATED_SENTINEL, 'preserved');
   assert.equal(steps.afterUninstall.enabledPlugins['unrelated@fixture'], false);
-  assert.equal(steps.afterUninstall.pluginConfigs['unrelated@fixture'].sentinel, 'preserved');
+  assert.equal(steps.afterUninstall.pluginConfigs['unrelated@fixture'].options.sentinel, 'preserved');
   assert.equal(steps.cacheBeforeStatus, steps.cacheAfterStatus, 'status does not mutate installed plugin files');
   assert.ok(results('invalid-relative-config').every(c => c.code !== 0));
   assert.equal(results('invalid-relative-config').length, 1);

@@ -17,7 +17,7 @@ const fixture = mkdtempSync(join(tmpdir(), 'vesta-setup-e2e-'));
 const configDir = join(fixture, 'claude'); mkdirSync(configDir);
 const env = { ...process.env, CLAUDE_CONFIG_DIR: configDir, CLAUDE_SECURESTORAGE_CONFIG_DIR: '' };
 const settingsPath = join(configDir, 'settings.json');
-const initial = { theme: 'dark', env: { UNRELATED_SENTINEL: 'preserved' }, enabledPlugins: { 'unrelated@fixture': false }, pluginConfigs: { 'unrelated@fixture': { sentinel: 'preserved' } } };
+const initial = { theme: 'dark', env: { UNRELATED_SENTINEL: 'preserved' }, enabledPlugins: { 'unrelated@fixture': false }, pluginConfigs: { 'unrelated@fixture': { options: { sentinel: 'preserved' } } } };
 writeFileSync(settingsPath, JSON.stringify(initial, null, 2));
 const hash = (path: string) => existsSync(path) ? createHash('sha256').update(readFileSync(path)).digest('hex') : 'absent';
 const tree = (path: string): Record<string, string> => !existsSync(path) ? {} : Object.fromEntries(readdirSync(path, { recursive: true, withFileTypes: true }).filter(d => d.isFile()).map(d => {
