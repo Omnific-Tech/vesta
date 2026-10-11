@@ -149,6 +149,7 @@ async function claude() {
   }
   if (contextMode) {
     cpSync(modFile, join(artifacts, 'mod-observations.json'));
+    cpSync(join(fixture, 'mod-observations.jsonl'), join(artifacts, 'mod-observations.jsonl'));
     const typeDirectory = join(plugin, '.claude-plugin/types');
     cpSync(typeDirectory, join(artifacts, 'claude-runtime-types'), { recursive: true });
     const records = result.records;
@@ -159,7 +160,7 @@ async function claude() {
       ['first', completed[0]], ['second', completed[1]], ['compact-start', records.find(x => x.kind === 'compact-start')],
       ['compact-end', compact[0]], ['third', completed[2]]] as [ContextSample['stage'], any][]) {
       if (!row) throw new Error('missing native Claude context stage: ' + stage);
-      contextSample(stage, row, 'mod-observations.json', row.generation, stage === 'first' || stage === 'second' || stage === 'third' ? row : undefined);
+      contextSample(stage, row, 'mod-observations.jsonl', row.generation, stage === 'first' || stage === 'second' || stage === 'third' ? row : undefined);
     }
     const source = 'claude-runtime-types/claude-code/index.d.ts';
     contextEvidence.semantics = { field: '$.session.usage().context.tokens', rawFile: source,
@@ -271,8 +272,16 @@ async function codex() {
   let sessionId: string | undefined;
   while (!sessionId && Date.now() < deadline) {
     checkInterrupted();
-    const threads = await rpc('thread/list', { cwd: fixture });
-    sessionId = threads.data?.find((x: any) => x.cwd === fixture || x.cwd === '/private' + fixture)?.id;
+    if (contextMode) {
+      const loaded = await rpc('thread/loaded/list', {});
+      for (const id of loaded.data ?? []) {
+        const response = await rpc('thread/read', { threadId: id, includeTurns: true });
+        if (response.thread.cwd === fixture || response.thread.cwd === '/private' + fixture) sessionId = id;
+      }
+    } else {
+      const threads = await rpc('thread/list', { cwd: fixture });
+      sessionId = threads.data?.find((x: any) => x.cwd === fixture || x.cwd === '/private' + fixture)?.id;
+    }
     if (terminalExited) throw new Error('owner TUI exited; see codex-owner.txt');
     if (!sessionId) await new Promise(resolve => setTimeout(resolve, 200));
   }
@@ -416,6 +425,7 @@ try {
   const result = contextMode ? contextEvidence : evidence;
   console.log(JSON.stringify({ provider, outcome: result.outcome, reason: result.reason, artifacts }));
 } catch (error) {
-  console.error(JSON.stringify({ provider, outcome: evidence.outcome, reason: evidence.reason, contractFailure: String(error), artifacts }));
+  const result = contextMode ? contextEvidence : evidence;
+  console.error(JSON.stringify({ provider, outcome: result.outcome, reason: result.reason, contractFailure: String(error), artifacts }));
   process.exitCode = 1;
 }
