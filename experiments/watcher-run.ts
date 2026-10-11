@@ -8,7 +8,10 @@ import { fileURLToPath } from 'node:url';
 import * as pty from 'node-pty';
 import { Watcher } from './watcher-policy.ts';
 
-const args = process.argv.slice(2);
+const incoming = process.argv.slice(2);
+const separator = incoming.indexOf('--');
+const args = separator < 0 ? incoming : incoming.slice(0, separator);
+const nativeArgs = separator < 0 ? undefined : incoming.slice(separator + 1);
 const provider = args[0];
 const value = (flag: string) => {
   const i = args.indexOf(flag);
@@ -28,7 +31,12 @@ const watcher = new Watcher(provider!, config, probe ? 'probe' : 'normal');
 const maxWarms = value('--max-warms') === undefined ? Infinity : Number(value('--max-warms'));
 if (!(maxWarms === Infinity || Number.isSafeInteger(maxWarms) && maxWarms >= 0 && maxWarms <= 3)) throw new Error('invalid probe warm limit');
 const warm = args.includes('--warm');
-const cwd = realpathSync(resolve(value('--cwd') ?? process.cwd()));
+const nativeValue = (short: string, long: string) => {
+  const i = nativeArgs?.findIndex(arg => arg === short || arg === long) ?? -1;
+  return i < 0 ? undefined : nativeArgs![i + 1];
+};
+const nativeCommand = value('--native-command') ?? provider!;
+const cwd = realpathSync(resolve(nativeValue('-C', '--cd') ?? value('--cwd') ?? process.cwd()));
 const here = dirname(fileURLToPath(import.meta.url));
 const runtime = realpathSync(mkdtempSync(join(tmpdir(), 'vesta-watch-')));
 const artifacts = resolve(value('--artifacts') ?? join(runtime, 'status'));
@@ -37,6 +45,7 @@ const commands: string[][] = [];
 const children: ReturnType<typeof spawn>[] = [];
 let terminal: pty.IPty | undefined;
 let terminalExited = false;
+let nativeExit = 0;
 let stop = false;
 let reason = 'owner exited';
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -72,9 +81,9 @@ function launch(command: string, argv: string[], file: string) {
   return child;
 }
 function owner(argv: string[]) {
-  commands.push([provider!, ...argv]);
-  terminal = pty.spawn(provider!, argv, { cwd, env: { ...process.env, TERM: 'xterm-256color' }, cols: process.stdout.columns ?? 100, rows: process.stdout.rows ?? 35, name: 'xterm-256color' });
-  terminal.onExit(() => { terminalExited = true; stop = true; });
+  commands.push([nativeCommand, ...argv]);
+  terminal = pty.spawn(nativeCommand, argv, { cwd: nativeArgs ? process.cwd() : cwd, env: { ...process.env, TERM: 'xterm-256color' }, cols: process.stdout.columns ?? 100, rows: process.stdout.rows ?? 35, name: 'xterm-256color' });
+  terminal.onExit(e => { nativeExit = e.exitCode; terminalExited = true; stop = true; });
   terminal.onData(data => {
     capture(provider + '-owner.txt', data);
     process.stdout.write(data);
@@ -129,9 +138,12 @@ async function runClaude() {
 async function runCodex() {
   const socket = join(runtime, 'owner.sock');
   const endpoint = 'unix://' + socket;
-  const server = launch('codex', ['app-server', '--listen', endpoint, ...(probe ? ['-c', 'features.apps=false', '-c', 'features.plugins=false'] : [])], 'codex-server.txt');
+  const overrides = [
+    ['model', nativeValue('-m', '--model')], ['approval_policy', nativeValue('-a', '--ask-for-approval')], ['sandbox_mode', nativeValue('-s', '--sandbox')],
+  ].filter(([, selected]) => selected !== undefined).flatMap(([key, selected]) => ['-c', key + '=' + JSON.stringify(selected)]);
+  const server = launch(nativeCommand, ['app-server', '--listen', endpoint, ...overrides, ...(probe ? ['-c', 'features.apps=false', '-c', 'features.plugins=false'] : [])], 'codex-server.txt');
   await waitFor(() => existsSync(socket), 'owned app-server');
-  const proxy = launch('codex', ['app-server', 'proxy', '--sock', socket], 'codex-proxy.txt');
+  const proxy = launch(nativeCommand, ['app-server', 'proxy', '--sock', socket], 'codex-proxy.txt');
   let buffer = Buffer.alloc(0);
   let upgraded = false;
   let connected = true;
@@ -202,7 +214,7 @@ async function runCodex() {
   };
   await rpc('initialize', { clientInfo: { name: 'vesta_watcher', version: '0.0.1' } });
   send({ method: 'initialized', params: {} });
-  owner(['--remote', endpoint, '--no-alt-screen', '-C', cwd, ...(probe ? ['-a', 'never', '-s', 'read-only'] : [])]); relay();
+  owner(nativeArgs ? [...nativeArgs, '--remote', endpoint] : ['--remote', endpoint, '--no-alt-screen', '-C', cwd, ...(probe ? ['-a', 'never', '-s', 'read-only'] : [])]); relay();
   while (!threadId && !stop) {
     const loaded = await rpc('thread/loaded/list', {});
     for (const id of loaded.data ?? []) {
@@ -241,7 +253,7 @@ async function runCodex() {
     warms += 1;
     lastWarmText = `Reply with exactly K. Do not use tools. Vesta idle ping ${threadId}:${dispatch.state.reservationId}.`;
     lifecycle({ kind: 'keepalive-submitted', sessionId: threadId, ownerPid: server.pid });
-    const queue = launch('codex', ['queue', '--thread', threadId, '--message', lastWarmText, '--remote', endpoint], 'codex-queue.txt');
+    const queue = launch(nativeCommand, ['queue', '--thread', threadId, '--message', lastWarmText, '--remote', endpoint], 'codex-queue.txt');
     queue.stdout!.on('data', data => capture('codex-queue.txt', String(data)));
     queue.on('exit', code => { if (code !== 0 && !stop) trace('submit-failed'); });
   })().catch(error => { reason = 'timer failed: ' + String(error); stop = true; }); }, Math.min(probe ? 1000 : 30000, watcher.defaults.idleMs));
@@ -271,8 +283,9 @@ finally {
     if (child.exitCode === null && child.signalCode === null) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} await sleep(100); }
     cleanup.push({ pid: child.pid, owned: true, exited: child.exitCode !== null || child.signalCode !== null });
   }
-  const recordedCommands = captureNative ? commands : commands.map(command => command.map(arg => arg === initialPrompt ? '[user prompt omitted]' : arg));
-  writeFileSync(join(artifacts, 'watcher-runtime.json'), JSON.stringify({ provider, version: execFileSync(provider!, ['--version'], { encoding: 'utf8' }).trim(), reason, commands: recordedCommands, cleanup, defaults: watcher.defaults, warmEnabled: warm, mode: probe ? 'probe' : 'normal', maxWarms: Number.isFinite(maxWarms) ? maxWarms : null }, null, 2));
+  const recordedCommands = captureNative ? commands : commands.map(command => [command[0], `[${command.length - 1} native arguments omitted]`]);
+  writeFileSync(join(artifacts, 'watcher-runtime.json'), JSON.stringify({ provider, version: execFileSync(nativeCommand, ['--version'], { encoding: 'utf8' }).trim(), reason: captureNative ? reason : terminalExited ? 'native owner exited' : 'observer stopped', commands: recordedCommands, cleanup, defaults: watcher.defaults, warmEnabled: warm, mode: probe ? 'probe' : 'normal', maxWarms: Number.isFinite(maxWarms) ? maxWarms : null }, null, 2));
+  if (nativeArgs && !process.exitCode) process.exitCode = nativeExit;
   // Keep explicitly selected artifact directories; temporary ordinary status is announced
   // and retained for inspection without retaining the session-local plugin/socket.
   if (artifacts.startsWith(runtime + '/')) {
