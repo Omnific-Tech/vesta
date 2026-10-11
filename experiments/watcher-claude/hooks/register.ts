@@ -10,6 +10,7 @@ let stopped = false;
 let warms = 0;
 let ownWarmTurn = '';
 let lastWarmText = '';
+let lastWarmMarker = '';
 let tools = 0;
 async function record($, data) {
   if (!options?.captureNative) return;
@@ -42,7 +43,8 @@ export function register(on) {
       const dispatch = await event($, 'dispatch', { reservationId: reserve.state.reservationId });
       if (dispatch.action !== 'dispatch') return;
       warms += 1;
-      lastWarmText = `Reply with exactly K. Do not use tools. Vesta idle ping ${await $.session.id()}:${dispatch.state.reservationId}.`;
+      lastWarmMarker = `Vesta idle ping ${await $.session.id()}:${dispatch.state.reservationId}.`;
+      lastWarmText = `Reply with exactly K. Do not use tools. ${lastWarmMarker}`;
       try {
         await record($, { kind: 'keepalive-submitted' });
         await $.prompt.submit({ text: lastWarmText });
@@ -65,7 +67,7 @@ export function register(on) {
   });
   on('turn.start', async ($, e, next) => {
     tools = 0;
-    const source = lastWarmText && e.text === lastWarmText ? 'warm' : 'other';
+    const source = lastWarmMarker && e.text.includes(lastWarmMarker) ? 'warm' : 'other';
     if (source === 'warm') ownWarmTurn = e.turnId;
     // A positional initial prompt may precede the composer hook; it is the local
     // launcher's explicit user prompt, recorded in configuration, never a warm.
