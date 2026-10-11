@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "PROBE-002",
+  "mode": "quick",
+  "scope": "Measure native current input context in disposable Claude and Codex sessions; verify strict >100000 eligibility and fail-closed freshness across turns and compaction. No production watcher or TTL claim.",
+  "implementor_id": "gpt-6.1-sol-medium",
+  "dependencies": [],
+  "risk_tags": [],
+  "acceptance": [
+    { "id": "AC-METRIC-CLAUDE", "description": "Native owning-session input context and compaction invalidation/refresh, excluding output and cumulative usage." },
+    { "id": "AC-METRIC-CODEX", "description": "Native owning-thread input context and compaction invalidation/refresh, excluding output and cumulative usage." },
+    { "id": "AC-GATE", "description": "Executable strict >100000 boundary, malformed/missing, foreign/stale and postcompaction cases." },
+    { "id": "AC-PROBE-INTEGRITY", "description": "Bounded calls, raw proof, unchanged personal files, owned cleanup and precise fixture/live limits." }
+  ],
+  "verification": ["claude-context-probe", "codex-context-probe", "context-gate-fixtures"]
+}

@@ -1,0 +1,10 @@
+schema_version: 1
+id: context-gate-fixtures
+repo: app
+runner: command
+kind: fixture
+command: [node, --experimental-strip-types, experiments/context-acceptance.ts, --fixtures]
+acceptance: [AC-GATE]
+timeout_ms: 30000
+expect:
+  exit_code: 0

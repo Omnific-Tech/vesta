@@ -7,5 +7,7 @@ repositories:
 verification_inputs:
   - repo: app
     path: experiments/acceptance.ts
+  - repo: app
+    path: experiments/context-acceptance.ts
 retention:
   max_runs_per_task: 5
