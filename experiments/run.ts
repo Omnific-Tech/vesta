@@ -6,9 +6,13 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyEvidence } from './acceptance.ts';
 import type { Evidence, Observation } from './acceptance.ts';
+import { verifyContextEvidence } from './context-acceptance.ts';
+import type { ContextEvidence, ContextSample } from './context-acceptance.ts';
+import { contextGate } from './context-gate.ts';
 import * as pty from 'node-pty';
 
 const provider = process.argv[2];
+const contextMode = process.argv.includes('--context');
 if (provider !== 'claude' && provider !== 'codex') throw new Error('provider must be claude or codex');
 const artifactFlag = process.argv.indexOf('--artifacts');
 const artifacts = resolve(artifactFlag >= 0 ? process.argv[artifactFlag + 1]! : join(process.env.TELOS_RUN_DIR ?? 'harness/runs/manual-' + randomUUID(), 'artifacts'));
@@ -20,7 +24,7 @@ const terminals: { terminal: pty.IPty; exited: boolean }[] = [];
 const codexHome = join(fixture, 'codex-home');
 const providerEnv = provider === 'codex' ? { CODEX_HOME: codexHome } : {};
 const startedAt = Date.now();
-const deadline = startedAt + 210_000;
+const deadline = startedAt + (contextMode ? 270_000 : 210_000);
 let interrupted = false;
 const interrupt = () => { interrupted = true; };
 process.on('SIGTERM', interrupt);
@@ -40,6 +44,25 @@ const evidence: Evidence = {
   personalFiles: personalPaths.map(path => ({ path, before: hash(path), after: '' })),
   limitations: ['Short delays do not prove TTL retention or usage savings.', 'Busy-turn, obsolete keepalive and user-input precedence are not tested.'],
 };
+const contextEvidence: ContextEvidence = {
+  schema: 2, provider, outcome: 'blocked', reason: 'not completed', version: evidence.version,
+  startedAt, endedAt: startedAt, deadlineMs: 285_000, modelOperations: 0,
+  fixtureDirectory: fixture, commands: evidence.commands, samples: [], cleanup: evidence.cleanup,
+  personalFiles: evidence.personalFiles, semantics: { field: '', rawFile: '', rawNeedle: '', source: '' },
+};
+function contextSample(stage: ContextSample['stage'], native: any, rawFile: string, generation: number, completion?: any) {
+  const sessionId = provider === 'claude' ? native.sessionId : native.params?.threadId ?? native.result?.thread?.id;
+  const turnId = provider === 'claude' ? native.turnId : native.params?.turnId;
+  const at = Date.now();
+  const usable = ['first', 'second', 'third'].includes(stage);
+  const raw = provider === 'claude' ? native.usage : native.params;
+  const decision = contextGate({ provider, raw, sessionId, turnId, generation, observedAt: at,
+    state: { sessionId, turnId, generation, now: at, invalidatedAt: at, idle: usable, connected: true } });
+  contextEvidence.samples.push({ stage, sessionId, turnId, generation, at,
+    ...(usable && decision.tokens !== null ? { tokens: decision.tokens } : {}), eligible: decision.eligible,
+    rawFile, rawNeedle: JSON.stringify(native), ...(completion ? { completionNeedle: JSON.stringify(completion) } : {}) });
+  appendFileSync(join(artifacts, 'context-decisions.jsonl'), JSON.stringify({ stage, generation, decision }) + '\n');
+}
 function launch(command: string, args: string[], log: string, extraEnv: Record<string, string> = {}) {
   checkInterrupted();
   evidence.commands.push([command, ...args]);
@@ -76,6 +99,7 @@ function unsupported(text: string, log: string) {
 async function claude() {
   const plugin = join(fixture, 'plugin');
   cpSync(join(here, 'claude-mod'), plugin, { recursive: true });
+  if (contextMode) writeFileSync(join(fixture, 'context-mode'), 'context measurement probe');
   const validation = launch('claude', ['plugin', 'validate', plugin], 'claude-validation.txt', { CLAUDE_CONFIG_DIR: join(fixture, 'config') });
   await waitFor(() => validation.child.exitCode !== null, 'plugin validation');
   if (validation.child.exitCode !== 0) {
@@ -113,7 +137,7 @@ async function claude() {
     const records = modRecords();
     const rejection = records.find(x => x.kind === 'native-rejection');
     if (rejection) return { rejection };
-    if (records.filter(x => x.kind === 'turn-complete').length >= 2) return { records };
+    if (records.filter(x => x.kind === 'turn-complete').length >= (contextMode ? 3 : 2)) return { records };
     if (owner.child.exitCode !== null) throw new Error('Claude owner exited before keepalive: ' + owner.text);
     if (/Not logged in|authentication_failed|invalid_api_key|rate_limit_error|usage_limit_error/i.test(owner.text)) throw new Error('Claude environment blocked; see owner log');
     return undefined;
@@ -122,6 +146,26 @@ async function claude() {
     cpSync(modFile, join(artifacts, 'mod-observations.json'));
     if (unsupported(result.rejection.text, 'mod-observations.json')) return;
     throw new Error(result.rejection.text);
+  }
+  if (contextMode) {
+    cpSync(modFile, join(artifacts, 'mod-observations.json'));
+    const typeDirectory = join(plugin, '.claude-plugin/types');
+    cpSync(typeDirectory, join(artifacts, 'claude-runtime-types'), { recursive: true });
+    const records = result.records;
+    const completed = records.filter(x => x.kind === 'turn-complete');
+    const compact = records.filter(x => x.kind === 'compact-complete');
+    contextEvidence.modelOperations = completed.length + compact.length;
+    for (const [stage, row] of [['startup', records.find(x => x.kind === 'context-startup')],
+      ['first', completed[0]], ['second', completed[1]], ['compact-start', records.find(x => x.kind === 'compact-start')],
+      ['compact-end', compact[0]], ['third', completed[2]]] as [ContextSample['stage'], any][]) {
+      if (!row) throw new Error('missing native Claude context stage: ' + stage);
+      contextSample(stage, row, 'mod-observations.json', row.generation, stage === 'first' || stage === 'second' || stage === 'third' ? row : undefined);
+    }
+    const source = 'claude-runtime-types/claude-code/index.d.ts';
+    contextEvidence.semantics = { field: '$.session.usage().context.tokens', rawFile: source,
+      rawNeedle: 'Input tokens the last response was answered over: uncached, cache-written', source: 'generated Claude runtime ' + evidence.version };
+    contextEvidence.outcome = 'supported'; contextEvidence.reason = 'Native current input measured before and after explicit compaction in the owned Claude session.';
+    return;
   }
   send('What nonce did I ask you to remember? Reply with exactly that nonce and no other text. Do not use tools.');
   const records = await waitFor(() => { const rows = modRecords(); return rows.filter(x => x.kind === 'turn-complete').length === 3 ? rows : undefined; }, 'Claude continuity');
@@ -207,7 +251,8 @@ async function codex() {
   await rpc('initialize', { clientInfo: { name: 'vesta_probe', version: '0.0.1' } });
   send({ method: 'initialized', params: {} });
   const nonce = 'VESTA-' + randomUUID();
-  const ownerArgs = ['--remote', endpoint, '--no-alt-screen', '-C', fixture, '-a', 'never', '-s', 'read-only', '-c', trustOverride, `Remember this nonce: ${nonce}. Reply with exactly ${nonce}. Do not use tools.`];
+  const ownerArgs = ['--remote', endpoint, '--no-alt-screen', '-C', fixture, '-a', 'never', '-s', 'read-only', '-c', trustOverride,
+    ...(contextMode ? [] : [`Remember this nonce: ${nonce}. Reply with exactly ${nonce}. Do not use tools.`])];
   evidence.commands.push(['codex', ...ownerArgs]);
   const terminal = pty.spawn('codex', ownerArgs, { cwd: fixture, env: { ...process.env, ...providerEnv, TERM: 'xterm-256color' }, cols: 100, rows: 30, name: 'xterm-256color' });
   let terminalExited = false;
@@ -232,6 +277,54 @@ async function codex() {
     if (!sessionId) await new Promise(resolve => setTimeout(resolve, 200));
   }
   if (!sessionId) { cleanupTerminal(); throw new Error('bounded timeout: TUI owning thread'); }
+  if (contextMode) {
+    const loaded = await rpc('thread/loaded/list', {});
+    if (!loaded.data?.includes(sessionId)) throw new Error('owned Codex thread is not already loaded');
+    const schema = execFileSync('codex', ['app-server', 'generate-ts', '--out', join(artifacts, 'codex-runtime-types')], { encoding: 'utf8' });
+    const sourceUrl = 'https://raw.githubusercontent.com/openai/codex/rust-v0.162.0/codex-rs/protocol/src/protocol.rs';
+    const sourceResponse = await fetch(sourceUrl);
+    if (!sourceResponse.ok) throw new Error('cannot fetch pinned official usage semantics');
+    writeFileSync(join(artifacts, 'codex-token-semantics.rs'), await sourceResponse.text());
+    const before = await rpc('thread/read', { threadId: sessionId, includeTurns: true });
+    const resumed = await rpc('thread/resume', { threadId: sessionId });
+    if (resumed.thread.id !== sessionId || resumed.thread.cwd !== before.thread.cwd) throw new Error('same-owner live reattachment failed');
+    appendFileSync(join(artifacts, 'codex-subscription.json'), JSON.stringify({ loaded, before, resumed, schema }));
+    const firstStart = incoming.find(x => x.result?.thread?.id === sessionId);
+    if (!firstStart) throw new Error('missing native owned thread startup response');
+    appendFileSync(join(artifacts, 'codex-lifecycle.jsonl'), JSON.stringify(firstStart) + '\n');
+    contextSample('startup', firstStart, 'codex-lifecycle.jsonl', 0);
+    terminal.write('\x1b[200~' + `Remember this nonce: ${nonce}. Reply with exactly ${nonce}. Do not use tools.` + '\x1b[201~');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    terminal.write('\r');
+    const completedTurns = () => incoming.filter(x => x.method === 'turn/completed' && x.params?.threadId === sessionId && x.params?.turn?.status === 'completed');
+    const normalTurn = async (stage: 'first' | 'second' | 'third', id?: string, generation = 0) => {
+      const complete = await waitFor(() => completedTurns().find(x => (!id || x.params.turn.id === id) && !x.params.turn.items?.some((i: any) => i.type === 'contextCompaction')), 'Codex ' + stage + ' completed response');
+      const turnId = complete.params.turn.id;
+      const metric = await waitFor(() => incoming.filter(x => x.method === 'thread/tokenUsage/updated' && x.params?.threadId === sessionId && x.params?.turnId === turnId).at(-1), 'Codex ' + stage + ' token usage');
+      contextSample(stage, metric, 'codex-protocol.jsonl', generation, complete);
+      return turnId;
+    };
+    await normalTurn('first');
+    const second = await rpc('turn/start', { threadId: sessionId, input: [{ type: 'text', text: 'Recall the VESTA nonce. Reply only that nonce. Do not use tools.' }] });
+    await normalTurn('second', second.turn.id);
+    const compactRequest = { method: 'thread/compact/start', params: { threadId: sessionId } };
+    appendFileSync(join(artifacts, 'codex-lifecycle.jsonl'), JSON.stringify(compactRequest) + '\n');
+    contextSample('compact-start', compactRequest, 'codex-lifecycle.jsonl', 1);
+    await rpc('thread/compact/start', { threadId: sessionId });
+    const compact = await waitFor(() => incoming.find(x => x.method === 'item/completed' && x.params?.threadId === sessionId && x.params?.item?.type === 'contextCompaction'), 'native Codex compaction completion');
+    await waitFor(() => completedTurns().find(x => x.params.turn.id === compact.params.turnId), 'Codex compaction turn finished');
+    contextSample('compact-end', compact, 'codex-protocol.jsonl', 1);
+    const third = await rpc('turn/start', { threadId: sessionId, input: [{ type: 'text', text: 'Recall the VESTA nonce. Reply only that nonce. Do not use tools.' }] });
+    await normalTurn('third', third.turn.id, 1);
+    contextEvidence.modelOperations = completedTurns().length;
+    contextEvidence.semantics = { field: 'thread/tokenUsage/updated.tokenUsage.last.inputTokens', rawFile: 'codex-token-semantics.rs',
+      rawNeedle: 'self.last_token_usage = last.clone()', source: sourceUrl };
+    await rpc('thread/delete', { threadId: sessionId });
+    cleanupTerminal(); await waitFor(() => terminalExited, 'owner TUI cleanup');
+    process.removeListener('exit', cleanupTerminal);
+    contextEvidence.outcome = 'supported'; contextEvidence.reason = 'Native last-response input measured with same-owner subscription and explicit compaction invalidation.';
+    return;
+  }
   const read = () => rpc('thread/read', { threadId: sessionId, includeTurns: true });
   const turns = async (count: number) => {
     while (Date.now() < deadline) {
@@ -279,6 +372,7 @@ try {
   if (provider === 'claude') await claude(); else await codex();
 } catch (error) {
   evidence.reason = String(error);
+  contextEvidence.reason = String(error);
   const source = children.find(x => x.text.includes(evidence.reason.replace(/^Error: /, '')));
   if (source) unsupported(evidence.reason.replace(/^Error: /, ''), source.log);
 } finally {
@@ -311,14 +405,16 @@ try {
     try { evidence.modelTurns = JSON.parse(readFileSync(modPath, 'utf8')).filter((x: any) => x.kind === 'turn-complete').length; } catch { /* incomplete native log */ }
   }
   evidence.endedAt = Date.now();
-  writeFileSync(join(artifacts, 'summary.json'), JSON.stringify(evidence, null, 2));
+  contextEvidence.endedAt = evidence.endedAt;
+  writeFileSync(join(artifacts, 'summary.json'), JSON.stringify(contextMode ? contextEvidence : evidence, null, 2));
   rmSync(fixture, { recursive: true, force: true });
   process.removeListener('SIGTERM', interrupt);
   process.removeListener('SIGINT', interrupt);
 }
 try {
-  verifyEvidence(evidence, artifacts);
-  console.log(JSON.stringify({ provider, outcome: evidence.outcome, reason: evidence.reason, artifacts }));
+  if (contextMode) verifyContextEvidence(contextEvidence, artifacts); else verifyEvidence(evidence, artifacts);
+  const result = contextMode ? contextEvidence : evidence;
+  console.log(JSON.stringify({ provider, outcome: result.outcome, reason: result.reason, artifacts }));
 } catch (error) {
   console.error(JSON.stringify({ provider, outcome: evidence.outcome, reason: evidence.reason, contractFailure: String(error), artifacts }));
   process.exitCode = 1;
