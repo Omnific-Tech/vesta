@@ -21,10 +21,10 @@ const raw = (provider: string, tokens: unknown) => provider === 'claude'
   ? { context: { tokens }, cumulative: { inputTokens: 999999, outputTokens: 999999 } }
   : { tokenUsage: { last: { inputTokens: tokens, cachedInputTokens: 99999, outputTokens: 999999, totalTokens: 999999 }, total: { inputTokens: 999999 } } };
 const e = (type: string, at: number, extra: Record<string, unknown> = {}): Event => ({ type, at, ...(type === 'activity' ? { source: 'user' } : {}), ...extra });
-const ready = (provider: string, tokens: unknown = 100001): Event[] => [
+const ready = (provider: string, ...counts: unknown[]): Event[] => [
   e('activity', 0, { source: 'user' }),
   e('turn-start', 1, { sessionId: S, turnId: T, source: 'user' }),
-  e('turn-complete', 2, { sessionId: S, turnId: T, source: 'user', raw: raw(provider, tokens) }),
+  e('turn-complete', 2, { sessionId: S, turnId: T, source: 'user', raw: raw(provider, counts.length ? counts[0] : 100001) }),
 ];
 const add = (provider: string, name: string, events: Event[], expected: Expected[], config = {}) => {
   cases.push({ name: provider + ':' + name, input: { provider, config: { idleMs: 10, budgetMs: 100, ...config }, events }, expected });
