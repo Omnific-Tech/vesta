@@ -29,8 +29,8 @@ if (supported && process.env.VESTA_WATCHER_TEST_OPTIONS) {
 const here = dirname(fileURLToPath(import.meta.url));
 const command = supported ? process.execPath : native;
 const args = supported ? ['--experimental-strip-types', join(here, 'watcher-run.ts'), 'codex', '--native-command', native,
-  '--idle-ms', String(config.idleMs), '--budget-ms', String(config.budgetMs), ...(config.warm ? ['--warm'] : []),
-  ...(testOptions.length ? testOptions : ['--artifacts', join(config.statusDir, process.pid + '-' + Date.now())]), '--', ...argv] : argv;
+  ...(testOptions.length ? testOptions : ['--idle-ms', String(config.idleMs), '--budget-ms', String(config.budgetMs),
+    ...(config.warm ? ['--warm'] : []), '--artifacts', join(config.statusDir, process.pid + '-' + Date.now())]), '--', ...argv] : argv;
 const child = spawn(command, args, { stdio: 'inherit', env: process.env });
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(signal, () => { try { child.kill(signal); } catch {} });
 child.on('error', () => { process.exitCode = 127; });
