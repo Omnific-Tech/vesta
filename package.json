@@ -7,6 +7,11 @@
   "scripts": {
     "probe:claude": "node --experimental-strip-types experiments/run.ts claude",
     "probe:codex": "node --experimental-strip-types experiments/run.ts codex",
-    "verify:evidence": "node --experimental-strip-types experiments/acceptance.ts"
+    "verify:evidence": "node --experimental-strip-types experiments/acceptance.ts",
+    "watch:claude": "node --experimental-strip-types experiments/watcher-run.ts claude",
+    "watch:codex": "node --experimental-strip-types experiments/watcher-run.ts codex",
+    "verify:watcher": "node --experimental-strip-types experiments/watcher-acceptance.ts",
+    "probe:watcher:claude": "node --experimental-strip-types experiments/watcher-live.ts claude",
+    "probe:watcher:codex": "node --experimental-strip-types experiments/watcher-live.ts codex"
   }
 }

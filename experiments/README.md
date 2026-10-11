@@ -87,4 +87,86 @@ the probe therefore captures the native returned compact result directly. Codex
 subscribes by rejoining only the disposable server's already-loaded matching thread
 after its initial prompt creates the rollout; it never resumes a personal saved session.
 The default shared daemon remains untested. These probes establish neither cache
-retention nor usage savings and do not deliver a production watcher.
+retention nor usage savings. The experimental local watcher below is separate
+from these disposable measurement probes.
+
+## Local experimental watcher
+
+Tested locally on macOS arm64, Node 22.17.1, Claude Code 2.1.296 and Codex CLI
+0.162.0. Use the native CLI's existing login. Run from this repository:
+
+```sh
+npm ci
+chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
+npm run watch:claude -- --cwd /absolute/path/to/project
+npm run watch:codex -- --cwd /absolute/path/to/project
+```
+
+These commands launch a new native terminal session in observe-only mode. Status
+location is printed at startup; it contains metadata, not user prompt text. Claude
+loads a session-local mod from a temporary directory. Codex starts its own private
+Unix-socket app-server, attaches the native TUI and observes that exact loaded
+thread. It preserves ordinary native configuration and capabilities. It does not
+attach to an already running personal session or the default shared daemon.
+
+To enable experimental warming explicitly:
+
+```sh
+npm run watch:claude -- --warm --cwd /absolute/path/to/project
+npm run watch:codex -- --warm --cwd /absolute/path/to/project
+```
+
+Defaults are 50 minutes idle for Claude, 20 minutes for Codex and a four-hour
+budget since real user activity. Configure `--idle-ms N` and `--budget-ms N` with
+positive integer milliseconds, at most four hours. Every completed response also
+starts a fresh idle interval. Warming never renews the user budget. A warm prompt
+requests exactly `K` and no tools. In an unrestricted session this instruction is
+not a guarantee against tool use.
+
+Only native last-response input strictly above 100,000 tokens qualifies, including
+cached input once and excluding output/cumulative totals. Unknown, malformed,
+foreign or invalidated measurements skip. New turns, compaction and reconnect
+invalidate context until a fresh completed response. A busy owner postpones.
+Codex may have no usable metric for an initial response if native subscription
+starts too late; it skips until a later fresh response rather than estimating.
+
+Observed real user input before the local dispatch commit cancels pending warming.
+Claude observes composer edits/submissions in process; Codex observes terminal
+input before forwarding it to the TUI. A prompt already handed to the native owner
+may remain queued after later input. There is no atomic native idle check or
+guaranteed queued-prompt removal; remote input bypassing the wrapper is not covered
+by its terminal input ordering. These are experimental limits. The timers are
+provisional settings, not established cache TTLs, and no retention or net usage
+savings are claimed.
+
+Exit through the native UI to stop the watcher. Ctrl+C retains native UI semantics
+(it may interrupt a turn first). Sending SIGTERM to the wrapper also stops its
+timer and cleans up only its owned TUI/server/proxy/queue processes. The wrapper
+restores terminal input mode and removes the temporary plugin/socket. The announced
+ordinary metadata status directory remains available for inspection. No global
+plugin installation, LaunchAgent, authentication mutation or personal settings
+write is performed by the wrapper; native CLIs still own their usual history and
+credential behavior.
+
+Repeatable verification uses isolated disposable native sessions:
+
+```sh
+npm run verify:watcher
+npm run probe:watcher:claude -- --artifacts harness/runs/manual-watcher-claude/artifacts
+npm run probe:watcher:codex -- --artifacts harness/runs/manual-watcher-codex/artifacts
+node --experimental-strip-types experiments/watcher-live-acceptance.ts harness/runs/manual-watcher-claude/artifacts/summary.json
+telos verify WATCH-001
+```
+
+The 112 controlled CLI timelines cover large-context gating and failure lifecycle;
+their case artifact is `watcher-fixtures.json`. Live runs invoke the shipped wrapper
+with explicit `--probe --warm --probe-threshold 0 --idle-ms 1500 --budget-ms 180000
+--max-warms 1 --capture-native`. They use three small turns (nonce, warm, normal
+nonce recall), a 240-second work deadline and bounded cleanup. Probe-only overrides
+and transcript capture are rejected without `--probe`; production defaults remain
+strictly above 100,000 tokens. Artifacts retain native raw events, owning identities,
+context metrics, watcher decisions, source fingerprints, commands, owner output,
+personal-file integrity and owned-process cleanup. Authentication/quota/network
+failures are failed verification, not simulated success. Claude probe tools are
+disabled; Codex uses a read-only sandbox. Neither fixture proves unrestricted prompt
+restraint, large live context eligibility, native enqueue race safety or cache savings.
