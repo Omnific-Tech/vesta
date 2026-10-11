@@ -7,6 +7,7 @@
   "dependencies": [],
   "risk_tags": [],
   "acceptance": [
+    { "id": "AC-LIFECYCLE", "description": "Preserve the existing 112 controlled watcher policy assertions, including strict threshold, idle timing and four-hour user budget." },
     { "id": "AC-INSTALL", "description": "Read-only plan, idempotent isolated native install/status/uninstall and preservation of unrelated entries/external edits." },
     { "id": "AC-AUTO-CLAUDE", "description": "Plain native Claude autoload, independent session metadata and rollover/reload recovery without stale measurements." },
     { "id": "AC-AUTO-CODEX", "description": "Verified original interactive command forms automatically warm only their owned native TUI/thread; unsupported forms pass through." },
