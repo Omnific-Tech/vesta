@@ -275,7 +275,7 @@ async function codex() {
     if (contextMode) {
       const loaded = await rpc('thread/loaded/list', {});
       for (const id of loaded.data ?? []) {
-        const response = await rpc('thread/read', { threadId: id, includeTurns: true });
+        const response = await rpc('thread/read', { threadId: id, includeTurns: false });
         if (response.thread.cwd === fixture || response.thread.cwd === '/private' + fixture) sessionId = id;
       }
     } else {
@@ -294,8 +294,8 @@ async function codex() {
     const sourceResponse = await fetch(sourceUrl);
     if (!sourceResponse.ok) throw new Error('cannot fetch pinned official usage semantics');
     writeFileSync(join(artifacts, 'codex-token-semantics.rs'), await sourceResponse.text());
-    const before = await rpc('thread/read', { threadId: sessionId, includeTurns: true });
-    const resumed = await rpc('thread/resume', { threadId: sessionId });
+    const before = await rpc('thread/read', { threadId: sessionId, includeTurns: false });
+    const resumed = await rpc('thread/resume', { threadId: sessionId, excludeTurns: true });
     if (resumed.thread.id !== sessionId || resumed.thread.cwd !== before.thread.cwd) throw new Error('same-owner live reattachment failed');
     appendFileSync(join(artifacts, 'codex-subscription.json'), JSON.stringify({ loaded, before, resumed, schema }));
     const firstStart = incoming.find(x => x.result?.thread?.id === sessionId);

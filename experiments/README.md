@@ -50,3 +50,41 @@ does not prove the same prompt restrains an unrestricted session. Codex proves
 attachment to this explicitly owned custom server; attaching a watcher to the
 ordinary default shared daemon remains untested. SIGINT/SIGTERM stop the driver
 through its owned-resource cleanup path and produce a blocked summary.
+
+## Current input context probe
+
+PROBE-002 uses Claude Code 2.1.296 and Codex CLI 0.162.0 with Node 22.17.1.
+The legacy keepalive probes above retain their original version contracts.
+
+```sh
+node --experimental-strip-types experiments/run.ts claude --context --artifacts harness/runs/manual-context-claude/artifacts
+node --experimental-strip-types experiments/run.ts codex --context --artifacts harness/runs/manual-context-codex/artifacts
+node --experimental-strip-types experiments/context-acceptance.ts harness/runs/manual-context-claude/artifacts/summary.json
+node --experimental-strip-types experiments/context-acceptance.ts --fixtures
+telos verify PROBE-002
+```
+
+The context mode runs three small ordinary responses and one explicit compaction,
+with a 270-second work deadline and bounded owned-resource cleanup. It records
+unknown startup, two measured responses, compaction invalidation and the next
+fresh measured response. It submits no keepalive. Claude's current input is
+`$.session.usage().context.tokens`, including uncached, cache-written and cache-read
+input. Codex's current input is `thread/tokenUsage/updated.tokenUsage.last.inputTokens`;
+cached input is already included. Output and cumulative totals never enter the gate.
+Generated native declarations and pinned official Codex source preserve semantics.
+
+The gate requires strictly more than 100,000 tokens, safe integer counts, exact
+session/generation/latest-completed-turn binding and an idle connected owner.
+Missing, malformed or invalidated observations fail closed. New input, compaction
+and reconnect invalidate earlier measurements. An unchanged idle context has no
+arbitrary age expiry. The 53 controlled JSON CLI cases prove threshold and stale
+state decisions; live E2E evidence proves only real small-context measurement.
+Fixture artifacts are saved under `TELOS_RUN_DIR/artifacts/gate-fixtures.json`,
+or `harness/runs/context-fixtures/artifacts` outside Telos.
+
+Claude's SDK compact call bypasses the invoking plugin's own compact middleware;
+the probe therefore captures the native returned compact result directly. Codex
+subscribes by rejoining only the disposable server's already-loaded matching thread,
+before sending the initial prompt; it never resumes a personal saved session.
+The default shared daemon remains untested. These probes establish neither cache
+retention nor usage savings and do not deliver a production watcher.
