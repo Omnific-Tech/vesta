@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +11,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const artifacts = resolve(process.argv[2] ?? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/setup-forwarding', 'artifacts'));
 if (existsSync(artifacts) && readdirSync(artifacts).length) throw new Error('Choose fresh artifacts');
 mkdirSync(artifacts, { recursive: true });
-const fixture = mkdtempSync(join(tmpdir(), 'vesta-forward-e2e-'));
+const fixture = realpathSync(mkdtempSync(join(tmpdir(), 'vesta-forward-e2e-')));
 const bin = join(fixture, 'existing-cmux-bin'); mkdirSync(bin);
 const native = join(bin, 'codex'); copyFileSync(join(here, 'setup-native-fixture.mjs'), native); chmodSync(native, 0o755);
 const shellFile = join(fixture, 'zshrc');

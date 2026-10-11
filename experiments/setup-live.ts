@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +15,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const artifacts = resolve(process.argv[3] ?? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/setup-live-' + provider, 'artifacts'));
 if (existsSync(artifacts) && readdirSync(artifacts).length) throw new Error('Choose fresh artifacts');
 mkdirSync(artifacts, { recursive: true });
-const fixture = mkdtempSync(join(tmpdir(), 'vesta-autoload-e2e-'));
+const fixture = realpathSync(mkdtempSync(join(tmpdir(), 'vesta-autoload-e2e-')));
 const configDir = join(fixture, provider + '-config'); mkdirSync(configDir);
 const shellFile = join(fixture, 'zshrc'); writeFileSync(shellFile, '# isolated native launch fixture\n');
 const hash = (path: string) => existsSync(path) ? createHash('sha256').update(readFileSync(path)).digest('hex') : 'absent';
