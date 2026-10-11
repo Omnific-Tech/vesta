@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "generation": "b332fa0c5f778f163b60408713fbaf80",
+  "generation": "6f1db9ccd239e0c1892c8a49e8e6568a",
   "repositories": {
-    "app": "363d43dcabb8ef40b6c3d896ac8df224e79c5a55"
+    "app": "fef3693df84d255cda7bdba092a826b819015c4c"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
     "app:experiments/context-acceptance.ts": "79c2305fefd415faf7d02fee8c644be3d8c790d5ef355841cd74b97e294432c2",
     "app:experiments/setup-acceptance.ts": "17515dd0c4cc9d0bbbb6266e87110da3f4051618b303b3c298b58d9f2f8e8c56",
     "app:experiments/setup-e2e.ts": "4c4d56fed4a60ef603839cab82569ce89d359d508e75e7b846432d9fc80724b1",
-    "app:experiments/setup-forwarding-e2e.ts": "b6755e2b338b851bf5f7c64f09c4694afb3ae4e2304b0183c104fd9c731dc864",
+    "app:experiments/setup-forwarding-e2e.ts": "457a678b45120abcca66c927bf899be8d58565f4b9341f1bff98b43914386848",
     "app:experiments/setup-live-acceptance.ts": "718a7d71dae3181e87e86af94ee5a0366dd38cbc994c50024a4a3d5260350e9a",
-    "app:experiments/setup-live.ts": "90faf30bdf0dfc5ca22bdc95dd678e95210ef4d5c08c8a7295ad17bfaabe15a2",
+    "app:experiments/setup-live.ts": "2b36152808c36569c807c4326e6f3002246e2ace86f79eae26c447e161e7fa14",
     "app:experiments/setup-native-fixture.mjs": "18c8bdcd0233ece36b6a4d192d1c972a3b5e9446accf0c38c1e5a329cb54d7bd",
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
     "app:experiments/watcher-live-acceptance.ts": "c2fc37caf711c4442bcb2d9a8f37ebd5219f475bb3019bb61c208457da5dba99",
@@ -86,6 +86,16 @@
       },
       "repositories": {
         "app": "363d43dcabb8ef40b6c3d896ac8df224e79c5a55"
+      }
+    },
+    {
+      "reason": "Canonicalize macOS temp-directory fixtures before exact cwd checks; retain exact forwarding and native ownership assertions",
+      "prior_generation": "b332fa0c5f778f163b60408713fbaf80",
+      "prior_repositories": {
+        "app": "363d43dcabb8ef40b6c3d896ac8df224e79c5a55"
+      },
+      "repositories": {
+        "app": "fef3693df84d255cda7bdba092a826b819015c4c"
       }
     }
   ]
