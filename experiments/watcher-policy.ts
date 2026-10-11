@@ -53,7 +53,11 @@ export class Watcher {
       return result(pending ? 'cancel' : 'observe', 'context invalidated');
     }
     if (e.type === 'turn-complete') {
-      if (e.sessionId !== s.sessionId || e.turnId !== s.turnId || !s.busy || this.activeGeneration !== s.generation) return result('skip', 'stale completed turn');
+      if (e.sessionId !== s.sessionId || e.turnId !== s.turnId || !s.busy) return result('skip', 'stale completed turn');
+      if (this.activeGeneration !== s.generation) {
+        s.busy = false; s.dispatched = false; s.warmAt = e.at; s.tokens = null;
+        return result('observe', 'invalidated turn finished; fresh response still required');
+      }
       s.busy = false; s.dispatched = false; s.warmAt = e.at;
       this.completedGeneration = s.generation;
       s.tokens = this.tokens(e.raw);
