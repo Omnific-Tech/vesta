@@ -1,30 +1,38 @@
 {
   "schema_version": 1,
-  "generation": "e588eb8f935c206ef05ef144fd59a8b7",
+  "generation": "c1be0018eef838704f519cefa4423a91",
   "repositories": {
-    "app": "470a07e64f03a101fa3822544a297ed6401dde3f"
+    "app": "ffacd023529ed5e279264c53b7cb4e513452fb0a"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
     "app:experiments/context-acceptance.ts": "79c2305fefd415faf7d02fee8c644be3d8c790d5ef355841cd74b97e294432c2",
+    "app:experiments/watcher-acceptance.ts": "95886a9abae5197ab29a57b88be469aef7fcac6f92daabb1061967ab8f1b269e",
+    "app:experiments/watcher-live-acceptance.ts": "c2fc37caf711c4442bcb2d9a8f37ebd5219f475bb3019bb61c208457da5dba99",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/failures.md": "3e646558afcb76fcb226c99fa08df765f3d18f1c6e39b04c5fbe39838d8afe6f",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/history/PROBE-001.json": "cfa515c7915f4673444954f8a91bd619a28ffe531fc397d42422ac445d22721b",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/plan.md": "2b2de02d8f9e3610487f526e6ada28f97a61f1e507c622bb4c70ab2d0b4fd6b4",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-002/failures.md": "1452adfdf1288a1046a46b2490315260c7147c3dc440858c604a074c438d52ff",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-002/history/PROBE-002.json": "8302c117564c6adc705797b60c709e3d63b6e7e4da1759372e5b577321315343",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-002/plan.md": "046aead5dc468e8baf7ae8c0358f3d234ce85f46085c76f5745a42c40cb5b565",
-    "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "784237fdf4f091831706d2f35c51e85c7ff9c306275a03b3f8a70f1c74f19590",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/failures.md": "46b3fb82b2b4c66783b4d36e907d2b1ebc7c3c5ec439b4b4fa29741955761fd2",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/plan.md": "7402a5d1760f9b08a22b2bcf3864251a1dd2f1838dc4a4bf7b95e27d158e93a5",
+    "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "cc295beb8c6924f41f07c7d3f8388f4d70f8815d7d2a9719bd46c802a0d09ea3",
     "app:harness/artifacts/features.md": "cf51b212f1d203688b7c6aa168fa222ab9bb16f85cd307732ffe99a8d114929a",
     "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
-    "app:harness/harness.yaml": "2743c003e8acf66a450337a1ec8ed5cd72e9dacb4c8fc9c11a52713fc3f29c3d",
+    "app:harness/harness.yaml": "9fed51223c852adfa502ef3edac5d0ae65bc00e230ca7c6c90c6c18cc1378769",
     "app:harness/scenarios/SESSION-INTEGRATION/claude-context-probe.yaml": "3e8b43be25751053a714f265b84dd122080664a2df84df44bc7b7cb637ec627f",
+    "app:harness/scenarios/SESSION-INTEGRATION/claude-watcher-live.yaml": "56c38d02379a741ae062150ec05419f17c8ac6cbe4c4654c8eb85d3434e540be",
     "app:harness/scenarios/SESSION-INTEGRATION/claude.yaml": "214c4a273efcef778f4091f98a5f6893155550f5715cc07bcf24d3c1ab1b49be",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-context-probe.yaml": "49e774026dee1e65ec4df8e0679029ba5de9378cc1e8ea9c36b9535c3606d87f",
+    "app:harness/scenarios/SESSION-INTEGRATION/codex-watcher-live.yaml": "555d6344c0a4905c19bfd71468e4a806510727deb6992cafaef17307b9bc0a26",
     "app:harness/scenarios/SESSION-INTEGRATION/codex.yaml": "cb6c0429f918fbc4c41efa5b1554bfc803fefdacb8c8dcbd0ea245153e6b1537",
     "app:harness/scenarios/SESSION-INTEGRATION/context-gate-fixtures.yaml": "af71d45576ded3261b848b2e34a526a2d42b96a308fe167b1770d475f28269a8",
-    "app:harness/tasks/PROBE-002.json": "8302c117564c6adc705797b60c709e3d63b6e7e4da1759372e5b577321315343"
+    "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "ed7d2c7d00fed8a644d574d292b830e46be20e698c9a4698025e285673bfc507",
+    "app:harness/tasks/WATCH-001.json": "a80bde6e1f5b5291044b09241e8adfab592cc8113804ab9de4719bedd3beb378"
   },
   "modes": {
-    "PROBE-002": "quick"
+    "WATCH-001": "quick"
   },
   "amendments": [
     {
@@ -35,6 +43,16 @@
       },
       "repositories": {
         "app": "470a07e64f03a101fa3822544a297ed6401dde3f"
+      }
+    },
+    {
+      "reason": "Close submitted PROBE-002; approve WATCH-001 opt-in idle watcher with user-selected four-hour budget and local dispatch ordering",
+      "prior_generation": "e588eb8f935c206ef05ef144fd59a8b7",
+      "prior_repositories": {
+        "app": "470a07e64f03a101fa3822544a297ed6401dde3f"
+      },
+      "repositories": {
+        "app": "ffacd023529ed5e279264c53b7cb4e513452fb0a"
       }
     }
   ]
