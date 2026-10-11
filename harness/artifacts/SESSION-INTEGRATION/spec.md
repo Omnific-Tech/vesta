@@ -44,3 +44,12 @@ native queued-prompt retraction is not guaranteed; document local ordering and t
 remaining race explicitly. Busy/stale/ended sessions skip, and native E2E probes
 must distinguish accelerated test settings from everyday defaults. Supply setup
 and run instructions with the first usable version. TTL/savings remain unproved.
+
+## One-time automatic setup (SETUP-001)
+
+Use native user-installed Claude mods and reversible Codex command integration so
+ordinary commands remain the daily interface. Developer selected managed wrapping
+for verified interactive Codex launch forms; unsupported commands/flags preserve
+native execution without warming. Setup/status/uninstall must be idempotent,
+reversible and preserve unrelated state. Installed Claude sessions need independent
+metadata and rollover recovery. Retain all thresholds, budgets and race limits.
