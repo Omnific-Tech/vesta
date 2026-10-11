@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "generation": "6f1db9ccd239e0c1892c8a49e8e6568a",
+  "generation": "d722c8778b4893176a404160b0e62d95",
   "repositories": {
-    "app": "fef3693df84d255cda7bdba092a826b819015c4c"
+    "app": "57e4148898e3f3bb6053c00c90129ac71b43b9e0"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
     "app:experiments/context-acceptance.ts": "79c2305fefd415faf7d02fee8c644be3d8c790d5ef355841cd74b97e294432c2",
-    "app:experiments/setup-acceptance.ts": "17515dd0c4cc9d0bbbb6266e87110da3f4051618b303b3c298b58d9f2f8e8c56",
-    "app:experiments/setup-e2e.ts": "4c4d56fed4a60ef603839cab82569ce89d359d508e75e7b846432d9fc80724b1",
+    "app:experiments/setup-acceptance.ts": "ef48a58630547c0fe20e49884c1413fcf95f075a42d7939e03524b5c157bf234",
+    "app:experiments/setup-e2e.ts": "94394f562703d1f08a7f1fdbad1cdb0407b9cb97cc68dfd9e318262f99e2e08b",
     "app:experiments/setup-forwarding-e2e.ts": "457a678b45120abcca66c927bf899be8d58565f4b9341f1bff98b43914386848",
     "app:experiments/setup-live-acceptance.ts": "718a7d71dae3181e87e86af94ee5a0366dd38cbc994c50024a4a3d5260350e9a",
     "app:experiments/setup-live.ts": "2b36152808c36569c807c4326e6f3002246e2ace86f79eae26c447e161e7fa14",
@@ -96,6 +96,16 @@
       },
       "repositories": {
         "app": "fef3693df84d255cda7bdba092a826b819015c4c"
+      }
+    },
+    {
+      "reason": "Use native pluginConfigs options namespace for unrelated sentinel; preserve the unrelated-entry assertion and avoid unsupported flat configuration fields",
+      "prior_generation": "6f1db9ccd239e0c1892c8a49e8e6568a",
+      "prior_repositories": {
+        "app": "fef3693df84d255cda7bdba092a826b819015c4c"
+      },
+      "repositories": {
+        "app": "57e4148898e3f3bb6053c00c90129ac71b43b9e0"
       }
     }
   ]
