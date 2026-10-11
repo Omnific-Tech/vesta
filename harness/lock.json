@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generation": "c1be0018eef838704f519cefa4423a91",
+  "generation": "ac0a25cdbc006c8c1d19cc42bd3e8f4e",
   "repositories": {
-    "app": "ffacd023529ed5e279264c53b7cb4e513452fb0a"
+    "app": "f703396d033a23e6384787c51e2fe35f57c31517"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
     "app:experiments/context-acceptance.ts": "79c2305fefd415faf7d02fee8c644be3d8c790d5ef355841cd74b97e294432c2",
-    "app:experiments/watcher-acceptance.ts": "95886a9abae5197ab29a57b88be469aef7fcac6f92daabb1061967ab8f1b269e",
+    "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
     "app:experiments/watcher-live-acceptance.ts": "c2fc37caf711c4442bcb2d9a8f37ebd5219f475bb3019bb61c208457da5dba99",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/failures.md": "3e646558afcb76fcb226c99fa08df765f3d18f1c6e39b04c5fbe39838d8afe6f",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/history/PROBE-001.json": "cfa515c7915f4673444954f8a91bd619a28ffe531fc397d42422ac445d22721b",
@@ -53,6 +53,16 @@
       },
       "repositories": {
         "app": "ffacd023529ed5e279264c53b7cb4e513452fb0a"
+      }
+    },
+    {
+      "reason": "Correct prewritten missing-token fixture: an explicit undefined must remain absent rather than trigger the helper default; expected fail-closed behavior unchanged",
+      "prior_generation": "c1be0018eef838704f519cefa4423a91",
+      "prior_repositories": {
+        "app": "ffacd023529ed5e279264c53b7cb4e513452fb0a"
+      },
+      "repositories": {
+        "app": "f703396d033a23e6384787c51e2fe35f57c31517"
       }
     }
   ]
