@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "SETUP-001",
+  "mode": "quick",
+  "scope": "Deliver one-time local setup/status/uninstall: native Claude user mod autoload and verified interactive Codex wrapping, with unsupported native commands/flags forwarded unchanged without warming.",
+  "implementor_id": "gpt-6.1-sol-medium",
+  "dependencies": [],
+  "risk_tags": [],
+  "acceptance": [
+    { "id": "AC-INSTALL", "description": "Read-only plan, idempotent isolated native install/status/uninstall and preservation of unrelated entries/external edits." },
+    { "id": "AC-AUTO-CLAUDE", "description": "Plain native Claude autoload, independent session metadata and rollover/reload recovery without stale measurements." },
+    { "id": "AC-AUTO-CODEX", "description": "Verified original interactive command forms automatically warm only their owned native TUI/thread; unsupported forms pass through." },
+    { "id": "AC-FLAGS", "description": "Unsupported argv/stdio/cwd/exit stay exact; supported model/cwd/approval/sandbox semantics and transport-only changes have real proof." },
+    { "id": "AC-SETUP-INTEGRITY", "description": "Real repeatable artifacts, source identities, owned cleanup, unchanged personal files, opt-in defaults and reversible setup documentation." }
+  ],
+  "verification": ["native-setup", "native-forwarding", "claude-installed-live", "codex-integrated-live", "watcher-lifecycle"]
+}

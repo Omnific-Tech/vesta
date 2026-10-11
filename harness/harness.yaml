@@ -13,5 +13,17 @@ verification_inputs:
     path: experiments/watcher-acceptance.ts
   - repo: app
     path: experiments/watcher-live-acceptance.ts
+  - repo: app
+    path: experiments/setup-acceptance.ts
+  - repo: app
+    path: experiments/setup-e2e.ts
+  - repo: app
+    path: experiments/setup-forwarding-e2e.ts
+  - repo: app
+    path: experiments/setup-live-acceptance.ts
+  - repo: app
+    path: experiments/setup-live.ts
+  - repo: app
+    path: experiments/setup-native-fixture.mjs
 retention:
   max_runs_per_task: 5

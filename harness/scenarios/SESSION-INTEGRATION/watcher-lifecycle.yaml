@@ -4,7 +4,7 @@ repo: app
 runner: command
 kind: fixture
 command: [node, --experimental-strip-types, experiments/watcher-acceptance.ts]
-acceptance: [AC-LIFECYCLE]
+acceptance: [AC-LIFECYCLE, AC-SETUP-INTEGRITY]
 timeout_ms: 30000
 expect:
   exit_code: 0
