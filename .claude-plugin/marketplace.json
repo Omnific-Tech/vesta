@@ -1,0 +1,5 @@
+{
+  "name": "vesta-local",
+  "owner": { "name": "Vesta" },
+  "plugins": [{ "name": "vesta", "source": "./experiments/vesta-claude", "version": "0.1.0", "description": "Bounded opt-in native session watcher" }]
+}

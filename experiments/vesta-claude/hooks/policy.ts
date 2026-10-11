@@ -1,0 +1,98 @@
+// Host-independent policy shared by the CLI and Claude's in-process mod.
+export type WatchEvent = { type: string; at: number; [key: string]: any };
+export class Watcher {
+  provider: string;
+  defaults: { idleMs: number; budgetMs: number; threshold: number };
+  state = { userAt: null as number | null, warmAt: null as number | null, busy: false,
+    generation: 0, pending: false, dispatched: false, sessionId: '', turnId: '', ended: false,
+    reservationId: '', tokens: null as number | null };
+  private previousAt = -1;
+  private serial = 0;
+  private reservedGeneration = -1;
+  private invalidatedAt = 0;
+  private completedGeneration = -1;
+  private activeGeneration = -1;
+  constructor(provider: string, config: any = {}, mode = 'normal') {
+    if (!['claude', 'codex'].includes(provider)) throw new Error('provider must be claude or codex');
+    if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('invalid configuration');
+    this.provider = provider;
+    const idleMs = config.idleMs === undefined ? (provider === 'claude' ? 3000000 : 1200000) : config.idleMs;
+    const budgetMs = config.budgetMs === undefined ? 14400000 : config.budgetMs;
+    const threshold = config.probeThreshold === undefined ? 100000 : config.probeThreshold;
+    if (![idleMs, budgetMs].every(n => Number.isSafeInteger(n) && n > 0 && n <= 14400000)) throw new Error('timings must be positive integer milliseconds, at most four hours');
+    if (config.probeThreshold !== undefined && mode !== 'probe') throw new Error('threshold override requires explicit probe mode');
+    if (!Number.isSafeInteger(threshold) || threshold < 0) throw new Error('invalid threshold');
+    this.defaults = { idleMs, budgetMs, threshold };
+  }
+  event(e: WatchEvent) {
+    if (!Number.isSafeInteger(e.at) || e.at < 0 || e.at < this.previousAt) throw new Error('event timestamps must be monotonic nonnegative safe integers');
+    this.previousAt = e.at;
+    const s = this.state;
+    const result = (action: string, reason = '') => ({ type: e.type, at: e.at, action, reason, state: { ...s } });
+    if (['turn-start', 'turn-complete', 'measure'].includes(e.type)
+        && ![e.sessionId, e.turnId].every(id => typeof id === 'string' && id.length > 0)) return result('skip', 'invalid owner binding');
+    const foreign = e.sessionId && s.sessionId && e.sessionId !== s.sessionId;
+    if (foreign) return result('skip', 'foreign owner');
+    if (s.ended) return result('ended', 'owner ended');
+    if (e.type === 'exit') { s.ended = true; s.pending = false; return result('ended'); }
+    if (e.type === 'activity') {
+      if (e.source !== 'user') return result('skip', 'not verified user activity');
+      const pending = s.pending;
+      s.userAt = e.at; s.pending = false;
+      return result(pending ? 'cancel' : 'observe', 'user activity');
+    }
+    if (['compact', 'reconnect', 'turn-start'].includes(e.type)) {
+      if (e.type === 'turn-start' && (!e.sessionId || !e.turnId)) return result('skip', 'missing owner binding');
+      const pending = s.pending;
+      s.pending = false; s.tokens = null; s.generation += 1; this.invalidatedAt = e.at;
+      this.completedGeneration = -1; this.activeGeneration = -1;
+      if (e.type === 'turn-start') {
+        s.sessionId = e.sessionId; s.turnId = e.turnId; s.busy = true;
+        this.activeGeneration = s.generation;
+      }
+      return result(pending ? 'cancel' : 'observe', 'context invalidated');
+    }
+    if (e.type === 'turn-complete') {
+      if (e.sessionId !== s.sessionId || e.turnId !== s.turnId || !s.busy) return result('skip', 'stale completed turn');
+      if (this.activeGeneration !== s.generation) {
+        s.busy = false; s.dispatched = false; s.warmAt = e.at; s.tokens = null;
+        return result('observe', 'invalidated turn finished; fresh response still required');
+      }
+      s.busy = false; s.dispatched = false; s.warmAt = e.at;
+      this.completedGeneration = s.generation;
+      s.tokens = this.tokens(e.raw);
+      return result('observe', 'completed response');
+    }
+    if (e.type === 'measure') {
+      if (e.sessionId !== s.sessionId || e.turnId !== s.turnId || e.generation !== s.generation || this.completedGeneration !== s.generation
+          || !Number.isSafeInteger(e.observedAt) || e.observedAt > e.at || e.observedAt < Math.max(this.invalidatedAt, s.warmAt ?? e.at) || s.busy) return result('skip', 'stale measurement');
+      s.tokens = this.tokens(e.raw);
+      return result('observe', 'current input measurement');
+    }
+    if (e.type === 'submit-failed') {
+      s.pending = false; s.dispatched = false; s.warmAt = e.at;
+      return result('observe', 'submission failed; cooldown');
+    }
+    if (e.type !== 'tick' && e.type !== 'dispatch') return result('skip', 'unknown event');
+    if (s.userAt !== null && e.at - s.userAt >= this.defaults.budgetMs) { s.pending = false; return result('expired', 'user inactivity budget exhausted'); }
+    if (s.busy) { s.pending = false; return result('busy', 'owner busy'); }
+    if (s.userAt === null || s.tokens === null || s.tokens <= this.defaults.threshold || !s.sessionId || !s.turnId) {
+      s.pending = false; return result('skip', 'unknown or ineligible current input');
+    }
+    if (e.at - Math.max(s.userAt, s.warmAt ?? 0) < this.defaults.idleMs) return result('skip', 'idle interval not elapsed');
+    if (e.type === 'dispatch') {
+      if (!s.pending || s.dispatched || this.reservedGeneration !== s.generation
+          || (e.reservationId !== undefined && e.reservationId !== s.reservationId)) return result('skip', 'no matching pending reservation');
+      s.pending = false; s.dispatched = true;
+      return result('dispatch', 'committed to native submission; removal not guaranteed');
+    }
+    if (s.pending || s.dispatched) return result('skip', 'warm already pending or dispatched');
+    s.pending = true; this.reservedGeneration = s.generation;
+    s.reservationId = s.generation + ':' + (++this.serial);
+    return result('reserve', 'eligible idle owner');
+  }
+  private tokens(raw: any): number | null {
+    const value = this.provider === 'claude' ? raw?.context?.tokens : raw?.tokenUsage?.last?.inputTokens;
+    return Number.isSafeInteger(value) && value >= 0 ? value : null;
+  }
+}
