@@ -295,9 +295,6 @@ async function codex() {
     if (!sourceResponse.ok) throw new Error('cannot fetch pinned official usage semantics');
     writeFileSync(join(artifacts, 'codex-token-semantics.rs'), await sourceResponse.text());
     const before = await rpc('thread/read', { threadId: sessionId, includeTurns: false });
-    const resumed = await rpc('thread/resume', { threadId: sessionId, excludeTurns: true });
-    if (resumed.thread.id !== sessionId || resumed.thread.cwd !== before.thread.cwd) throw new Error('same-owner live reattachment failed');
-    appendFileSync(join(artifacts, 'codex-subscription.json'), JSON.stringify({ loaded, before, resumed, schema }));
     const firstStart = incoming.find(x => x.result?.thread?.id === sessionId);
     if (!firstStart) throw new Error('missing native owned thread startup response');
     appendFileSync(join(artifacts, 'codex-lifecycle.jsonl'), JSON.stringify(firstStart) + '\n');
@@ -305,6 +302,13 @@ async function codex() {
     terminal.write('\x1b[200~' + `Remember this nonce: ${nonce}. Reply with exactly ${nonce}. Do not use tools.` + '\x1b[201~');
     await new Promise(resolve => setTimeout(resolve, 500));
     terminal.write('\r');
+    await waitFor(() => {
+      const row = incoming.filter(x => x.result?.thread?.id === sessionId).at(-1);
+      return row?.result.thread.path && existsSync(row.result.thread.path);
+    }, 'owned initial rollout created');
+    const resumed = await rpc('thread/resume', { threadId: sessionId, excludeTurns: true });
+    if (resumed.thread.id !== sessionId || resumed.thread.cwd !== before.thread.cwd) throw new Error('same-owner live reattachment failed');
+    appendFileSync(join(artifacts, 'codex-subscription.json'), JSON.stringify({ loaded, before, resumed, schema }));
     const completedTurns = () => incoming.filter(x => x.method === 'turn/completed' && x.params?.threadId === sessionId && x.params?.turn?.status === 'completed');
     const normalTurn = async (stage: 'first' | 'second' | 'third', id?: string, generation = 0) => {
       const complete = await waitFor(() => completedTurns().find(x => (!id || x.params.turn.id === id) && !x.params.turn.items?.some((i: any) => i.type === 'contextCompaction')), 'Codex ' + stage + ' completed response');

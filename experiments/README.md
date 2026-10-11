@@ -84,7 +84,7 @@ or `harness/runs/context-fixtures/artifacts` outside Telos.
 
 Claude's SDK compact call bypasses the invoking plugin's own compact middleware;
 the probe therefore captures the native returned compact result directly. Codex
-subscribes by rejoining only the disposable server's already-loaded matching thread,
-before sending the initial prompt; it never resumes a personal saved session.
+subscribes by rejoining only the disposable server's already-loaded matching thread
+after its initial prompt creates the rollout; it never resumes a personal saved session.
 The default shared daemon remains untested. These probes establish neither cache
 retention nor usage savings and do not deliver a production watcher.
