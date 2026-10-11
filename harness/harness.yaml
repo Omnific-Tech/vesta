@@ -9,5 +9,9 @@ verification_inputs:
     path: experiments/acceptance.ts
   - repo: app
     path: experiments/context-acceptance.ts
+  - repo: app
+    path: experiments/watcher-acceptance.ts
+  - repo: app
+    path: experiments/watcher-live-acceptance.ts
 retention:
   max_runs_per_task: 5

@@ -33,3 +33,14 @@ tokens. Unknown, malformed or stale observations skip. Bind measurements to the
 owning session, latest completed turn and context generation; invalidate during
 new turns, compaction and reconnect. First prove small live metrics and controlled
 gate cases. Production scheduling and real cache savings remain later work.
+
+## Experimental idle watcher (WATCH-001)
+
+Continue with a local opt-in watcher using the above current-input gate. Default
+idle intervals are Claude 50 minutes / Codex 20 minutes. Developer selected four
+hours since real user activity as the warming limit; warm turns never renew it.
+Cancel pending local work when user activity wins before dispatch. After dispatch,
+native queued-prompt retraction is not guaranteed; document local ordering and the
+remaining race explicitly. Busy/stale/ended sessions skip, and native E2E probes
+must distinguish accelerated test settings from everyday defaults. Supply setup
+and run instructions with the first usable version. TTL/savings remain unproved.

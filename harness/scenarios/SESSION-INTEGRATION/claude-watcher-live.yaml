@@ -1,0 +1,10 @@
+schema_version: 1
+id: claude-watcher-live
+repo: app
+runner: command
+kind: live
+command: [node, --experimental-strip-types, experiments/watcher-live.ts, claude]
+acceptance: [AC-WATCH-CLAUDE, AC-WATCH-INTEGRITY, AC-LOCAL-RUN]
+timeout_ms: 270000
+expect:
+  exit_code: 0
