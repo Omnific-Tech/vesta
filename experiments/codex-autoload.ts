@@ -8,7 +8,7 @@ const split = process.argv.indexOf('--');
 const options = process.argv.slice(2, split); const argv = process.argv.slice(split + 1);
 const native = options[options.indexOf('--native') + 1]!;
 const configPath = options[options.indexOf('--config') + 1]!;
-const takesValue = new Set(['-m', '--model', '-C', '--cd', '-a', '--ask-for-approval', '-s', '--sandbox']);
+const takesValue = new Set(['-m', '-C', '-a', '-s']);
 let supported = process.stdin.isTTY && process.stdout.isTTY;
 for (let i = 0; i < argv.length; i++) {
   const arg = argv[i]!;
