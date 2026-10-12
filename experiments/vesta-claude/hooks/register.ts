@@ -56,6 +56,9 @@ let configuredOptions;
     }
   };
 export function register(on, options) {
+  if (watcher) {
+    timer?.cancel(); watcher = undefined; sessionId = ''; nextReset = 'reload'; warmMarker = '';
+  }
   configuredOptions = options;
   on('session.start', async ($, e, next) => {
     await ensure($); await $.command.register({ name: 'vesta-status', description: 'Show this session’s Vesta metadata without a model request' });
