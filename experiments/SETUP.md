@@ -42,7 +42,7 @@ attachment to the ordinary shared daemon remains unverified.
 | --- | --- |
 | Interactive flags `-m`/`--model`, `-C`/`--cd`, `-a`/`--ask-for-approval`, `-s`/`--sandbox`, `--no-alt-screen` | Managed owner; live verification checks model, canonical cwd, approval `never`, sandbox `read-only`, and no-alt-screen together |
 | `exec`, `review`, utilities, or non-TTY stdin/stdout | Existing native command, unchanged argv/stdin/stdout/stderr/cwd/exit; no warming |
-| Profiles, resume/fork, worktrees, explicit remote, `--no-daemon`, config overrides, and unknown flags | Existing native command; warm support is unavailable for these forms |
+| Positional initial prompts, profiles, resume/fork, worktrees, explicit remote, `--no-daemon`, config overrides, and unknown flags | Existing native command; warm support is unavailable for these forms |
 
 The supported flag mapping does not establish every native flag combination or
 every model/provider setting. Unproved forms retain native behavior. Native

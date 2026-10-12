@@ -9,13 +9,12 @@ const options = process.argv.slice(2, split); const argv = process.argv.slice(sp
 const native = options[options.indexOf('--native') + 1]!;
 const configPath = options[options.indexOf('--config') + 1]!;
 const takesValue = new Set(['-m', '--model', '-C', '--cd', '-a', '--ask-for-approval', '-s', '--sandbox']);
-let supported = process.stdin.isTTY && process.stdout.isTTY; let prompts = 0;
+let supported = process.stdin.isTTY && process.stdout.isTTY;
 for (let i = 0; i < argv.length; i++) {
   const arg = argv[i]!;
   if (takesValue.has(arg)) { if (!argv[++i] || argv[i]!.startsWith('-')) supported = false; }
   else if (arg === '--no-alt-screen') continue;
-  else if (arg.startsWith('-') || ++prompts > 1) supported = false;
-  else if (['exec', 'e', 'review', 'login', 'logout', 'mcp', 'plugin', 'app-server', 'remote-control', 'app', 'completion', 'update', 'doctor', 'sandbox', 'debug', 'apply', 'a', 'resume', 'queue', 'archive', 'delete', 'migrate-rollouts', 'unarchive', 'fork', 'cloud', 'exec-server', 'features', 'help', 'agents'].includes(arg)) supported = false;
+  else supported = false; // Positional prompts and all subcommands stay native until proved.
 }
 let config: any;
 if (supported) { try { config = JSON.parse(readFileSync(configPath, 'utf8')); } catch { supported = false; } }
