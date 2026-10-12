@@ -31,6 +31,8 @@ after local dispatch is not guaranteed; retention and savings are unproven.
 | Codex invocation | Verified routing |
 | --- | --- |
 | Interactive `-m`, `-C`, `-a`, `-s`, `--no-alt-screen` | Managed native TUI/private server; exact spelling combination proved with native model/cwd, approval `never` and sandbox `read-only` |
+| Interactive `--yolo` with `-m`, `-C`, `--no-alt-screen`, optionally `-s read-only` | Managed native owner; native approval `never`, unrestricted sandbox/network semantics, original TUI argv plus transport only |
+| `--yolo` with `-a` | Native approval conflict preserved; no managed owner |
 | Positional initial prompt, profiles, resume/fork, worktrees, explicit remote, `--no-daemon`, long value-flag aliases, `-c`, unknown flags | Native pass-through; warming unavailable |
 | Exec/review/utilities or non-TTY stdin/stdout | Native pass-through with unchanged argv, stdio, cwd and exit status |
 

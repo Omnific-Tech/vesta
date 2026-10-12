@@ -13,9 +13,11 @@ let supported = process.stdin.isTTY && process.stdout.isTTY;
 for (let i = 0; i < argv.length; i++) {
   const arg = argv[i]!;
   if (takesValue.has(arg)) { if (!argv[++i] || argv[i]!.startsWith('-')) supported = false; }
-  else if (arg === '--no-alt-screen') continue;
+  else if (arg === '--no-alt-screen' || arg === '--yolo') continue;
   else supported = false; // Positional prompts and all subcommands stay native until proved.
 }
+// Preserve Codex's own parse error instead of starting an owner for this conflict.
+if (argv.includes('--yolo') && argv.includes('-a')) supported = false;
 let config: any;
 if (supported) {
   try {

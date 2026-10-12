@@ -140,8 +140,9 @@ async function runClaude() {
 async function runCodex() {
   const socket = join(runtime, 'owner.sock');
   const endpoint = 'unix://' + socket;
+  const yolo = nativeArgs?.includes('--yolo');
   const overrides = [
-    ['model', nativeValue('-m', '--model')], ['approval_policy', nativeValue('-a', '--ask-for-approval')], ['sandbox_mode', nativeValue('-s', '--sandbox')],
+    ['model', nativeValue('-m', '--model')], ['approval_policy', yolo ? 'never' : nativeValue('-a', '--ask-for-approval')], ['sandbox_mode', yolo ? 'danger-full-access' : nativeValue('-s', '--sandbox')],
   ].filter(([, selected]) => selected !== undefined).flatMap(([key, selected]) => ['-c', key + '=' + JSON.stringify(selected)]);
   const server = launch(nativeCommand, ['app-server', '--listen', endpoint, ...overrides, ...(probe ? ['-c', 'features.apps=false', '-c', 'features.plugins=false'] : [])], 'codex-server.txt');
   await waitFor(() => existsSync(socket), 'owned app-server');

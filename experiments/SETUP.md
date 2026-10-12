@@ -51,12 +51,18 @@ attachment to the ordinary shared daemon remains unverified.
 | Native Codex form | Behavior |
 | --- | --- |
 | Interactive flags `-m`, `-C`, `-a`, `-s`, `--no-alt-screen` | Managed owner; live verification checks these exact spellings together with the native model, canonical cwd, approval `never`, and sandbox `read-only` |
+| Interactive `--yolo` with `-m`, `-C`, `--no-alt-screen`, optionally `-s read-only` | Managed owner; original TUI argv is retained and the owned server matches native approval `never`, sandbox `dangerFullAccess`, and unrestricted network access. Native yolo overrides the explicit sandbox selection |
+| `--yolo` combined with `-a` | Existing native command rejects the conflicting approval flag, with unchanged error/exit behavior |
 | `exec`, `review`, utilities, or non-TTY stdin/stdout | Existing native command, unchanged argv/stdin/stdout/stderr/cwd/exit; no warming |
 | Positional initial prompts, long aliases of the value flags, profiles, resume/fork, worktrees, explicit remote, `--no-daemon`, config overrides, and unknown flags | Existing native command; warm support is unavailable for these forms |
 
 The supported flag mapping does not establish every native flag combination or
 every model/provider setting. Unproved forms retain native behavior. Native
 pass-through does not add a Vesta banner to JSON or utility output.
+The exact `--yolo` alias is supported; the long bypass spelling remains native
+pass-through. An already installed shell function reads this checkout on each
+launch, so this update requires no reinstall or shell reactivation. Start a new
+Codex session to use it; an existing running session keeps its current owner.
 
 Warming is off by default. To opt in once, repeat the explicit installation with
 `--warm`. Claude can also configure `warm` through its native
@@ -101,7 +107,9 @@ node --experimental-strip-types experiments/setup-e2e.ts
 node --experimental-strip-types experiments/setup-forwarding-e2e.ts
 node --experimental-strip-types experiments/setup-live.ts claude
 node --experimental-strip-types experiments/setup-live.ts codex
-telos verify SETUP-001
+node --experimental-strip-types experiments/setup-live.ts codex --yolo
+node --experimental-strip-types experiments/setup-live.ts codex --yolo-sandbox
+telos verify YOLO-001
 ```
 
 Each run retains exact native transcripts/protocol rows, metadata, command and
