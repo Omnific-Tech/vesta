@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "generation": "4a87b2997e343c4ca6ff0cf1de8ac683",
+  "generation": "7f69691bad9eeb1e310b0e6bf398c715",
   "repositories": {
-    "app": "1403f7395a76a8324357ec7e18d44c47fa92df3c"
+    "app": "d017927b3eeb154583802932abd464031a3ea93e"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
     "app:experiments/context-acceptance.ts": "79c2305fefd415faf7d02fee8c644be3d8c790d5ef355841cd74b97e294432c2",
     "app:experiments/setup-acceptance.ts": "dfc27754f1d5b6642475f3a354b1ab41ea65a1c9406a85f7c17488cdd85d4d58",
     "app:experiments/setup-e2e.ts": "94394f562703d1f08a7f1fdbad1cdb0407b9cb97cc68dfd9e318262f99e2e08b",
-    "app:experiments/setup-forwarding-e2e.ts": "457a678b45120abcca66c927bf899be8d58565f4b9341f1bff98b43914386848",
-    "app:experiments/setup-live-acceptance.ts": "8f3034f9e4324ac9b40a85bbb11c691c94165a6f9b7838fccc63a7f7ef1eb97c",
-    "app:experiments/setup-live.ts": "586fb2ce6b04f7c27495d7d7d3d721e10b9578aa3a89b45deff5f08e772122aa",
+    "app:experiments/setup-forwarding-e2e.ts": "c1518c2e759d4a2cce786ad64c2a22db647b4b42c3c3fd4afe4b964e89bdd734",
+    "app:experiments/setup-live-acceptance.ts": "886dadbe94944ece062c1afa46451828577199b037fc897471abed4ee9188c94",
+    "app:experiments/setup-live.ts": "7d9c927a8ccfd080b97fa82d2c48601711c2524f9ae1770f327ae14968096627",
     "app:experiments/setup-native-fixture.mjs": "18c8bdcd0233ece36b6a4d192d1c972a3b5e9446accf0c38c1e5a329cb54d7bd",
-    "app:experiments/setup-tty-forwarding-e2e.ts": "0dde36f8c56c5daf22d989a69c50049136a08987d02a70a55bf23942d566e7f7",
+    "app:experiments/setup-tty-forwarding-e2e.ts": "0cb58a471f27dba4b3ea85a971afa74ca94b5bc5acf7867fdc1e28681e490a2e",
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
     "app:experiments/watcher-live-acceptance.ts": "c2fc37caf711c4442bcb2d9a8f37ebd5219f475bb3019bb61c208457da5dba99",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/failures.md": "3e646558afcb76fcb226c99fa08df765f3d18f1c6e39b04c5fbe39838d8afe6f",
@@ -23,11 +23,13 @@
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-002/history/PROBE-002.json": "8302c117564c6adc705797b60c709e3d63b6e7e4da1759372e5b577321315343",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-002/plan.md": "046aead5dc468e8baf7ae8c0358f3d234ce85f46085c76f5745a42c40cb5b565",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/SETUP-001/failures.md": "4f541c33ff9b01e2c43e107714a4bd1c67713d9601d36466bdcf9e522b4b60a6",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/SETUP-001/history/SETUP-001.json": "15c68a42acea6b102f8e931aaf54c0beff2e3789316f40fa8fb4faec0987f517",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/SETUP-001/plan.md": "16e56cb39c63b9a42e377ee22890543a28cd14294b5bb776e223e35c8c6384f6",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/failures.md": "46b3fb82b2b4c66783b4d36e907d2b1ebc7c3c5ec439b4b4fa29741955761fd2",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/history/WATCH-001.json": "a80bde6e1f5b5291044b09241e8adfab592cc8113804ab9de4719bedd3beb378",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/plan.md": "7402a5d1760f9b08a22b2bcf3864251a1dd2f1838dc4a4bf7b95e27d158e93a5",
-    "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "ce16013519c1029c506959f61ca832928a1b679a11c891716ce61b1ef136f5db",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/YOLO-001/plan.md": "95b77c74b7e71fdec880ca25ac6e03b8b7574d6328870efe8d6c2af7da21763a",
+    "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "41d467d35cc8aa6066d4081b2b1828438d7515050cdc2cd45f0c4bb7078675fa",
     "app:harness/artifacts/features.md": "0f2701f3eb5e1d646cd2dc2f91fd3e175f7ffa3536fee1926296b0d7dff97c67",
     "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
     "app:harness/harness.yaml": "5c5bb68dfa3ffb82d72d66cfc197d468960d5519a52f11f64c3b2fdb5ffeb884",
@@ -38,16 +40,18 @@
     "app:harness/scenarios/SESSION-INTEGRATION/codex-context-probe.yaml": "49e774026dee1e65ec4df8e0679029ba5de9378cc1e8ea9c36b9535c3606d87f",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-integrated-live.yaml": "f32de7946697b1e5b9a38dbd6747c4bd75af3d8b08fd07a35d2f0028f67099ac",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-watcher-live.yaml": "555d6344c0a4905c19bfd71468e4a806510727deb6992cafaef17307b9bc0a26",
+    "app:harness/scenarios/SESSION-INTEGRATION/codex-yolo-live.yaml": "08aba4fddf801cf224b322c29b2bf07fdb0df33e49610493b1d87d09358ae654",
+    "app:harness/scenarios/SESSION-INTEGRATION/codex-yolo-sandbox-live.yaml": "ebc8a949ba497c4db6fd330e98b28490c826e5e5d1ab3e2195406f052a4dea0d",
     "app:harness/scenarios/SESSION-INTEGRATION/codex.yaml": "cb6c0429f918fbc4c41efa5b1554bfc803fefdacb8c8dcbd0ea245153e6b1537",
     "app:harness/scenarios/SESSION-INTEGRATION/context-gate-fixtures.yaml": "af71d45576ded3261b848b2e34a526a2d42b96a308fe167b1770d475f28269a8",
     "app:harness/scenarios/SESSION-INTEGRATION/interactive-forwarding.yaml": "fb381d0277ee58287c5d06d698081a42e014df217d70fac5da6a806ab3310455",
     "app:harness/scenarios/SESSION-INTEGRATION/native-forwarding.yaml": "25bdbf096986b46aabadbf4597e461b97e46278efdfa8061b5d04fb62f6a7bf8",
     "app:harness/scenarios/SESSION-INTEGRATION/native-setup.yaml": "11e8d3c08bc08b50e0402812b5a7316f4ccd11b5da8b82ad07a7bfe7dcb33a4b",
     "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "b6e067c4ad01ef3df114acc154c21b2673fdda353c8f4632f12f6efccad422ac",
-    "app:harness/tasks/SETUP-001.json": "15c68a42acea6b102f8e931aaf54c0beff2e3789316f40fa8fb4faec0987f517"
+    "app:harness/tasks/YOLO-001.json": "010b83090df58650964cdaafcfba14aa90f4ee3d84b950556a59645c4c627ee0"
   },
   "modes": {
-    "SETUP-001": "quick"
+    "YOLO-001": "quick"
   },
   "amendments": [
     {
@@ -178,6 +182,16 @@
       },
       "repositories": {
         "app": "1403f7395a76a8324357ec7e18d44c47fa92df3c"
+      }
+    },
+    {
+      "reason": "Approve YOLO-001 native alias scope and preimplementation E2E contracts; archive submitted SETUP-001",
+      "prior_generation": "4a87b2997e343c4ca6ff0cf1de8ac683",
+      "prior_repositories": {
+        "app": "1403f7395a76a8324357ec7e18d44c47fa92df3c"
+      },
+      "repositories": {
+        "app": "d017927b3eeb154583802932abd464031a3ea93e"
       }
     }
   ]
