@@ -11,11 +11,16 @@ let configuredOptions;
   const status = () => ({ ...watcher.state, pluginId: 'vesta@vesta-local', sessionId, storeKey: 'status:' + sessionId,
     warmEnabled: config.warm, idleMs: watcher.defaults.idleMs, budgetMs: watcher.defaults.budgetMs,
     threshold: watcher.defaults.threshold, resetReason });
-  const persist = async ($) => { await $.store.set('status:' + sessionId, status()); };
-  const event = async ($, type, extra = {}) => {
-    if (!watcher) return;
-    const result = watcher.event({ type, at: await $.clock.now(), ...extra });
-    await persist($); return result;
+  const persist = async ($, target = watcher, id = sessionId) => {
+    if (target !== watcher || id !== sessionId) return;
+    await $.store.set('status:' + id, status());
+  };
+  const event = async ($, type, extra = {}, target = watcher, id = sessionId) => {
+    if (!target) return;
+    const at = await $.clock.now();
+    if (target !== watcher || id !== sessionId) return;
+    const result = target.event({ type, at, ...extra });
+    await persist($, target, id); return result;
   };
   const ensure = async ($) => {
     const id = await $.session.id();
@@ -26,16 +31,24 @@ let configuredOptions;
       config = { warm: configuredOptions.warm === true, idleMs: configuredOptions.idle_ms ?? 3000000, budgetMs: configuredOptions.budget_ms ?? 14400000 };
       watcher = new Watcher('claude', { idleMs: config.idleMs, budgetMs: config.budgetMs });
       resetReason = nextReset || (old ? 'reload' : 'start'); nextReset = ''; warmMarker = '';
-      await persist($);
+      const owner = watcher; const ownerSession = sessionId; const ownerConfig = config;
+      await persist($, owner, ownerSession);
+      if (owner !== watcher || ownerSession !== sessionId) return;
       timer = $.clock.every(Math.min(30000, watcher.defaults.idleMs), async () => {
-        if (!config.warm || watcher.state.ended || await $.session.id() !== sessionId) return;
-        const reserve = await event($, 'tick'); if (reserve.action !== 'reserve') return;
+        if (!ownerConfig.warm || owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
+        const nativeSession = await $.session.id();
+        if (owner !== watcher || ownerSession !== sessionId || owner.state.ended || nativeSession !== ownerSession) return;
+        const reserve = await event($, 'tick', {}, owner, ownerSession);
+        if (!reserve || reserve.action !== 'reserve' || owner !== watcher || ownerSession !== sessionId) return;
         await $.clock.sleep(0);
-        const dispatch = await event($, 'dispatch', { reservationId: reserve.state.reservationId });
-        if (dispatch.action !== 'dispatch') return;
-        warmMarker = `Vesta idle ping ${sessionId}:${dispatch.state.reservationId}.`;
-        try { await $.prompt.submit({ text: `Reply with exactly K. Do not use tools. ${warmMarker}` }); }
-        catch { await event($, 'submit-failed'); }
+        if (owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
+        const dispatch = await event($, 'dispatch', { reservationId: reserve.state.reservationId }, owner, ownerSession);
+        if (!dispatch || dispatch.action !== 'dispatch' || owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
+        const marker = `Vesta idle ping ${ownerSession}:${dispatch.state.reservationId}.`;
+        const text = `Reply with exactly K. Do not use tools. ${marker}`;
+        warmMarker = marker;
+        try { await $.prompt.submit({ text }); }
+        catch { await event($, 'submit-failed', {}, owner, ownerSession); }
       });
     }
   };
