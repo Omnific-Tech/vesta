@@ -69,10 +69,10 @@ try {
     writeFileSync(join(configDir, '.claude.json'), JSON.stringify({ hasCompletedOnboarding: true, theme: 'dark', projects: { [fixture]: { hasTrustDialogAccepted: true } } }));
     run(process.execPath, ['--experimental-strip-types', join(here, 'setup.ts'), 'install', '--provider', 'claude', '--config-dir', configDir, '--json']);
     const installed = JSON.parse(run('claude', ['plugin', 'list', '--json'])).find((p: any) => p.id === 'vesta@vesta-local'); assert.ok(installed?.installPath);
-    const a = launch('claude', [], 'claude-a.txt'); const b = launch('claude', [], 'claude-b.txt');
+    const a = launch('claude', ['--ax-screen-reader'], 'claude-a.txt'); const b = launch('claude', ['--ax-screen-reader'], 'claude-b.txt');
     const first = await requestStatus(a); await requestStatus(b);
     run('claude', ['plugin', 'configure', 'vesta@vesta-local', '--values-stdin', '--json'], JSON.stringify({ warm: 'true' }));
-    const c = launch('claude', [], 'claude-c.txt'); const optIn = await requestStatus(c, true);
+    const c = launch('claude', ['--ax-screen-reader'], 'claude-c.txt'); const optIn = await requestStatus(c, true);
     assert.equal(optIn.tokens, null); assert.equal(optIn.pending, false);
     run('claude', ['plugin', 'configure', 'vesta@vesta-local', '--values-stdin', '--json'], JSON.stringify({ warm: 'false' }));
     // Claude may generate native type declarations on the first plugin load.

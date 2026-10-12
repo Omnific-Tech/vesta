@@ -46,7 +46,7 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   if (e.provider === 'claude') {
     assert.ok(e.claude); assert.equal(e.codex, undefined);
     assert.equal(owners.length, 3, 'concurrent ordinary native sessions including isolated opt-in owner');
-    for (const c of owners) { assert.equal(c.argv[0], 'claude'); assert.ok(!c.argv.includes('--plugin-dir')); assert.ok(!c.argv.some(a => /watcher-run|setup\.ts/.test(a))); }
+    for (const c of owners) { assert.equal(c.argv[0], 'claude'); assert.ok(c.argv.includes('--ax-screen-reader'), 'native accessibility renderer recorded explicitly'); assert.ok(!c.argv.includes('--plugin-dir')); assert.ok(!c.argv.some(a => /watcher-run|setup\.ts/.test(a))); }
     verifyClaudeAutoload(raw(e.claude.transcriptFile));
     assert.match(e.claude.seedNonce, /^VESTA-[0-9a-f-]+$/);
     assert.ok(parseClaudeStatuses(raw('claude-a.txt')).some(row => row.sessionId === e.claude!.seedSessionId));
