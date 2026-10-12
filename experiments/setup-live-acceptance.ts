@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verifyClaudeAutoload } from './setup-acceptance.ts';
+import { parseClaudeStatuses, verifyClaudeAutoload } from './setup-acceptance.ts';
 
 export type SetupLiveEvidence = {
   schema: 1; kind: 'native-installed-launch'; provider: 'claude' | 'codex';
@@ -42,6 +42,13 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
     assert.equal(owners.length, 2, 'concurrent ordinary native sessions');
     for (const c of owners) { assert.equal(c.argv[0], 'claude'); assert.ok(!c.argv.includes('--plugin-dir')); assert.ok(!c.argv.some(a => /watcher-run|setup\.ts/.test(a))); }
     verifyClaudeAutoload(raw(e.claude.transcriptFile));
+    const terminalFiles = e.rawFiles.filter(file => /^claude-[ab]\.txt$/.test(file));
+    assert.equal(terminalFiles.length, 2, 'both untouched native terminal captures required');
+    const nativeStatuses = terminalFiles.flatMap(file => parseClaudeStatuses(raw(file)));
+    for (const status of parseClaudeStatuses(raw(e.claude.transcriptFile))) {
+      assert.ok(nativeStatuses.some(native => JSON.stringify(native) === JSON.stringify(status)),
+        'normalized status must exist in actual native terminal output');
+    }
     assert.deepEqual(e.claude.pluginTreeAfter, e.claude.pluginTreeBefore, 'shared cached plugin remains immutable');
     assert.ok(new Set(e.claude.sessionKeys).size >= 2);
     assert.ok(e.claude.sessionKeys.every(k => typeof k === 'string' && k.startsWith('status:') && k.length > 'status:'.length));

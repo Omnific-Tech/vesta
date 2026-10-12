@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripVTControlCharacters } from 'node:util';
 
 export const pluginId = 'vesta@vesta-local';
 export type SetupEvidence = {
@@ -51,17 +52,39 @@ export function verifySetupEvidence(e: SetupEvidence, directory: string) {
   assert.equal(steps.afterUninstall.env.UNRELATED_SENTINEL, 'preserved');
   assert.equal(steps.afterUninstall.enabledPlugins['unrelated@fixture'], false);
   assert.equal(steps.afterUninstall.pluginConfigs['unrelated@fixture'].options.sentinel, 'preserved');
-  assert.equal(steps.cacheBeforeStatus, steps.cacheAfterStatus, 'status does not mutate installed plugin files');
+  assert.deepEqual(steps.cacheBeforeStatus, steps.cacheAfterStatus, 'status does not mutate installed plugin files');
   assert.ok(results('invalid-relative-config').every(c => c.code !== 0));
   assert.equal(results('invalid-relative-config').length, 1);
 }
 
 // Native terminal status is a direct mod command, not an inference or authored passed flag.
+export function parseClaudeStatuses(transcript: string): any[] {
+  const plain = stripVTControlCharacters(transcript);
+  const markers = [...plain.matchAll(/VESTA_STATUS\s*(?=\{)/g)];
+  const rows: any[] = [];
+  for (let m = 0; m < markers.length; m++) {
+    const start = markers[m]!.index! + markers[m]![0].length;
+    const limit = markers[m + 1]?.index ?? plain.length;
+    let depth = 0; let quoted = false; let escaped = false;
+    for (let i = start; i < limit; i++) {
+      const ch = plain[i]!;
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') quoted = false;
+      } else if (ch === '"') quoted = true;
+      else if (ch === '{') depth += 1;
+      else if (ch === '}' && --depth === 0) {
+        try { rows.push(JSON.parse(plain.slice(start, i + 1))); } catch { /* incomplete/redrawn native frame */ }
+        break;
+      }
+    }
+  }
+  return rows;
+}
+
 export function verifyClaudeAutoload(transcript: string) {
-  const rows = transcript.split('\n').flatMap(line => {
-    const match = line.match(/VESTA_STATUS (\{[^\r\n]*\})/);
-    return match ? [JSON.parse(match[1]!)] : [];
-  });
+  const rows = parseClaudeStatuses(transcript);
   assert.ok(rows.length >= 6, 'two concurrent sessions plus clear/resume/branch/reload status observations');
   const sessions = new Set(rows.map(r => r.sessionId));
   assert.ok(sessions.size >= 2, 'independent native sessions');

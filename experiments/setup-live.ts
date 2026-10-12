@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import * as pty from 'node-pty';
 import { verifySetupLiveEvidence } from './setup-live-acceptance.ts';
 import type { SetupLiveEvidence } from './setup-live-acceptance.ts';
+import { parseClaudeStatuses } from './setup-acceptance.ts';
 
 const provider = process.argv[2]; assert.ok(provider === 'claude' || provider === 'codex');
 const here = dirname(fileURLToPath(import.meta.url));
@@ -49,7 +50,7 @@ function launch(command: string, argv: string[], file: string) {
   return entry;
 }
 async function type(entry: typeof terminals[number], command: string) { entry.terminal.write('\x1b[200~' + command + '\x1b[201~'); await sleep(300); entry.terminal.write('\r'); }
-const statuses = (file: string) => text(file).replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').split(/[\r\n]/).flatMap(line => { const match = line.match(/VESTA_STATUS (\{.*\})/); try { return match ? [JSON.parse(match[1]!)] : []; } catch { return []; } });
+const statuses = (file: string) => parseClaudeStatuses(text(file));
 try {
   if (provider === 'claude') {
     env.CLAUDE_CONFIG_DIR = configDir; env.CLAUDE_SECURESTORAGE_CONFIG_DIR = '';
@@ -96,10 +97,15 @@ finally {
     if (!entry.exited) { try { entry.terminal.kill('SIGTERM'); } catch {} }
   }
   const cleanupDeadline = Date.now() + 10000;
-  while (terminals.some(entry => !entry.exited) && Date.now() < cleanupDeadline) await sleep(100);
+  let runtime: any;
+  while (Date.now() < cleanupDeadline) {
+    if (provider === 'codex') { try { runtime = JSON.parse(text('watcher-runtime.json')); } catch { /* owner cleanup still writing */ } }
+    if (!terminals.some(entry => !entry.exited) && (provider !== 'codex' || !terminals.length || runtime)) break;
+    await sleep(100);
+  }
   for (const entry of terminals) { if (!entry.exited) { try { entry.terminal.kill('SIGKILL'); } catch {} await sleep(300); } e.cleanup.push({ pid: entry.terminal.pid, owned: true, exited: entry.exited }); }
-  if (provider === 'codex' && existsSync(join(artifacts, 'watcher-runtime.json'))) {
-    const runtime = JSON.parse(text('watcher-runtime.json')); e.cleanup.push(...runtime.cleanup);
+  if (provider === 'codex' && runtime) {
+    e.cleanup.push(...runtime.cleanup);
     for (const command of runtime.commands) {
       if (command.includes('--remote') && !command.includes('queue')) { if (e.codex) e.codex.managedArgv = command.slice(1); continue; }
       e.commands.push({ argv: command, role: command.includes('proxy') ? 'observer' : command.includes('queue') ? 'queue' : 'server' });
