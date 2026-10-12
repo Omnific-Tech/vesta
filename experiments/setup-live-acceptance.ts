@@ -15,6 +15,7 @@ export type SetupLiveEvidence = {
   cleanup: { pid: number; owned: boolean; exited: boolean }[];
   rawFiles: string[];
   claude?: { transcriptFile: string; optInTranscriptFile: string;
+    seedFile: string; seedSessionId: string; seedNonce: string;
     statusRequests: { rawFile: string; at: number; resetReason?: string; sessionId: string; warmEnabled: boolean }[];
     pluginTreeBefore: Record<string, string>; pluginTreeAfter: Record<string, string>; sessionKeys: string[] };
   codex?: { originalArgv: string[]; managedArgv: string[]; nonce: string; protocolFile: string; traceFile: string;
@@ -29,7 +30,10 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   assert.ok(e.sourceFiles.some(file => file.path.endsWith('/setup.ts')));
   assert.ok(e.sourceFiles.some(file => file.path.endsWith('/watcher-policy.ts')));
   if (e.provider === 'claude') assert.ok(e.sourceFiles.some(file => file.path.endsWith('/hooks/register.ts')), 'actual plugin adapter source fingerprinted');
-  else assert.ok(e.sourceFiles.some(file => file.path.endsWith('/watcher-run.ts')), 'actual managed owner adapter fingerprinted');
+  else {
+    assert.ok(e.sourceFiles.some(file => file.path.endsWith('/watcher-run.ts')), 'actual managed owner adapter fingerprinted');
+    assert.ok(e.sourceFiles.some(file => file.path.endsWith('/codex-autoload.ts')), 'installed shell adapter fingerprinted');
+  }
   for (const file of e.sourceFiles) assert.equal(createHash('sha256').update(readFileSync(file.path)).digest('hex'), file.sha256);
   assert.ok(e.cleanup.length >= 3);
   for (const child of e.cleanup) { assert.ok(child.pid > 0); assert.equal(child.owned, true); assert.equal(child.exited, true); }
@@ -44,6 +48,10 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
     assert.equal(owners.length, 3, 'concurrent ordinary native sessions including isolated opt-in owner');
     for (const c of owners) { assert.equal(c.argv[0], 'claude'); assert.ok(!c.argv.includes('--plugin-dir')); assert.ok(!c.argv.some(a => /watcher-run|setup\.ts/.test(a))); }
     verifyClaudeAutoload(raw(e.claude.transcriptFile));
+    assert.match(e.claude.seedNonce, /^VESTA-[0-9a-f-]+$/);
+    assert.ok(parseClaudeStatuses(raw('claude-a.txt')).some(row => row.sessionId === e.claude!.seedSessionId));
+    assert.ok(rows(e.claude.seedFile).some(row => row.type === 'assistant' && row.sessionId === e.claude!.seedSessionId
+      && row.message?.content?.some((block: any) => block.type === 'text' && block.text.trim() === e.claude!.seedNonce)), 'retained native assistant response proves this exact saved seed');
     const terminalFiles = e.rawFiles.filter(file => /^claude-[ab]\.txt$/.test(file));
     assert.equal(terminalFiles.length, 2, 'both untouched native terminal captures required');
     const nativeStatuses = terminalFiles.flatMap(file => parseClaudeStatuses(raw(file)));
@@ -68,6 +76,12 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
     }
     for (const reason of ['clear', 'resume', 'branch', 'reload']) assert.ok(e.claude.statusRequests.some(request => request.resetReason === reason && !request.warmEnabled), 'fresh explicit ' + reason + ' recovery');
     assert.deepEqual(e.claude.pluginTreeAfter, e.claude.pluginTreeBefore, 'shared cached plugin remains immutable');
+    const policy = e.sourceFiles.find(file => file.path.endsWith('/watcher-policy.ts'))!;
+    const pluginPolicy = e.sourceFiles.find(file => file.path.endsWith('/vesta-claude/hooks/policy.ts'));
+    assert.ok(pluginPolicy); assert.equal(pluginPolicy.sha256, policy.sha256, 'self-contained package has the actual shared policy');
+    assert.equal(e.claude.pluginTreeBefore['hooks/policy.ts'], pluginPolicy.sha256, 'installed native package policy identity');
+    const adapter = e.sourceFiles.find(file => file.path.endsWith('/vesta-claude/hooks/register.ts'))!;
+    assert.equal(e.claude.pluginTreeBefore['hooks/register.ts'], adapter.sha256, 'installed native package adapter identity');
     assert.ok(new Set(e.claude.sessionKeys).size >= 3);
     assert.ok(e.claude.sessionKeys.every(k => typeof k === 'string' && k.startsWith('status:') && k.length > 'status:'.length));
     return;

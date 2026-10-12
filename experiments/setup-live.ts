@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,7 +79,18 @@ try {
     // Freeze the shared package after this legitimate native initialization.
     const before = tree(installed.installPath);
     const nonce = 'VESTA-' + randomUUID(); await type(a, `Reply with exactly ${nonce}. Do not use tools.`);
-    await waitFor(() => text(a.file).split(nonce).length >= 3, 'native initial saved response');
+    const projects = join(configDir, 'projects');
+    const seedPath = await waitFor(() => {
+      if (!existsSync(projects)) return;
+      const entry = readdirSync(projects, { recursive: true, withFileTypes: true }).find(entry => entry.isFile() && entry.name === first.sessionId + '.jsonl');
+      if (!entry) return;
+      const path = join(entry.parentPath, entry.name);
+      assert.ok(realpathSync(path).startsWith(realpathSync(projects) + '/'), 'seed proof stays inside isolated native projects');
+      const nativeRows = readFileSync(path, 'utf8').split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
+      return nativeRows.some(row => row.type === 'assistant' && row.sessionId === first.sessionId
+        && row.message?.content?.some((block: any) => block.type === 'text' && block.text.trim() === nonce)) ? path : undefined;
+    }, 'actual native assistant nonce saved in this session');
+    copyFileSync(seedPath, join(artifacts, 'claude-seed.jsonl')); e.rawFiles.push('claude-seed.jsonl');
     for (const [command, reason] of [['/clear', 'clear'], ['/resume ' + first.sessionId, 'resume'], ['/branch', 'branch'], ['/reload-plugins', 'reload']]) {
       await type(a, command!); await sleep(1200); await requestStatus(a, false, reason);
     }
@@ -88,6 +99,7 @@ try {
     writeFileSync(join(artifacts, 'claude-autoload.txt'), observed.map(row => 'VESTA_STATUS ' + JSON.stringify(row)).join('\n') + '\n'); e.rawFiles.push('claude-autoload.txt');
     writeFileSync(join(artifacts, 'claude-opt-in.txt'), 'VESTA_STATUS ' + JSON.stringify(optIn) + '\n'); e.rawFiles.push('claude-opt-in.txt');
     e.claude = { transcriptFile: 'claude-autoload.txt', optInTranscriptFile: 'claude-opt-in.txt', statusRequests,
+      seedFile: 'claude-seed.jsonl', seedSessionId: first.sessionId, seedNonce: nonce,
       pluginTreeBefore: before, pluginTreeAfter: tree(installed.installPath), sessionKeys: [...observed.map(row => row.storeKey), optIn.storeKey] };
   } else {
     env.CODEX_HOME = configDir;
@@ -128,7 +140,7 @@ finally {
     }
     e.rawFiles.push('codex-protocol.jsonl', 'watcher-trace.jsonl', 'watcher-lifecycle.jsonl', 'watcher-runtime.json');
   }
-  e.sourceFiles = ['setup.ts', 'setup-live.ts', 'setup-live-acceptance.ts', 'watcher-run.ts', 'watcher-policy.ts', ...(provider === 'claude' ? ['vesta-claude/hooks/register.ts', 'vesta-claude/hooks/policy.ts', 'vesta-claude/.claude-plugin/plugin.json', 'vesta-claude/hooks/hooks.json'] : [])].filter(file => existsSync(join(here, file))).map(file => ({ path: join(here, file), sha256: hash(join(here, file)) }));
+  e.sourceFiles = ['setup.ts', 'setup-live.ts', 'setup-live-acceptance.ts', 'watcher-run.ts', 'watcher-policy.ts', ...(provider === 'claude' ? ['vesta-claude/hooks/register.ts', 'vesta-claude/hooks/policy.ts', 'vesta-claude/.claude-plugin/plugin.json', 'vesta-claude/hooks/hooks.json'] : ['codex-autoload.ts'])].filter(file => existsSync(join(here, file))).map(file => ({ path: join(here, file), sha256: hash(join(here, file)) }));
   for (const file of e.personalFiles) file.after = hash(file.path); e.endedAt = Date.now();
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ ...e, failure }, null, 2)); rmSync(fixture, { recursive: true, force: true });
 }

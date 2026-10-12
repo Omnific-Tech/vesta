@@ -75,7 +75,7 @@ export function parseClaudeStatuses(transcript: string): any[] {
       } else if (ch === '"') quoted = true;
       else if (ch === '{') depth += 1;
       else if (ch === '}' && --depth === 0) {
-        try { rows.push(JSON.parse(plain.slice(start, i + 1))); } catch { /* incomplete/redrawn native frame */ }
+        try { rows.push(JSON.parse(plain.slice(start, i + 1).replace(/[\r\n]/g, ''))); } catch { /* incomplete/redrawn native frame */ }
         break;
       }
     }
