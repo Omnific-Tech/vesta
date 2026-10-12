@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "f0e938f2e8ad6b185b07e73c15b3eec7",
+  "generation": "4a87b2997e343c4ca6ff0cf1de8ac683",
   "repositories": {
-    "app": "685da3d764741edaa21f59fd3f01ac5958437e2f"
+    "app": "1403f7395a76a8324357ec7e18d44c47fa92df3c"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -10,8 +10,8 @@
     "app:experiments/setup-acceptance.ts": "dfc27754f1d5b6642475f3a354b1ab41ea65a1c9406a85f7c17488cdd85d4d58",
     "app:experiments/setup-e2e.ts": "94394f562703d1f08a7f1fdbad1cdb0407b9cb97cc68dfd9e318262f99e2e08b",
     "app:experiments/setup-forwarding-e2e.ts": "457a678b45120abcca66c927bf899be8d58565f4b9341f1bff98b43914386848",
-    "app:experiments/setup-live-acceptance.ts": "5a6935a39a0412f576e65606069ec52f642157d613b7b20a6469134951396a97",
-    "app:experiments/setup-live.ts": "323c4cd7965eccbd023298b426df05a3205e0e967639e053f8cf4a60acd91022",
+    "app:experiments/setup-live-acceptance.ts": "8f3034f9e4324ac9b40a85bbb11c691c94165a6f9b7838fccc63a7f7ef1eb97c",
+    "app:experiments/setup-live.ts": "586fb2ce6b04f7c27495d7d7d3d721e10b9578aa3a89b45deff5f08e772122aa",
     "app:experiments/setup-native-fixture.mjs": "18c8bdcd0233ece36b6a4d192d1c972a3b5e9446accf0c38c1e5a329cb54d7bd",
     "app:experiments/setup-tty-forwarding-e2e.ts": "0dde36f8c56c5daf22d989a69c50049136a08987d02a70a55bf23942d566e7f7",
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
@@ -168,6 +168,16 @@
       },
       "repositories": {
         "app": "685da3d764741edaa21f59fd3f01ac5958437e2f"
+      }
+    },
+    {
+      "reason": "Handle only the observed isolated Codex rate-limit menu by explicitly selecting Keep current model; retain raw action evidence and unchanged main-thread model assertions without production preference changes",
+      "prior_generation": "f0e938f2e8ad6b185b07e73c15b3eec7",
+      "prior_repositories": {
+        "app": "685da3d764741edaa21f59fd3f01ac5958437e2f"
+      },
+      "repositories": {
+        "app": "1403f7395a76a8324357ec7e18d44c47fa92df3c"
       }
     }
   ]
