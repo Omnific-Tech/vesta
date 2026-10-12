@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "a05b84fd814b8b10a88222a13c30dcb5",
+  "generation": "bd731766a267ea9ccb0e322db1d31feb",
   "repositories": {
-    "app": "c1faa2b080e9e342dafc55d4586f9debd58e3904"
+    "app": "9318b832d7e719dfc41101cd47807ecf7f143e0e"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -10,8 +10,8 @@
     "app:experiments/setup-acceptance.ts": "2c8a00231ae1157a0a06648dc02275708230952af6c7a2bb0c3368d7d44996f9",
     "app:experiments/setup-e2e.ts": "94394f562703d1f08a7f1fdbad1cdb0407b9cb97cc68dfd9e318262f99e2e08b",
     "app:experiments/setup-forwarding-e2e.ts": "457a678b45120abcca66c927bf899be8d58565f4b9341f1bff98b43914386848",
-    "app:experiments/setup-live-acceptance.ts": "580c15460b50dc5035f6168b132143ab5a48c1855fcd87bc13679b17c103e861",
-    "app:experiments/setup-live.ts": "77cdaf51efb9ffe6f20c2e4e4589758db1a4e4d205050f85149abc65d73f355f",
+    "app:experiments/setup-live-acceptance.ts": "139bd71f011938891d1753ba78bb9d79ab2a5e60a5da42f7a16d14bf27ead4a4",
+    "app:experiments/setup-live.ts": "c090d966bd298f98602176d98e19fe7a14925c087404397478067cc9ccaf04d2",
     "app:experiments/setup-native-fixture.mjs": "18c8bdcd0233ece36b6a4d192d1c972a3b5e9446accf0c38c1e5a329cb54d7bd",
     "app:experiments/setup-tty-forwarding-e2e.ts": "0dde36f8c56c5daf22d989a69c50049136a08987d02a70a55bf23942d566e7f7",
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
@@ -128,6 +128,16 @@
       },
       "repositories": {
         "app": "c1faa2b080e9e342dafc55d4586f9debd58e3904"
+      }
+    },
+    {
+      "reason": "Prove installed Claude consumes explicit warm configuration via a third native session; preserve default/rollover assertions and bind each status request to fresh native user activity",
+      "prior_generation": "a05b84fd814b8b10a88222a13c30dcb5",
+      "prior_repositories": {
+        "app": "c1faa2b080e9e342dafc55d4586f9debd58e3904"
+      },
+      "repositories": {
+        "app": "9318b832d7e719dfc41101cd47807ecf7f143e0e"
       }
     }
   ]
