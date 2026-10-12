@@ -47,6 +47,7 @@ export function register(on, options) {
   });
   on('command.run', async ($, e, next) => {
     await ensure($);
+    if (['composer', 'bridge'].includes(e.origin.kind)) await event($, 'activity', { source: 'user' });
     if (e.command === 'vesta-status') return { text: 'VESTA_STATUS ' + JSON.stringify(status()) };
     if (['clear', 'resume', 'branch'].includes(e.command)) nextReset = e.command;
     if (e.command === 'reload-plugins') {
