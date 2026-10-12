@@ -54,10 +54,12 @@ async function type(entry: typeof terminals[number], command: string) { entry.te
 const statuses = (file: string) => parseClaudeStatuses(text(file));
 const statusRequests: { rawFile: string; at: number; resetReason?: string; sessionId: string; warmEnabled: boolean }[] = [];
 async function requestStatus(entry: typeof terminals[number], warmEnabled = false, resetReason?: string) {
-  await waitFor(() => text(entry.file).includes('❯'), 'native composer ready');
+  await waitFor(() => {
+    const output = stripVTControlCharacters(text(entry.file));
+    return output.includes('[Screen Reader Mode: on via flag]') && /(?:^|[\r\n])\$/.test(output);
+  }, 'native AX composer ready');
   const at = Date.now();
   entry.terminal.write('\x15\x1b[200~/vesta-status\x1b[201~');
-  await waitFor(() => stripVTControlCharacters(text(entry.file)).replace(/\s/g, '').includes('Showthissession’sVestametadatawithoutamodelrequest'), 'native registered status command');
   await sleep(300); entry.terminal.write('\r');
   const row = await waitFor(() => statuses(entry.file).find(row => row.userAt >= at && row.warmEnabled === warmEnabled && (!resetReason || row.resetReason === resetReason)), 'fresh native status ' + (resetReason ?? 'startup'));
   statusRequests.push({ rawFile: entry.file, at, resetReason, sessionId: row.sessionId, warmEnabled });
