@@ -55,9 +55,10 @@ let nextId = 1;
 let received: any[] = [];
 let lastWarmText = '';
 const usage = new Map<string, { row: any; generation: number }>();
-process.once('SIGINT', () => { stop = true; reason = 'SIGINT'; });
-process.once('SIGTERM', () => { stop = true; reason = 'SIGTERM'; });
-process.once('SIGHUP', () => { stop = true; reason = 'SIGHUP'; });
+process.on('SIGINT', () => { stop = true; reason = 'SIGINT'; });
+process.on('SIGTERM', () => { stop = true; reason = 'SIGTERM'; });
+process.on('SIGHUP', () => { stop = true; reason = 'SIGHUP'; });
+process.stdout.on('error', () => { stop = true; reason = 'terminal output closed'; });
 const stamp = () => Date.now();
 const trace = (type: string, extra: Record<string, unknown> = {}) => {
   const row = watcher.event({ type, at: stamp(), ...extra });
