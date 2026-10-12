@@ -3,7 +3,7 @@
 ## One-time native autoload
 
 On the tested macOS arm64/zsh platform, use Node 22.17.1+, Claude Code 2.1.296 and
-Codex CLI 0.162.0 with their existing subscription logins:
+Codex CLI 0.162.0/0.162.1 with their existing subscription logins:
 
 ```sh
 npm ci

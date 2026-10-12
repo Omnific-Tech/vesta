@@ -1,8 +1,8 @@
 # One-time native CLI setup
 
 Use Node 22.17.1+, the existing subscription logins, and the installed native
-Claude/Codex executables. This local package was developed against Claude Code
-2.1.296 and Codex CLI 0.162.0 on macOS arm64. Keep this checkout available: the
+Claude/Codex executables. This local package was verified against Claude Code
+2.1.296 and Codex CLI 0.162.0, then the observed 0.162.1 patch update on macOS arm64. Keep this checkout available: the
 Codex shell function points to its Node entrypoint and pinned `node-pty` dependency.
 
 ```sh
