@@ -22,7 +22,8 @@ export type SetupLiveEvidence = {
   codex?: { originalArgv: string[]; managedArgv: string[]; nonce: string; protocolFile: string; traceFile: string;
     ownerTranscriptFile: string; configFile: string;
     modalActions: { warningOffset: number; selectionOffset: number; submitOffset: number; detectedAt: number; selectedAt: number; composerAt: number }[];
-    lifecycleFile: string; expected: { model: string; cwd: string; sandbox: 'read-only'; approvalPolicy: 'never' } };
+    lifecycleFile: string; yoloVariant?: 'plain' | 'sandbox'; defaults?: { warm: boolean; idleMs: number; budgetMs: number };
+    expected: { model: string; cwd: string; sandbox: 'read-only' | 'danger-full-access'; approvalPolicy: 'never' } };
 };
 export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string) {
   assert.equal(e.schema, 1); assert.equal(e.kind, 'native-installed-launch');
@@ -97,7 +98,17 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   assert.ok(c.managedArgv[transport + 1]?.startsWith('unix://'));
   const nativeArgs = [...c.managedArgv]; nativeArgs.splice(transport, 2);
   assert.deepEqual(nativeArgs, c.originalArgv, 'managed path adds transport only; no dropped flags or forced defaults');
-  assert.ok(c.originalArgv.includes('-m') && c.originalArgv.includes('-C') && c.originalArgv.includes('-a') && c.originalArgv.includes('-s') && c.originalArgv.includes('--no-alt-screen'));
+  assert.ok(c.originalArgv.includes('-m') && c.originalArgv.includes('-C') && c.originalArgv.includes('--no-alt-screen'));
+  if (c.expected.sandbox === 'danger-full-access') {
+    assert.ok(c.originalArgv.includes('--yolo'), 'verified native alias retained');
+    assert.ok(!c.originalArgv.includes('-a'), 'native yolo/approval conflict remains native');
+    assert.ok(c.yoloVariant === 'plain' || c.yoloVariant === 'sandbox');
+    if (c.yoloVariant === 'sandbox') {
+      const sandbox = c.originalArgv.indexOf('-s'); assert.ok(sandbox >= 0);
+      assert.equal(c.originalArgv[sandbox + 1], 'read-only', 'sandbox precedence variant retains actual conflicting sandbox request');
+    } else assert.ok(!c.originalArgv.includes('-s'), 'plain yolo variant');
+    assert.deepEqual(c.defaults, { warm: false, idleMs: 1200000, budgetMs: 14400000 }, 'yolo does not change installation defaults');
+  } else assert.ok(c.originalArgv.includes('-a') && c.originalArgv.includes('-s'));
   assert.ok(e.commands.some(command => command.role === 'server' && command.argv.includes('--listen')));
   assert.ok(e.commands.some(command => command.role === 'observer' && command.argv.includes('proxy')));
   const protocol = rows(c.protocolFile); const lifecycle = rows(c.lifecycleFile); const trace = rows(c.traceFile);
@@ -125,9 +136,14 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   assert.ok(metadata, 'native server returned exact owning thread metadata');
   assert.equal(metadata.thread.cwd, c.expected.cwd); assert.equal(metadata.thread.model, c.expected.model);
   assert.equal(metadata.approvalPolicy, c.expected.approvalPolicy);
-  assert.equal(c.expected.sandbox, 'read-only', 'requested native CLI sandbox');
-  assert.equal(metadata.sandbox.type, 'readOnly', 'native protocol wire sandbox');
-  assert.equal(metadata.sandbox.networkAccess, false);
+  if (c.expected.sandbox === 'danger-full-access') {
+    // Native SandboxPolicy::DangerFullAccess has unrestricted network access and
+    // serializes as this unit variant, without a separate networkAccess field.
+    assert.deepEqual(metadata.sandbox, { type: 'dangerFullAccess' }, 'native unrestricted filesystem/network policy');
+  } else {
+    assert.equal(metadata.sandbox.type, 'readOnly', 'native protocol wire sandbox');
+    assert.equal(metadata.sandbox.networkAccess, false);
+  }
   const turns = protocol.filter(row => row.method === 'turn/completed' && row.params?.threadId === owner.sessionId && row.params.turn.status === 'completed');
   assert.equal(turns.length, 3, 'initial, one bounded warm, later normal user continuity');
   const answer = (row: any) => row.params.turn.items.filter((item: any) => item.type === 'agentMessage').map((item: any) => item.text).join('').trim();

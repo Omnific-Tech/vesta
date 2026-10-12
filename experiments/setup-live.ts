@@ -13,8 +13,10 @@ import type { SetupLiveEvidence } from './setup-live-acceptance.ts';
 import { parseClaudeStatuses } from './setup-acceptance.ts';
 
 const provider = process.argv[2]; assert.ok(provider === 'claude' || provider === 'codex');
+const yolo = process.argv[4] ?? (process.argv[3]?.startsWith('--') ? process.argv[3] : undefined);
+assert.ok(yolo === undefined || (provider === 'codex' && ['--yolo', '--yolo-sandbox'].includes(yolo)), 'optional Codex yolo proof variant');
 const here = dirname(fileURLToPath(import.meta.url));
-const artifacts = resolve(process.argv[3] ?? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/setup-live-' + provider, 'artifacts'));
+const artifacts = resolve((process.argv[3]?.startsWith('--') ? undefined : process.argv[3]) ?? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/setup-live-' + provider, 'artifacts'));
 if (existsSync(artifacts) && readdirSync(artifacts).length) throw new Error('Choose fresh artifacts');
 mkdirSync(artifacts, { recursive: true });
 const fixture = realpathSync(mkdtempSync(join(tmpdir(), 'vesta-autoload-e2e-')));
@@ -131,12 +133,15 @@ try {
     writeFileSync(join(configDir, 'config.toml'), `model = ${JSON.stringify(model)}\n[projects.${JSON.stringify(fixture)}]\ntrust_level = "trusted"\n`);
     env.VESTA_WATCHER_TEST_OPTIONS = JSON.stringify(['--probe', '--warm', '--capture-native', '--probe-threshold', '0', '--max-warms', '1', '--idle-ms', '1500', '--budget-ms', '180000', '--artifacts', artifacts]);
     run(process.execPath, ['--experimental-strip-types', join(here, 'setup.ts'), 'install', '--provider', 'codex', '--config-dir', configDir, '--shell-file', shellFile, '--json']);
-    const originalArgv = ['-m', model, '-C', fixture, '-a', 'never', '-s', 'read-only', '--no-alt-screen'];
+    const installed = JSON.parse(readFileSync(join(configDir, 'vesta-codex.json'), 'utf8'));
+    const defaults = { warm: installed.warm, idleMs: installed.idleMs, budgetMs: installed.budgetMs };
+    const originalArgv = ['-m', model, '-C', fixture, ...(yolo ? ['--yolo', ...(yolo === '--yolo-sandbox' ? ['-s', 'read-only'] : [])] : ['-a', 'never', '-s', 'read-only']), '--no-alt-screen'];
     const owner = launch('zsh', ['-f', '-c', 'source "$1"; shift; codex "$@"', 'vesta-e2e', shellFile, ...originalArgv], 'codex-owner.txt');
     await waitFor(() => rows('watcher-lifecycle.jsonl').find(row => row.kind === 'owner-ready'), 'managed native owner');
     const nonce = 'VESTA-' + randomUUID();
     e.codex = { originalArgv, managedArgv: [], nonce, protocolFile: 'codex-protocol.jsonl', traceFile: 'watcher-trace.jsonl', lifecycleFile: 'watcher-lifecycle.jsonl',
-      ownerTranscriptFile: 'codex-owner.txt', configFile: 'codex-final-config.toml', modalActions, expected: { model, cwd: fixture, sandbox: 'read-only', approvalPolicy: 'never' } };
+      ownerTranscriptFile: 'codex-owner.txt', configFile: 'codex-final-config.toml', modalActions, defaults, yoloVariant: yolo ? (yolo === '--yolo-sandbox' ? 'sandbox' : 'plain') : undefined,
+      expected: { model, cwd: fixture, sandbox: yolo ? 'danger-full-access' : 'read-only', approvalPolicy: 'never' } };
     await type(owner, `Remember ${nonce}. Reply with exactly ${nonce}. Do not use tools.`);
     const completed = () => rows('codex-protocol.jsonl').filter(row => row.method === 'turn/completed' && row.params?.turn?.status === 'completed');
     await waitFor(() => completed().length >= 2, 'managed policy-driven warm');

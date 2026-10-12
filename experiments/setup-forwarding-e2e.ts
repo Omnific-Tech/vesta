@@ -42,6 +42,10 @@ try {
     ['worktree', ['--worktree']], ['private-optout', ['--no-daemon']], ['explicit-remote', ['--remote', 'unix:///existing.sock']],
     ['unknown-flags', ['--future-flag', '--warm', '--', 'literal prompt']],
     ['non-tty-default', ['-m', 'native-model', '-C', 'native directory', '-a', 'never', '-s', 'read-only', '--no-alt-screen', 'literal --warm']],
+    ['non-tty-yolo', ['--yolo', '-m', 'native-model', '-C', 'native directory', '--no-alt-screen']],
+    ['yolo-exec', ['--yolo', 'exec', '--json', 'literal prompt']],
+    ['yolo-remote', ['--yolo', '--remote', 'unix:///existing.sock']],
+    ['yolo-no-daemon', ['--yolo', '--no-daemon']],
   ] as [string, string[]][]) {
     const baseline = run(name + '-baseline', native, argv, input);
     const actual = run(name + '-integrated', 'zsh', ['-f', '-c', 'source "$1"; shift; codex "$@"', 'vesta-e2e', shellFile, ...argv], input);
@@ -62,5 +66,5 @@ finally {
   rmSync(fixture, { recursive: true, force: true });
 }
 if (failure) throw new Error(`${failure}; evidence: ${artifacts}`);
-assert.equal(cases.length, 12);
+assert.equal(cases.length, 16);
 console.log(JSON.stringify({ artifacts, cases }));

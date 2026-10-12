@@ -21,7 +21,7 @@ const env: Record<string, string> = { ...process.env as Record<string, string>, 
   // Unsupported calls must not parse probe configuration or create a managed owner.
   VESTA_WATCHER_TEST_OPTIONS: 'invalid JSON must be ignored for native pass-through' };
 const input = 'native stdin "quotes" $() `literal`\n';
-const commands: any[] = []; const cases: string[] = []; const cleanup: any[] = [];
+const commands: any[] = []; const cases: string[] = []; const nativeConflicts: string[] = []; const cleanup: any[] = [];
 let failure: string | undefined;
 const hash = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
 const setup = (operation: string) => {
@@ -53,6 +53,15 @@ try {
     ['config-override', ['-c', 'model="native selection"']],
     ['future-flag', ['--future-flag', '--warm', '--', 'quoted $() `literal`']],
     ['positional-prompt', ['initial native prompt --warm']],
+    ['yolo-exec', ['--yolo', 'exec', '--json', 'literal prompt']],
+    ['yolo-review', ['--yolo', 'review', '--uncommitted']],
+    ['yolo-resume', ['--yolo', 'resume', '--last']], ['yolo-fork', ['--yolo', 'fork', '--last']],
+    ['yolo-remote', ['--yolo', '--remote', 'unix:///existing.sock']],
+    ['yolo-no-daemon', ['--yolo', '--no-daemon']], ['yolo-worktree', ['--yolo', '--worktree']],
+    ['yolo-profile', ['--yolo', '-p', 'custom']], ['yolo-config', ['--yolo', '-c', 'model="native selection"']],
+    ['yolo-approval-conflict', ['--yolo', '-a', 'never']],
+    ['yolo-approval-reverse-conflict', ['-a', 'on-request', '--yolo']],
+    ['unverified-long-bypass', ['--dangerously-bypass-approvals-and-sandbox']],
   ] as [string, string[]][]) {
     const baseline = await run(name + '-baseline', native, argv);
     const actual = await run(name + '-integrated', 'zsh', ['-f', '-c', 'source "$1"; shift; codex "$@"', 'vesta-e2e', shellFile, ...argv]);
@@ -63,12 +72,39 @@ try {
     cases.push(name);
   }
   setup('uninstall');
+  // The fixture proves terminal forwarding; the actual installed executable
+  // proves the native parser's conflict result without creating any model turn.
+  env.PATH = process.env.PATH!; env.CODEX_HOME = configDir;
+  setup('install');
+  for (const argv of [['--yolo', '-a', 'never'], ['-a', 'on-request', '--yolo']]) {
+    const baseline = spawnSync('codex', argv, { cwd: fixture, env, timeout: 10000 });
+    const actualArgv = ['-f', '-c', 'source "$1"; shift; codex "$@"', 'vesta-e2e', shellFile, ...argv];
+    const actual = spawnSync('zsh', actualArgv, { cwd: fixture, env, timeout: 10000 });
+    for (const [name, command, args, result] of [
+      ['native-conflict-baseline', 'codex', argv, baseline],
+      ['native-conflict-integrated', 'zsh', actualArgv, actual],
+    ] as const) {
+      const prefix = `${commands.length}-${name}`;
+      writeFileSync(join(artifacts, prefix + '.stdout'), result.stdout ?? Buffer.alloc(0));
+      writeFileSync(join(artifacts, prefix + '.stderr'), result.stderr ?? Buffer.alloc(0));
+      commands.push({ argv: [command, ...args], code: result.status, stdoutFile: prefix + '.stdout', stderrFile: prefix + '.stderr' });
+    }
+    assert.equal(baseline.status, 2, 'actual native rejects approval conflict');
+    assert.match(baseline.stderr!.toString(), /cannot be used with/);
+    assert.match(baseline.stderr!.toString(), /--ask-for-approval/);
+    assert.match(baseline.stderr!.toString(), /--dangerously-bypass-approvals-and-sandbox/);
+    assert.equal(actual.status, baseline.status); assert.deepEqual(actual.stdout, baseline.stdout); assert.deepEqual(actual.stderr, baseline.stderr);
+    assert.ok(!existsSync(join(configDir, 'sessions')), 'native conflicts create no watcher');
+    nativeConflicts.push(argv.join(' '));
+  }
+  setup('uninstall');
 } catch (error) { failure = String(error); }
 finally {
-  writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'native-interactive-forwarding', commands, cases, cleanup, failure,
+  writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'native-interactive-forwarding', commands, cases, nativeConflicts, cleanup, failure,
     sourceFiles: ['setup.ts', 'codex-autoload.ts', 'setup-native-fixture.mjs', 'setup-tty-forwarding-e2e.ts'].map(file => ({ path: join(here, file), sha256: hash(join(here, file)) })) }, null, 2));
   rmSync(fixture, { recursive: true, force: true });
 }
 if (failure) throw new Error(`${failure}; evidence: ${artifacts}`);
-assert.equal(cases.length, 13); assert.ok(cleanup.every(child => child.exited));
+assert.equal(cases.length, 25); assert.ok(cleanup.every(child => child.exited));
+assert.equal(nativeConflicts.length, 2);
 console.log(JSON.stringify({ artifacts, cases }));
