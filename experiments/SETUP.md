@@ -8,6 +8,14 @@ Codex shell function points to its Node entrypoint and pinned `node-pty` depende
 ```sh
 npm ci
 chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
+npm run setup -- plan --provider all
+npm run setup -- install --provider all
+npm run setup -- status --provider all
+```
+
+The `setup` npm script runs the local utility once. It is equivalent to:
+
+```sh
 node --experimental-strip-types experiments/setup.ts plan --provider all --json
 node --experimental-strip-types experiments/setup.ts install --provider all --json
 node --experimental-strip-types experiments/setup.ts status --provider all --json

@@ -1,4 +1,51 @@
-# Disposable live integration probes
+# Native CLI integration and disposable probes
+
+## One-time native autoload
+
+On the tested macOS arm64/zsh platform, use Node 22.17.1+, Claude Code 2.1.296 and
+Codex CLI 0.162.0 with their existing subscription logins:
+
+```sh
+npm ci
+chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
+npm run setup -- plan --provider all
+npm run setup -- install --provider all
+npm run setup -- status --provider all
+```
+
+`plan` is read-only and prints concrete local changes. Installation is explicit
+and idempotent. Claude installs through its native user-scope plugin registry;
+Codex adds an owned function block to the selected zshrc while retaining the
+existing PATH executable. Open a new terminal, or source the selected zshrc once,
+then use ordinary `claude` and `codex` commands. No npm launcher is needed for
+each coding session. `/vesta-status` displays native Claude session metadata.
+
+Warming defaults to off. Opt in once with
+`npm run setup -- install --provider all --warm`; choose `--provider claude` or
+`--provider codex` for only one integration. Defaults remain 50 minutes idle for
+Claude, 20 minutes for Codex, a four-hour real-user inactivity budget, and a
+strictly greater than 100,000 native last-response input gate. Native cache input
+counts once; output and cumulative usage do not qualify. Native queue removal
+after local dispatch is not guaranteed; retention and savings are unproven.
+
+| Codex invocation | Verified routing |
+| --- | --- |
+| Interactive `-m`, `-C`, `-a`, `-s`, `--no-alt-screen` | Managed native TUI/private server; exact spelling combination proved with native model/cwd, approval `never` and sandbox `read-only` |
+| Positional initial prompt, profiles, resume/fork, worktrees, explicit remote, `--no-daemon`, long value-flag aliases, `-c`, unknown flags | Native pass-through; warming unavailable |
+| Exec/review/utilities or non-TTY stdin/stdout | Native pass-through with unchanged argv, stdio, cwd and exit status |
+
+Remove owned integration with `npm run setup -- uninstall --provider all` and
+open a new terminal. Uninstall preserves unrelated settings and later shell edits;
+changed owned blocks produce a conflict instead of being deleted. No personal
+installation has been applied by the development tests. Isolated E2E runs use
+`setup.ts --config-dir /absolute/fixture --shell-file /absolute/zshrc`, keeping
+personal settings and credentials unchanged.
+
+See [complete setup/status/uninstall instructions](SETUP.md) for native option
+configuration, shell activation, exact boundaries and the six repeatable Telos
+checks. The following manual launchers and probes remain useful for experiments.
+
+## Disposable live integration probes
 
 On macOS with Node 22.17.1+, Claude Code 2.1.294 and Codex CLI 0.161.0:
 
