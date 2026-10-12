@@ -31,7 +31,9 @@ declaration generation may initialize the package before this immutability check
 Codex adds one owned `codex` function block to `~/.zshrc`. Open a new terminal, or
 run `source ~/.zshrc` once to activate it in the current terminal. It preserves the
 existing PATH executable, including an existing cmux wrapper; it does not replace
-a binary. Ordinary interactive `codex` calls go through the local watcher only
+a binary. This integration targets macOS zsh and Node 22.17.1+ with native
+`process.execve`; other shells/platforms have not been verified. Ordinary
+interactive `codex` calls go through the local watcher only
 for its small supported argument set. This starts an owned Unix-socket server,
 the native TUI, and a metadata observer. Managed TUI arguments retain their order
 and add only `--remote <owned-socket>`. The server receives matching model,
