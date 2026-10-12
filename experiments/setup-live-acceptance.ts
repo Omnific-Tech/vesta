@@ -14,7 +14,9 @@ export type SetupLiveEvidence = {
   sourceFiles: { path: string; sha256: string }[];
   cleanup: { pid: number; owned: boolean; exited: boolean }[];
   rawFiles: string[];
-  claude?: { transcriptFile: string; pluginTreeBefore: Record<string, string>; pluginTreeAfter: Record<string, string>; sessionKeys: string[] };
+  claude?: { transcriptFile: string; optInTranscriptFile: string;
+    statusRequests: { rawFile: string; at: number; resetReason?: string; sessionId: string; warmEnabled: boolean }[];
+    pluginTreeBefore: Record<string, string>; pluginTreeAfter: Record<string, string>; sessionKeys: string[] };
   codex?: { originalArgv: string[]; managedArgv: string[]; nonce: string; protocolFile: string; traceFile: string;
     lifecycleFile: string; expected: { model: string; cwd: string; sandbox: 'read-only'; approvalPolicy: 'never' } };
 };
@@ -29,7 +31,7 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   if (e.provider === 'claude') assert.ok(e.sourceFiles.some(file => file.path.endsWith('/hooks/register.ts')), 'actual plugin adapter source fingerprinted');
   else assert.ok(e.sourceFiles.some(file => file.path.endsWith('/watcher-run.ts')), 'actual managed owner adapter fingerprinted');
   for (const file of e.sourceFiles) assert.equal(createHash('sha256').update(readFileSync(file.path)).digest('hex'), file.sha256);
-  assert.ok(e.cleanup.length >= (e.provider === 'claude' ? 2 : 3));
+  assert.ok(e.cleanup.length >= 3);
   for (const child of e.cleanup) { assert.ok(child.pid > 0); assert.equal(child.owned, true); assert.equal(child.exited, true); }
   const raw = (file: string) => { const path = resolve(directory, file); assert.ok(path.startsWith(resolve(directory) + '/')); return readFileSync(path, 'utf8'); };
   for (const file of e.rawFiles) raw(file);
@@ -39,7 +41,7 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   assert.ok(e.commands.some(c => c.role === 'setup' && c.argv.includes('install')));
   if (e.provider === 'claude') {
     assert.ok(e.claude); assert.equal(e.codex, undefined);
-    assert.equal(owners.length, 2, 'concurrent ordinary native sessions');
+    assert.equal(owners.length, 3, 'concurrent ordinary native sessions including isolated opt-in owner');
     for (const c of owners) { assert.equal(c.argv[0], 'claude'); assert.ok(!c.argv.includes('--plugin-dir')); assert.ok(!c.argv.some(a => /watcher-run|setup\.ts/.test(a))); }
     verifyClaudeAutoload(raw(e.claude.transcriptFile));
     const terminalFiles = e.rawFiles.filter(file => /^claude-[ab]\.txt$/.test(file));
@@ -49,8 +51,24 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
       assert.ok(nativeStatuses.some(native => JSON.stringify(native) === JSON.stringify(status)),
         'normalized status must exist in actual native terminal output');
     }
+    const optInRows = parseClaudeStatuses(raw(e.claude.optInTranscriptFile)); assert.equal(optInRows.length, 1);
+    const optIn = optInRows[0]; const nativeOptIn = parseClaudeStatuses(raw('claude-c.txt'));
+    assert.ok(nativeOptIn.some(row => JSON.stringify(row) === JSON.stringify(optIn)), 'opt-in metadata has untouched native terminal provenance');
+    assert.equal(optIn.pluginId, 'vesta@vesta-local'); assert.equal(optIn.warmEnabled, true);
+    assert.equal(optIn.tokens, null); assert.equal(optIn.pending, false); assert.equal(optIn.ended, false);
+    assert.equal(optIn.idleMs, 3000000); assert.equal(optIn.budgetMs, 14400000); assert.equal(optIn.threshold, 100000);
+    assert.ok(!nativeStatuses.some(row => row.sessionId === optIn.sessionId), 'opt-in uses a distinct native session');
+    assert.equal(optIn.storeKey, 'status:' + optIn.sessionId);
+    assert.equal(e.commands.filter(command => command.role === 'setup' && command.argv.includes('configure') && command.argv.includes('--values-stdin')).length, 2, 'native opt-in then native disable');
+    assert.ok(e.claude.statusRequests.length >= 8);
+    for (const request of e.claude.statusRequests) {
+      assert.ok(request.at >= e.startedAt && request.at <= e.endedAt);
+      assert.ok(parseClaudeStatuses(raw(request.rawFile)).some(row => row.userAt >= request.at && row.sessionId === request.sessionId
+        && row.warmEnabled === request.warmEnabled && (!request.resetReason || row.resetReason === request.resetReason)), 'each actual status request has fresh native activity evidence');
+    }
+    for (const reason of ['clear', 'resume', 'branch', 'reload']) assert.ok(e.claude.statusRequests.some(request => request.resetReason === reason && !request.warmEnabled), 'fresh explicit ' + reason + ' recovery');
     assert.deepEqual(e.claude.pluginTreeAfter, e.claude.pluginTreeBefore, 'shared cached plugin remains immutable');
-    assert.ok(new Set(e.claude.sessionKeys).size >= 2);
+    assert.ok(new Set(e.claude.sessionKeys).size >= 3);
     assert.ok(e.claude.sessionKeys.every(k => typeof k === 'string' && k.startsWith('status:') && k.length > 'status:'.length));
     return;
   }

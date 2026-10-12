@@ -6,6 +6,7 @@ import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readd
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripVTControlCharacters } from 'node:util';
 import * as pty from 'node-pty';
 import { verifySetupLiveEvidence } from './setup-live-acceptance.ts';
 import type { SetupLiveEvidence } from './setup-live-acceptance.ts';
@@ -35,9 +36,9 @@ async function waitFor<T>(get: () => T | false | undefined, label: string): Prom
   while (Date.now() < deadline) { const value = get(); if (value) return value; await sleep(100); }
   throw new Error('Native E2E deadline: ' + label);
 }
-function run(command: string, argv: string[]) {
+function run(command: string, argv: string[], input?: string) {
   e.commands.push({ argv: [command, ...argv], role: 'setup' });
-  const result = spawnSync(command, argv, { cwd: fixture, env, encoding: 'utf8', timeout: 30000 });
+  const result = spawnSync(command, argv, { cwd: fixture, env, input, encoding: 'utf8', timeout: 30000 });
   const file = 'setup-' + e.commands.length + '.txt'; writeFileSync(join(artifacts, file), (result.stdout ?? '') + (result.stderr ?? '')); e.rawFiles.push(file);
   assert.equal(result.status, 0, result.stderr || result.error?.message); return result.stdout;
 }
@@ -51,6 +52,17 @@ function launch(command: string, argv: string[], file: string) {
 }
 async function type(entry: typeof terminals[number], command: string) { entry.terminal.write('\x1b[200~' + command + '\x1b[201~'); await sleep(300); entry.terminal.write('\r'); }
 const statuses = (file: string) => parseClaudeStatuses(text(file));
+const statusRequests: { rawFile: string; at: number; resetReason?: string; sessionId: string; warmEnabled: boolean }[] = [];
+async function requestStatus(entry: typeof terminals[number], warmEnabled = false, resetReason?: string) {
+  await waitFor(() => text(entry.file).includes('❯'), 'native composer ready');
+  const at = Date.now();
+  entry.terminal.write('\x15\x1b[200~/vesta-status\x1b[201~');
+  await waitFor(() => stripVTControlCharacters(text(entry.file)).replace(/\s/g, '').includes('Showthissession’sVestametadatawithoutamodelrequest'), 'native registered status command');
+  await sleep(300); entry.terminal.write('\r');
+  const row = await waitFor(() => statuses(entry.file).find(row => row.userAt >= at && row.warmEnabled === warmEnabled && (!resetReason || row.resetReason === resetReason)), 'fresh native status ' + (resetReason ?? 'startup'));
+  statusRequests.push({ rawFile: entry.file, at, resetReason, sessionId: row.sessionId, warmEnabled });
+  return row;
+}
 try {
   if (provider === 'claude') {
     env.CLAUDE_CONFIG_DIR = configDir; env.CLAUDE_SECURESTORAGE_CONFIG_DIR = '';
@@ -58,21 +70,25 @@ try {
     run(process.execPath, ['--experimental-strip-types', join(here, 'setup.ts'), 'install', '--provider', 'claude', '--config-dir', configDir, '--json']);
     const installed = JSON.parse(run('claude', ['plugin', 'list', '--json'])).find((p: any) => p.id === 'vesta@vesta-local'); assert.ok(installed?.installPath);
     const a = launch('claude', [], 'claude-a.txt'); const b = launch('claude', [], 'claude-b.txt');
-    await sleep(1500); await type(a, '/vesta-status'); await type(b, '/vesta-status');
-    const first = await waitFor(() => statuses(a.file)[0], 'first plain Claude autoload'); await waitFor(() => statuses(b.file)[0], 'concurrent plain Claude autoload');
+    const first = await requestStatus(a); await requestStatus(b);
+    run('claude', ['plugin', 'configure', 'vesta@vesta-local', '--values-stdin', '--json'], JSON.stringify({ warm: 'true' }));
+    const c = launch('claude', [], 'claude-c.txt'); const optIn = await requestStatus(c, true);
+    assert.equal(optIn.tokens, null); assert.equal(optIn.pending, false);
+    run('claude', ['plugin', 'configure', 'vesta@vesta-local', '--values-stdin', '--json'], JSON.stringify({ warm: 'false' }));
     // Claude may generate native type declarations on the first plugin load.
     // Freeze the shared package after this legitimate native initialization.
     const before = tree(installed.installPath);
     const nonce = 'VESTA-' + randomUUID(); await type(a, `Reply with exactly ${nonce}. Do not use tools.`);
     await waitFor(() => text(a.file).split(nonce).length >= 3, 'native initial saved response');
     for (const [command, reason] of [['/clear', 'clear'], ['/resume ' + first.sessionId, 'resume'], ['/branch', 'branch'], ['/reload-plugins', 'reload']]) {
-      await type(a, command!); await sleep(1200); await type(a, '/vesta-status');
-      await waitFor(() => statuses(a.file).find(row => row.resetReason === reason), 'native ' + reason + ' rollover');
+      await type(a, command!); await sleep(1200); await requestStatus(a, false, reason);
     }
-    await type(b, '/vesta-status'); await sleep(500);
+    await requestStatus(b);
     const observed = [...statuses(a.file), ...statuses(b.file)];
     writeFileSync(join(artifacts, 'claude-autoload.txt'), observed.map(row => 'VESTA_STATUS ' + JSON.stringify(row)).join('\n') + '\n'); e.rawFiles.push('claude-autoload.txt');
-    e.claude = { transcriptFile: 'claude-autoload.txt', pluginTreeBefore: before, pluginTreeAfter: tree(installed.installPath), sessionKeys: observed.map(row => row.storeKey) };
+    writeFileSync(join(artifacts, 'claude-opt-in.txt'), 'VESTA_STATUS ' + JSON.stringify(optIn) + '\n'); e.rawFiles.push('claude-opt-in.txt');
+    e.claude = { transcriptFile: 'claude-autoload.txt', optInTranscriptFile: 'claude-opt-in.txt', statusRequests,
+      pluginTreeBefore: before, pluginTreeAfter: tree(installed.installPath), sessionKeys: [...observed.map(row => row.storeKey), optIn.storeKey] };
   } else {
     env.CODEX_HOME = configDir;
     const auth = join(homedir(), '.codex/auth.json'); if (existsSync(auth)) symlinkSync(auth, join(configDir, 'auth.json'));
