@@ -53,3 +53,11 @@ for verified interactive Codex launch forms; unsupported commands/flags preserve
 native execution without warming. Setup/status/uninstall must be idempotent,
 reversible and preserve unrelated state. Installed Claude sessions need independent
 metadata and rollover recovery. Retain all thresholds, budgets and race limits.
+
+## Native Codex --yolo support (YOLO-001)
+
+Extend verified interactive wrapping to --yolo, preserving native permission
+semantics in the TUI and owned server. Native conflicts retain native errors;
+unsupported command/ownership flags and non-TTY invocations remain pass-through.
+Prove unrestricted native metadata and three-turn continuity with bounded, tool-free
+live probes. This does not establish arbitrary flag-independent attachment.

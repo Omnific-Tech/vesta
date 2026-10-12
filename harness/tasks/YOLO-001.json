@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "YOLO-001",
+  "mode": "quick",
+  "scope": "Add verified interactive Codex --yolo autoload with native permission parity; preserve existing lifecycle, integration and unsupported command pass-through. Feature SESSION-INTEGRATION; change YOLO-001.",
+  "implementor_id": "gpt-6.1-sol-medium",
+  "dependencies": [],
+  "risk_tags": [],
+  "acceptance": [
+    { "id": "AC-LIFECYCLE", "description": "Preserve all controlled watcher threshold, freshness, idle and four-hour budget contracts." },
+    { "id": "AC-INSTALL", "description": "Preserve read-only plan and idempotent reversible isolated setup." },
+    { "id": "AC-AUTO-CLAUDE", "description": "Preserve native installed Claude session independence and rollover behavior." },
+    { "id": "AC-AUTO-CODEX", "description": "Preserve native installed Codex parent-thread ownership and three-turn continuity." },
+    { "id": "AC-FLAGS", "description": "Preserve exact unsupported forwarding and native supported flag semantics." },
+    { "id": "AC-SETUP-INTEGRITY", "description": "Retain repeatable raw evidence, unchanged personal files, owned cleanup and accurate setup documentation." },
+    { "id": "AC-YOLO", "description": "Interactive --yolo receives native approval never and unrestricted sandbox semantics, retains original argv plus transport only, completes real nonce/K/nonce turns with no warm tools; mixed unsupported and nonTTY forms remain native." }
+  ],
+  "verification": ["native-setup", "native-forwarding", "interactive-forwarding", "claude-installed-live", "codex-integrated-live", "codex-yolo-live", "codex-yolo-sandbox-live", "watcher-lifecycle"]
+}
