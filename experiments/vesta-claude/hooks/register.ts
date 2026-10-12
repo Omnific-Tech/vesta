@@ -49,6 +49,9 @@ export function register(on, options) {
     await ensure($);
     if (e.command === 'vesta-status') return { text: 'VESTA_STATUS ' + JSON.stringify(status()) };
     if (['clear', 'resume', 'branch'].includes(e.command)) nextReset = e.command;
+    if (e.command === 'reload-plugins') {
+      nextReset = 'reload'; timer?.cancel(); await event($, 'exit');
+    }
     return next(e);
   });
   on('prompt.edit', async ($, e, next) => { await ensure($); await event($, 'activity', { source: 'user' }); return next(e); });
