@@ -102,7 +102,11 @@ telos verify SETUP-001
 
 Each run retains exact native transcripts/protocol rows, metadata, command and
 source identities, personal-file hashes, and owned-process cleanup in an ignored
-artifact directory. The live Codex fixture explicitly sets
+artifact directory. The installed Claude fixture uses the normal native
+`--ax-screen-reader` UI flag to capture complete text instead of partial fullscreen
+VT repaint fragments. Its final repeatable proof targets that native renderer;
+it uses the installed plugin registry and no separate Claude launcher or plugin
+directory flag. The live Codex fixture explicitly sets
 `VESTA_WATCHER_TEST_OPTIONS` to a JSON string array containing `--probe`; ordinary
 mode rejects capture or threshold overrides without that explicit probe mode.
 Probe timings/thresholds do not change installation defaults.

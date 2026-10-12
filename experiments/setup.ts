@@ -79,7 +79,7 @@ function handle(selected: 'claude' | 'codex') {
       if (existsSync(configPath) && !state) throw new Error('Existing Vesta Codex configuration is not owned by this setup');
       const createdConfig = { warm: args.includes('--warm'), idleMs: 1200000, budgetMs: 14400000, statusDir: join(configDir, 'sessions') };
       save(configPath, createdConfig);
-      save(statePath, { provider: selected, native, shellFile, block: addition, createdConfig }); mkdirSync(dirname(shellFile), { recursive: true }); writeFileSync(shellFile, shellText + addition);
+      save(statePath, { provider: selected, native, shellFile, shellCreated: !existsSync(shellFile), block: addition, createdConfig }); mkdirSync(dirname(shellFile), { recursive: true }); writeFileSync(shellFile, shellText + addition);
     } else if (args.includes('--warm') && !codexConfig.warm) {
       const changed = { ...codexConfig, warm: true }; save(configPath, changed); save(statePath, { ...state, createdConfig: changed });
     }
@@ -88,7 +88,9 @@ function handle(selected: 'claude' | 'codex') {
     const current = existsSync(state.shellFile) ? readFileSync(state.shellFile, 'utf8') : '';
     if (current.includes(start)) {
       if (!current.includes(state.block)) throw new Error('Vesta block changed after setup; refusing to remove edited shell content');
-      writeFileSync(state.shellFile, removeBlock(current));
+      const remaining = removeBlock(current);
+      if (state.shellCreated && remaining === '') unlinkSync(state.shellFile);
+      else writeFileSync(state.shellFile, remaining);
     }
     if (existsSync(configPath) && JSON.stringify(codexConfig) === JSON.stringify(state.createdConfig)) unlinkSync(configPath);
     unlinkSync(statePath); result.installed = false;
