@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "generation": "bd731766a267ea9ccb0e322db1d31feb",
+  "generation": "5be57c9283d41efe6147478811801be7",
   "repositories": {
-    "app": "9318b832d7e719dfc41101cd47807ecf7f143e0e"
+    "app": "5c3e7f6feaeec5d04b7138efaf18b005eb9733a1"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
     "app:experiments/context-acceptance.ts": "79c2305fefd415faf7d02fee8c644be3d8c790d5ef355841cd74b97e294432c2",
-    "app:experiments/setup-acceptance.ts": "2c8a00231ae1157a0a06648dc02275708230952af6c7a2bb0c3368d7d44996f9",
+    "app:experiments/setup-acceptance.ts": "dfc27754f1d5b6642475f3a354b1ab41ea65a1c9406a85f7c17488cdd85d4d58",
     "app:experiments/setup-e2e.ts": "94394f562703d1f08a7f1fdbad1cdb0407b9cb97cc68dfd9e318262f99e2e08b",
     "app:experiments/setup-forwarding-e2e.ts": "457a678b45120abcca66c927bf899be8d58565f4b9341f1bff98b43914386848",
-    "app:experiments/setup-live-acceptance.ts": "139bd71f011938891d1753ba78bb9d79ab2a5e60a5da42f7a16d14bf27ead4a4",
-    "app:experiments/setup-live.ts": "c090d966bd298f98602176d98e19fe7a14925c087404397478067cc9ccaf04d2",
+    "app:experiments/setup-live-acceptance.ts": "3066cf016e67e29693302af513f36008eb3983639ab8bb55ffb433d3a42dc061",
+    "app:experiments/setup-live.ts": "f358ae8155d70f5baced8f672a735d29730f404c10751bebfdfcc9684cbf21b9",
     "app:experiments/setup-native-fixture.mjs": "18c8bdcd0233ece36b6a4d192d1c972a3b5e9446accf0c38c1e5a329cb54d7bd",
     "app:experiments/setup-tty-forwarding-e2e.ts": "0dde36f8c56c5daf22d989a69c50049136a08987d02a70a55bf23942d566e7f7",
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
@@ -138,6 +138,16 @@
       },
       "repositories": {
         "app": "9318b832d7e719dfc41101cd47807ecf7f143e0e"
+      }
+    },
+    {
+      "reason": "Retain native assistant seed records and exact installed source identities; remove physical terminal CR/LF wrapping from compact status JSON without altering escaped content or field assertions",
+      "prior_generation": "bd731766a267ea9ccb0e322db1d31feb",
+      "prior_repositories": {
+        "app": "9318b832d7e719dfc41101cd47807ecf7f143e0e"
+      },
+      "repositories": {
+        "app": "5c3e7f6feaeec5d04b7138efaf18b005eb9733a1"
       }
     }
   ]
