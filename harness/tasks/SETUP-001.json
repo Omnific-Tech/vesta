@@ -14,5 +14,5 @@
     { "id": "AC-FLAGS", "description": "Unsupported argv/stdio/cwd/exit stay exact; supported model/cwd/approval/sandbox semantics and transport-only changes have real proof." },
     { "id": "AC-SETUP-INTEGRITY", "description": "Real repeatable artifacts, source identities, owned cleanup, unchanged personal files, opt-in defaults and reversible setup documentation." }
   ],
-  "verification": ["native-setup", "native-forwarding", "claude-installed-live", "codex-integrated-live", "watcher-lifecycle"]
+  "verification": ["native-setup", "native-forwarding", "interactive-forwarding", "claude-installed-live", "codex-integrated-live", "watcher-lifecycle"]
 }
