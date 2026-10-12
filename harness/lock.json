@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "5be57c9283d41efe6147478811801be7",
+  "generation": "25ef5218d3fb7d9ed385249c7ac3aab5",
   "repositories": {
-    "app": "5c3e7f6feaeec5d04b7138efaf18b005eb9733a1"
+    "app": "50f72458d3489ab338b1ab8acfd0be8dcf7d79fd"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -10,8 +10,8 @@
     "app:experiments/setup-acceptance.ts": "dfc27754f1d5b6642475f3a354b1ab41ea65a1c9406a85f7c17488cdd85d4d58",
     "app:experiments/setup-e2e.ts": "94394f562703d1f08a7f1fdbad1cdb0407b9cb97cc68dfd9e318262f99e2e08b",
     "app:experiments/setup-forwarding-e2e.ts": "457a678b45120abcca66c927bf899be8d58565f4b9341f1bff98b43914386848",
-    "app:experiments/setup-live-acceptance.ts": "3066cf016e67e29693302af513f36008eb3983639ab8bb55ffb433d3a42dc061",
-    "app:experiments/setup-live.ts": "f358ae8155d70f5baced8f672a735d29730f404c10751bebfdfcc9684cbf21b9",
+    "app:experiments/setup-live-acceptance.ts": "5a6935a39a0412f576e65606069ec52f642157d613b7b20a6469134951396a97",
+    "app:experiments/setup-live.ts": "b1bcd55a124fab0ffbff18b90aee6287d54d80150d7cd06ee4b68b68a44b79d5",
     "app:experiments/setup-native-fixture.mjs": "18c8bdcd0233ece36b6a4d192d1c972a3b5e9446accf0c38c1e5a329cb54d7bd",
     "app:experiments/setup-tty-forwarding-e2e.ts": "0dde36f8c56c5daf22d989a69c50049136a08987d02a70a55bf23942d566e7f7",
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
@@ -148,6 +148,16 @@
       },
       "repositories": {
         "app": "5c3e7f6feaeec5d04b7138efaf18b005eb9733a1"
+      }
+    },
+    {
+      "reason": "Use supported native Claude screen-reader rendering for complete status messages rather than treating VT repaint deltas as messages; keep all native field, rollover, provenance and cleanup checks unchanged",
+      "prior_generation": "5be57c9283d41efe6147478811801be7",
+      "prior_repositories": {
+        "app": "5c3e7f6feaeec5d04b7138efaf18b005eb9733a1"
+      },
+      "repositories": {
+        "app": "50f72458d3489ab338b1ab8acfd0be8dcf7d79fd"
       }
     }
   ]
