@@ -1,7 +1,7 @@
 // Installed zsh function delegates only verified interactive forms here.
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { accessSync, constants, existsSync, readFileSync, statSync } from 'node:fs';
+import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const split = process.argv.indexOf('--');
@@ -17,7 +17,20 @@ for (let i = 0; i < argv.length; i++) {
   else supported = false; // Positional prompts and all subcommands stay native until proved.
 }
 let config: any;
-if (supported) { try { config = JSON.parse(readFileSync(configPath, 'utf8')); } catch { supported = false; } }
+if (supported) {
+  try {
+    config = JSON.parse(readFileSync(configPath, 'utf8'));
+    supported = !!config && typeof config === 'object' && !Array.isArray(config) && typeof config.warm === 'boolean'
+      && [config.idleMs, config.budgetMs].every(ms => Number.isSafeInteger(ms) && ms > 0 && ms <= 14400000)
+      && typeof config.statusDir === 'string' && isAbsolute(config.statusDir);
+    if (supported) {
+      let parent = config.statusDir;
+      while (!existsSync(parent)) parent = dirname(parent);
+      if (!statSync(parent).isDirectory()) supported = false;
+      else accessSync(parent, constants.W_OK);
+    }
+  } catch { supported = false; }
+}
 let testOptions: string[] = [];
 if (supported && process.env.VESTA_WATCHER_TEST_OPTIONS) {
   const parsed = JSON.parse(process.env.VESTA_WATCHER_TEST_OPTIONS);
