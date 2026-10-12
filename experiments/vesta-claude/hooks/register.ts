@@ -25,8 +25,11 @@ let configuredOptions;
   const ensure = async ($) => {
     const id = await $.session.id();
     if (!watcher || id !== sessionId || watcher.state.ended) {
-      timer?.cancel();
+      const previousWatcher = watcher; const previousSession = sessionId; const previousTimer = timer;
       const old = await $.store.get('status:' + id);
+      const currentId = await $.session.id();
+      if (currentId !== id || watcher !== previousWatcher || sessionId !== previousSession) return;
+      previousTimer?.cancel();
       sessionId = id;
       config = { warm: configuredOptions.warm === true, idleMs: configuredOptions.idle_ms ?? 3000000, budgetMs: configuredOptions.budget_ms ?? 14400000 };
       watcher = new Watcher('claude', { idleMs: config.idleMs, budgetMs: config.budgetMs });
