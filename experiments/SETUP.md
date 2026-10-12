@@ -73,6 +73,10 @@ dispatch is not guaranteed. The ping requests exactly `K` and no tools; that
 instruction does not guarantee tool restraint in an unrestricted session. Cache
 retention and net usage savings remain unproven.
 
+For an optional instruction-file rule that reinforces minimal warm replies, see
+[Keep warm replies minimal](../README.md#keep-warm-replies-minimal). The rule does
+not enforce model output or remove warm turns from conversation history.
+
 ```sh
 node --experimental-strip-types experiments/setup.ts uninstall --provider all --json
 ```
