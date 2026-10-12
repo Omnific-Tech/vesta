@@ -52,6 +52,26 @@ function launch(command: string, argv: string[], file: string) {
 }
 async function type(entry: typeof terminals[number], command: string) { entry.terminal.write('\x1b[200~' + command + '\x1b[201~'); await sleep(300); entry.terminal.write('\r'); }
 const statuses = (file: string) => parseClaudeStatuses(text(file));
+const modalActions: { warningOffset: number; selectionOffset: number; submitOffset: number; detectedAt: number; selectedAt: number; composerAt: number }[] = [];
+async function keepCodexModel(entry: typeof terminals[number], model: string) {
+  const captured = text(entry.file); const output = stripVTControlCharacters(captured);
+  const warning = output.lastIndexOf('Approaching rate limits');
+  if (warning < 0 || output.lastIndexOf('› Ask Codex to do anything') > warning) return;
+  const menu = output.slice(warning);
+  assert.ok(menu.includes('› 1. Switch to gpt-6-luna') && menu.includes('2. Keep current model'), 'only the observed native warning is handled');
+  const warningOffset = captured.lastIndexOf('Approaching rate limits'); assert.ok(warningOffset >= 0);
+  const detectedAt = Date.now(); const selectionOffset = captured.length;
+  entry.terminal.write('\x1b[B');
+  await waitFor(() => /›\s*2\.\s*Keep current model/.test(stripVTControlCharacters(text(entry.file).slice(selectionOffset))), 'native Keep current model selected');
+  const selectedAt = Date.now(); const submitOffset = text(entry.file).length;
+  entry.terminal.write('\r');
+  await waitFor(() => {
+    const fresh = stripVTControlCharacters(text(entry.file).slice(submitOffset));
+    const footer = fresh.match(/\b(GPT-[A-Za-z0-9.-]+)\s+(?:default|low|medium|high|xhigh|max|ultra)\s*·/i);
+    return fresh.includes('› Ask Codex to do anything') && footer?.[1]?.toLowerCase() === model.toLowerCase();
+  }, 'fresh native composer with requested model');
+  modalActions.push({ warningOffset, selectionOffset, submitOffset, detectedAt, selectedAt, composerAt: Date.now() });
+}
 const statusRequests: { rawFile: string; at: number; resetReason?: string; sessionId: string; warmEnabled: boolean }[] = [];
 async function requestStatus(entry: typeof terminals[number], warmEnabled = false, resetReason?: string) {
   await waitFor(() => {
@@ -114,12 +134,15 @@ try {
     const originalArgv = ['-m', model, '-C', fixture, '-a', 'never', '-s', 'read-only', '--no-alt-screen'];
     const owner = launch('zsh', ['-f', '-c', 'source "$1"; shift; codex "$@"', 'vesta-e2e', shellFile, ...originalArgv], 'codex-owner.txt');
     await waitFor(() => rows('watcher-lifecycle.jsonl').find(row => row.kind === 'owner-ready'), 'managed native owner');
-    const nonce = 'VESTA-' + randomUUID(); await type(owner, `Remember ${nonce}. Reply with exactly ${nonce}. Do not use tools.`);
+    const nonce = 'VESTA-' + randomUUID();
+    e.codex = { originalArgv, managedArgv: [], nonce, protocolFile: 'codex-protocol.jsonl', traceFile: 'watcher-trace.jsonl', lifecycleFile: 'watcher-lifecycle.jsonl',
+      ownerTranscriptFile: 'codex-owner.txt', configFile: 'codex-final-config.toml', modalActions, expected: { model, cwd: fixture, sandbox: 'read-only', approvalPolicy: 'never' } };
+    await type(owner, `Remember ${nonce}. Reply with exactly ${nonce}. Do not use tools.`);
     const completed = () => rows('codex-protocol.jsonl').filter(row => row.method === 'turn/completed' && row.params?.turn?.status === 'completed');
     await waitFor(() => completed().length >= 2, 'managed policy-driven warm');
+    await keepCodexModel(owner, model);
     await type(owner, 'What nonce did I ask you to remember? Reply with exactly that nonce. Do not use tools.');
     await waitFor(() => completed().length === 3, 'managed native continuity');
-    e.codex = { originalArgv, managedArgv: [], nonce, protocolFile: 'codex-protocol.jsonl', traceFile: 'watcher-trace.jsonl', lifecycleFile: 'watcher-lifecycle.jsonl', expected: { model, cwd: fixture, sandbox: 'read-only', approvalPolicy: 'never' } };
   }
 } catch (error) { failure = String(error); }
 finally {
@@ -142,6 +165,7 @@ finally {
     }
     e.rawFiles.push('codex-protocol.jsonl', 'watcher-trace.jsonl', 'watcher-lifecycle.jsonl', 'watcher-runtime.json');
   }
+  if (provider === 'codex' && existsSync(join(configDir, 'config.toml'))) { copyFileSync(join(configDir, 'config.toml'), join(artifacts, 'codex-final-config.toml')); e.rawFiles.push('codex-final-config.toml'); }
   e.sourceFiles = ['setup.ts', 'setup-live.ts', 'setup-live-acceptance.ts', 'watcher-run.ts', 'watcher-policy.ts', ...(provider === 'claude' ? ['vesta-claude/hooks/register.ts', 'vesta-claude/hooks/policy.ts', 'vesta-claude/.claude-plugin/plugin.json', 'vesta-claude/hooks/hooks.json'] : ['codex-autoload.ts'])].filter(file => existsSync(join(here, file))).map(file => ({ path: join(here, file), sha256: hash(join(here, file)) }));
   for (const file of e.personalFiles) file.after = hash(file.path); e.endedAt = Date.now();
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ ...e, failure }, null, 2)); rmSync(fixture, { recursive: true, force: true });

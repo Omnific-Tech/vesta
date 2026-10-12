@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripVTControlCharacters } from 'node:util';
 import { parseClaudeStatuses, verifyClaudeAutoload } from './setup-acceptance.ts';
 
 export type SetupLiveEvidence = {
@@ -19,6 +20,8 @@ export type SetupLiveEvidence = {
     statusRequests: { rawFile: string; at: number; resetReason?: string; sessionId: string; warmEnabled: boolean }[];
     pluginTreeBefore: Record<string, string>; pluginTreeAfter: Record<string, string>; sessionKeys: string[] };
   codex?: { originalArgv: string[]; managedArgv: string[]; nonce: string; protocolFile: string; traceFile: string;
+    ownerTranscriptFile: string; configFile: string;
+    modalActions: { warningOffset: number; selectionOffset: number; submitOffset: number; detectedAt: number; selectedAt: number; composerAt: number }[];
     lifecycleFile: string; expected: { model: string; cwd: string; sandbox: 'read-only'; approvalPolicy: 'never' } };
 };
 export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string) {
@@ -99,6 +102,25 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   assert.ok(e.commands.some(command => command.role === 'observer' && command.argv.includes('proxy')));
   const protocol = rows(c.protocolFile); const lifecycle = rows(c.lifecycleFile); const trace = rows(c.traceFile);
   const owner = lifecycle.find(row => row.kind === 'owner-ready'); assert.ok(owner?.sessionId && owner.ownerPid);
+  const ownerCapture = raw(c.ownerTranscriptFile); const ownerText = stripVTControlCharacters(ownerCapture);
+  const footers = [...ownerText.matchAll(/\b(GPT-[A-Za-z0-9.-]+)\s+(?:default|low|medium|high|xhigh|max|ultra)\s*·/gi)];
+  assert.ok(footers.length > 0, 'native owner model footer retained');
+  for (const footer of footers) assert.equal(footer[1]!.toLowerCase(), c.expected.model.toLowerCase(), 'native owner never selects an alternate model');
+  assert.equal(raw(c.configFile).match(/^model\s*=\s*"([^"\n]+)"/m)?.[1], c.expected.model, 'isolated native model preference unchanged');
+  for (const action of c.modalActions) {
+    assert.ok(action.warningOffset >= 0 && action.warningOffset < action.selectionOffset && action.selectionOffset < action.submitOffset && action.submitOffset < ownerCapture.length);
+    assert.ok(action.detectedAt >= e.startedAt && action.selectedAt >= action.detectedAt && action.composerAt >= action.selectedAt && action.composerAt <= e.endedAt);
+    const warning = stripVTControlCharacters(ownerCapture.slice(action.warningOffset, action.selectionOffset));
+    assert.ok(warning.includes('Approaching rate limits') && warning.includes('› 1. Switch to gpt-6-luna') && warning.includes('2. Keep current model'));
+    assert.match(stripVTControlCharacters(ownerCapture.slice(action.selectionOffset, action.submitOffset)), /›\s*2\.\s*Keep current model/, 'actual native option2 selection before Enter');
+    const composer = stripVTControlCharacters(ownerCapture.slice(action.submitOffset));
+    assert.ok(composer.includes('› Ask Codex to do anything'), 'native composer restored before continuity');
+  }
+  for (const row of protocol) {
+    const thread = row.result?.thread ?? row.params?.thread;
+    if (thread?.id === owner.sessionId && thread.model) assert.equal(thread.model, c.expected.model, 'exact owned thread model unchanged');
+    if (row.method === 'thread/settings/updated' && row.params?.threadId === owner.sessionId && row.params.threadSettings?.model) assert.equal(row.params.threadSettings.model, c.expected.model);
+  }
   const metadata = protocol.find(row => row.result?.thread?.id === owner.sessionId && row.result?.approvalPolicy !== undefined && row.result?.sandbox !== undefined)?.result;
   assert.ok(metadata, 'native server returned exact owning thread metadata');
   assert.equal(metadata.thread.cwd, c.expected.cwd); assert.equal(metadata.thread.model, c.expected.model);
