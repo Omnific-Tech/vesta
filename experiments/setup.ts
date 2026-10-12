@@ -22,7 +22,7 @@ const executable = (name: string) => {
 };
 const quote = (text: string) => "'" + text.replaceAll("'", "'\\''") + "'";
 const start = '# >>> Vesta managed Codex >>>'; const end = '# <<< Vesta managed Codex <<<';
-const block = (native: string, configPath: string) => `${start}\nfunction codex() {\n  if [[ ! -t 0 || ! -t 1 ]]; then\n    command ${quote(native)} "$@"\n  else\n    command ${quote(process.execPath)} --experimental-strip-types ${quote(join(here, 'codex-autoload.ts'))} --config ${quote(configPath)} --native ${quote(native)} -- "$@"\n  fi\n}\n${end}\n`;
+const block = (native: string, configPath: string) => `${start}\nfunction codex() {\n  if [[ ! -t 0 || ! -t 1 ]]; then\n    command ${quote(native)} "$@"\n  else\n    command ${quote(process.execPath)} --disable-warning=ExperimentalWarning --experimental-strip-types ${quote(join(here, 'codex-autoload.ts'))} --config ${quote(configPath)} --native ${quote(native)} -- "$@"\n  fi\n}\n${end}\n`;
 const removeBlock = (text: string) => {
   const from = text.indexOf(start); if (from < 0) return text;
   const to = text.indexOf(end, from); if (to < 0 || text.indexOf(start, from + start.length) >= 0) throw new Error('Conflicting/incomplete Vesta shell block; repair it before setup');

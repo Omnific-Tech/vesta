@@ -27,8 +27,9 @@ if (supported && process.env.VESTA_WATCHER_TEST_OPTIONS) {
   testOptions = parsed;
 }
 const here = dirname(fileURLToPath(import.meta.url));
+if (!supported) process.execve(native, [native, ...argv], process.env as Record<string, string>);
 const command = supported ? process.execPath : native;
-const args = supported ? ['--experimental-strip-types', join(here, 'watcher-run.ts'), 'codex', '--native-command', native,
+const args = supported ? ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', join(here, 'watcher-run.ts'), 'codex', '--native-command', native,
   ...(testOptions.length ? testOptions : ['--idle-ms', String(config.idleMs), '--budget-ms', String(config.budgetMs),
     ...(config.warm ? ['--warm'] : []), '--artifacts', join(config.statusDir, process.pid + '-' + Date.now())]), '--', ...argv] : argv;
 const child = spawn(command, args, { stdio: 'inherit', env: process.env });
