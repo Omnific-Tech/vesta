@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "1aeefdef9687a25727a804eec721e155",
+  "generation": "a05b84fd814b8b10a88222a13c30dcb5",
   "repositories": {
-    "app": "84098ee8673486f7c18849b852b448fe21475b49"
+    "app": "c1faa2b080e9e342dafc55d4586f9debd58e3904"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -13,6 +13,7 @@
     "app:experiments/setup-live-acceptance.ts": "580c15460b50dc5035f6168b132143ab5a48c1855fcd87bc13679b17c103e861",
     "app:experiments/setup-live.ts": "77cdaf51efb9ffe6f20c2e4e4589758db1a4e4d205050f85149abc65d73f355f",
     "app:experiments/setup-native-fixture.mjs": "18c8bdcd0233ece36b6a4d192d1c972a3b5e9446accf0c38c1e5a329cb54d7bd",
+    "app:experiments/setup-tty-forwarding-e2e.ts": "0dde36f8c56c5daf22d989a69c50049136a08987d02a70a55bf23942d566e7f7",
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
     "app:experiments/watcher-live-acceptance.ts": "c2fc37caf711c4442bcb2d9a8f37ebd5219f475bb3019bb61c208457da5dba99",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/failures.md": "3e646558afcb76fcb226c99fa08df765f3d18f1c6e39b04c5fbe39838d8afe6f",
@@ -29,7 +30,7 @@
     "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "ce16013519c1029c506959f61ca832928a1b679a11c891716ce61b1ef136f5db",
     "app:harness/artifacts/features.md": "0f2701f3eb5e1d646cd2dc2f91fd3e175f7ffa3536fee1926296b0d7dff97c67",
     "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
-    "app:harness/harness.yaml": "6f8a27fc2f6ff57cac34b9259ccb438bb7df44e3186b395800c60a94c6f37452",
+    "app:harness/harness.yaml": "5c5bb68dfa3ffb82d72d66cfc197d468960d5519a52f11f64c3b2fdb5ffeb884",
     "app:harness/scenarios/SESSION-INTEGRATION/claude-context-probe.yaml": "3e8b43be25751053a714f265b84dd122080664a2df84df44bc7b7cb637ec627f",
     "app:harness/scenarios/SESSION-INTEGRATION/claude-installed-live.yaml": "ddd998796e3f281eaa016f950cef69316fa7a84ef34058dda19468d99425e2ba",
     "app:harness/scenarios/SESSION-INTEGRATION/claude-watcher-live.yaml": "56c38d02379a741ae062150ec05419f17c8ac6cbe4c4654c8eb85d3434e540be",
@@ -39,10 +40,11 @@
     "app:harness/scenarios/SESSION-INTEGRATION/codex-watcher-live.yaml": "555d6344c0a4905c19bfd71468e4a806510727deb6992cafaef17307b9bc0a26",
     "app:harness/scenarios/SESSION-INTEGRATION/codex.yaml": "cb6c0429f918fbc4c41efa5b1554bfc803fefdacb8c8dcbd0ea245153e6b1537",
     "app:harness/scenarios/SESSION-INTEGRATION/context-gate-fixtures.yaml": "af71d45576ded3261b848b2e34a526a2d42b96a308fe167b1770d475f28269a8",
+    "app:harness/scenarios/SESSION-INTEGRATION/interactive-forwarding.yaml": "fb381d0277ee58287c5d06d698081a42e014df217d70fac5da6a806ab3310455",
     "app:harness/scenarios/SESSION-INTEGRATION/native-forwarding.yaml": "25bdbf096986b46aabadbf4597e461b97e46278efdfa8061b5d04fb62f6a7bf8",
     "app:harness/scenarios/SESSION-INTEGRATION/native-setup.yaml": "11e8d3c08bc08b50e0402812b5a7316f4ccd11b5da8b82ad07a7bfe7dcb33a4b",
     "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "b6e067c4ad01ef3df114acc154c21b2673fdda353c8f4632f12f6efccad422ac",
-    "app:harness/tasks/SETUP-001.json": "7f385d4335efef1c611c475338cfd43124d14a579bfe50566fa2799a9859e6aa"
+    "app:harness/tasks/SETUP-001.json": "15c68a42acea6b102f8e931aaf54c0beff2e3789316f40fa8fb4faec0987f517"
   },
   "modes": {
     "SETUP-001": "quick"
@@ -116,6 +118,16 @@
       },
       "repositories": {
         "app": "84098ee8673486f7c18849b852b448fe21475b49"
+      }
+    },
+    {
+      "reason": "Exercise unsupported routing through the real installed interactive shell entrypoint, not only its non-TTY bypass; retain exact argv/stdio/cwd/exit checks",
+      "prior_generation": "1aeefdef9687a25727a804eec721e155",
+      "prior_repositories": {
+        "app": "84098ee8673486f7c18849b852b448fe21475b49"
+      },
+      "repositories": {
+        "app": "c1faa2b080e9e342dafc55d4586f9debd58e3904"
       }
     }
   ]
