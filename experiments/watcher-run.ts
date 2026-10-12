@@ -57,6 +57,7 @@ let lastWarmText = '';
 const usage = new Map<string, { row: any; generation: number }>();
 process.once('SIGINT', () => { stop = true; reason = 'SIGINT'; });
 process.once('SIGTERM', () => { stop = true; reason = 'SIGTERM'; });
+process.once('SIGHUP', () => { stop = true; reason = 'SIGHUP'; });
 const stamp = () => Date.now();
 const trace = (type: string, extra: Record<string, unknown> = {}) => {
   const row = watcher.event({ type, at: stamp(), ...extra });
