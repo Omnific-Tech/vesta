@@ -1,6 +1,7 @@
 // Actual standalone binaries/native registrations, with controlled gh transport.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -54,7 +55,14 @@ function snapshot(ctx: Context, name: string) {
   }
   files['shell'] = hash(ctx.shell); files['instruction-claude'] = hash(join(ctx.config, 'CLAUDE.md')); files['instruction-codex'] = hash(join(ctx.home, '.codex/AGENTS.md'));
   files['user-setting-codex'] = existsSync(join(ctx.config, 'vesta-codex.json')) ? hash(join(ctx.config, 'vesta-codex.json')) : 'absent';
-  files['user-setting-claude'] = existsSync(join(ctx.config, 'settings.json')) ? hash(join(ctx.config, 'settings.json')) : 'absent';
+  if (existsSync(join(ctx.config, 'settings.json'))) {
+    const settings = JSON.parse(readFileSync(join(ctx.config, 'settings.json'), 'utf8'));
+    const source = settings.extraKnownMarketplaces?.['vesta-local']?.source;
+    if (typeof source?.path === 'string') source.path = '<owned-marketplace-path>';
+    const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object'
+      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
+    files['user-setting-claude'] = createHash('sha256').update(JSON.stringify(canonical(settings))).digest('hex');
+  } else files['user-setting-claude'] = 'absent';
   const lock = join(ctx.installation, '.operation.lock'); if (existsSync(lock)) files['active-operation-lock'] = hash(lock);
   const outside = join(ctx.directory, 'outside');
   if (existsSync(outside)) for (const file of readdirSync(outside, { recursive: true, withFileTypes: true }).filter(file => file.isFile())) files['outside/' + join(file.parentPath, file.name).slice(outside.length + 1)] = hash(join(file.parentPath, file.name));
@@ -132,7 +140,10 @@ try {
   const legacyArgs = [...nodeFlags, join(root, 'experiments/setup.ts'), 'install', '--provider', 'all', '--config-dir', npm.config, '--shell-file', npm.shell, '--warm', '--json'];
   const seeded = spawnSync(process.execPath, legacyArgs, { cwd: root, env: npm.env, encoding: 'utf8', timeout: 60000 });
   writeFileSync(join(artifacts, 'npm-seed.stdout'), seeded.stdout ?? ''); writeFileSync(join(artifacts, 'npm-seed.stderr'), seeded.stderr ?? ''); assert.equal(seeded.status, 0, seeded.stderr);
-  customize(npm); snapshot(npm, 'npm-before'); assert.equal(run(npm, 'npm-migrate', installArgs(npm)).status, 0); snapshot(npm, 'npm-after');
+  customize(npm);
+  copyFileSync(join(npm.config, 'settings.json'), join(artifacts, 'npm-claude-settings-before.json'));
+  snapshot(npm, 'npm-before'); assert.equal(run(npm, 'npm-migrate', installArgs(npm)).status, 0); snapshot(npm, 'npm-after');
+  copyFileSync(join(npm.config, 'settings.json'), join(artifacts, 'npm-claude-settings-after.json'));
   assert.equal(run(main, 'uninstall', ['uninstall', '--provider', 'all', '--config-dir', main.config, '--shell-file', main.shell, '--json']).status, 0);
   assert.ok(existsSync(join(main.installation, 'versions/0.2.0/runtime/bin/node')), 'uninstall retains old runtime');
   assert.ok(!existsSync(evidence.cliLink) && !existsSync(join(main.installation, 'current')));

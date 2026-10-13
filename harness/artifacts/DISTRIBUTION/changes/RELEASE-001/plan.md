@@ -39,3 +39,13 @@ fresh required verification, inspect artifacts and submit RELEASE-001. Publish
 only the exact production artifact/manifest from supporting frozen run; after
 publishing verify authenticated download, tag/commit/version/digest match. Do not
 claim public visibility, personal deployment, cross-platform support or savings.
+
+## Migration oracle amendment
+
+The first controlled run revealed that native marketplace re-registration changes
+settings.extraKnownMarketplaces.vesta-local.source.path from the legacy checkout
+to the owned marketplace. That change is required to remove checkout dependence.
+Compare all Claude settings structurally while normalizing only this owned path;
+retain raw before/after settings and assert the exact new owned path. Preserve
+plugin enablement, warm/timer options, other source fields, unrelated settings and
+instruction hashes. Failure/rollback snapshots still compare raw file hashes.

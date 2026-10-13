@@ -64,6 +64,15 @@ export function verifyReleaseEvidence(e: ReleaseEvidence, directory: string) {
   assert.equal(e.commands.find(c => c.name === e.migration.npmCommand)?.code, 0, 'npm-owned installation migrated by actual binary');
   const npmBefore = e.snapshots.find(s => s.name === e.migration.before); const npmAfter = e.snapshots.find(s => s.name === e.migration.after); assert.ok(npmBefore && npmAfter);
   for (const [file, digest] of Object.entries(npmBefore.files)) if (/instruction|user-setting/.test(file)) assert.equal(npmAfter.files[file], digest);
+  const oldSettings = JSON.parse(raw('npm-claude-settings-before.json'));
+  const newSettings = JSON.parse(raw('npm-claude-settings-after.json'));
+  const oldSource = oldSettings.extraKnownMarketplaces?.['vesta-local']?.source;
+  const newSource = newSettings.extraKnownMarketplaces?.['vesta-local']?.source;
+  assert.equal(oldSource?.source, 'directory'); assert.equal(newSource?.source, 'directory');
+  assert.equal(newSource.path, resolve(e.binary, '../npm-owned/owned/marketplace'), 'migration replaces checkout dependency with owned marketplace');
+  assert.notEqual(newSource.path, oldSource.path);
+  oldSource.path = '<owned-marketplace-path>'; newSource.path = '<owned-marketplace-path>';
+  assert.deepEqual(newSettings, oldSettings, 'all Claude user settings retained except necessary owned source path migration');
   assert.deepEqual([...e.cases.map(c => c.name)].sort(), [...requiredUpdateCases].sort());
   for (const c of e.cases) {
     const command = e.commands.find(row => row.name === c.command); assert.ok(command);
