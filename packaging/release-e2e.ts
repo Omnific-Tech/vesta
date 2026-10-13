@@ -6,7 +6,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSy
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import * as pty from 'node-pty';
-import { buildRelocated, executable, hash, nativeBin, nodeFlags, root } from './e2e-common.ts';
+import { buildRelocated, executable, hash, nativeBin, nodeFlags, root, sealEvidence } from './e2e-common.ts';
 import { requiredUpdateCases, verifyBuildReceipt, verifyReleaseEvidence } from './release-acceptance.ts';
 import type { ReleaseEvidence } from './release-acceptance.ts';
 
@@ -157,5 +157,8 @@ finally {
   for (const file of evidence.personalFiles) file.after = personalHash(file.path); evidence.endedAt = Date.now();
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ ...evidence, failure }, null, 2));
 }
-if (failure) throw new Error(failure + '; artifacts: ' + artifacts);
-verifyReleaseEvidence(evidence, artifacts); console.log(JSON.stringify({ artifacts, cases: evidence.cases.map(c => c.name) }));
+try {
+  if (failure) throw new Error(failure + '; artifacts: ' + artifacts);
+  verifyReleaseEvidence(evidence, artifacts);
+} finally { sealEvidence(artifacts); }
+console.log(JSON.stringify({ artifacts, cases: evidence.cases.map(c => c.name) }));

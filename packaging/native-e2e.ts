@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { buildRelocated, hash, nativeBin, nodeFlags, root } from './e2e-common.ts';
+import { buildRelocated, hash, nativeBin, nodeFlags, root, sealEvidence } from './e2e-common.ts';
 import { verifyBuildReceipt } from './release-acceptance.ts';
 
 const artifacts = resolve(process.argv[2] ?? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/standalone-native', 'artifacts'));
@@ -45,6 +45,9 @@ try {
   }
   assert.equal(cases.length, 5);
 } catch (error) { failure = String(error); }
-finally { writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'standalone-native', startedAt, endedAt: Date.now(), binary: built.binary, binarySha256: hash(built.binary), removedBuildDirectory: built.removedBuildDirectory, sanitizedPath: path, cases, commands, failure }, null, 2)); }
+finally {
+  writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'standalone-native', startedAt, endedAt: Date.now(), binary: built.binary, binarySha256: hash(built.binary), removedBuildDirectory: built.removedBuildDirectory, sanitizedPath: path, cases, commands, failure }, null, 2));
+  sealEvidence(artifacts);
+}
 if (failure) throw new Error(failure + '; artifacts: ' + artifacts);
 console.log(JSON.stringify({ artifacts, cases: cases.map(c => c.name) }));

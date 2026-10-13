@@ -49,3 +49,11 @@ Compare all Claude settings structurally while normalizing only this owned path;
 retain raw before/after settings and assert the exact new owned path. Preserve
 plugin enablement, warm/timer options, other source fields, unrelated settings and
 instruction hashes. Failure/rollback snapshots still compare raw file hashes.
+
+## Evidence sealing amendment
+
+Telos cannot archive live symlinks. After actual acceptance checks and owned
+process cleanup, retain each operational link's relative path and literal target
+in operational-symlinks.json and unlink only that link. Never follow/delete a
+target. Preserve regular binaries, native source files, snapshots, transcripts,
+protocol rows and receipts. This adjusts artifact storage, not passed assertions.

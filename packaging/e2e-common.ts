@@ -2,14 +2,30 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const hash = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
 export const nodeFlags = ['--disable-warning=ExperimentalWarning', '--experimental-strip-types'];
+// Seal operational links only after the command/native acceptance checks and
+// owned process cleanup. Telos archives regular evidence files, not live links.
+export function sealEvidence(directory: string) {
+  const links: { path: string; target: string }[] = [];
+  const visit = (path: string) => {
+    for (const entry of readdirSync(path, { withFileTypes: true })) {
+      const file = join(path, entry.name);
+      if (entry.isSymbolicLink()) {
+        links.push({ path: relative(directory, file), target: readlinkSync(file) });
+        unlinkSync(file); // Never follow or remove the target.
+      } else if (entry.isDirectory()) visit(file);
+    }
+  };
+  visit(directory);
+  writeFileSync(join(directory, 'operational-symlinks.json'), JSON.stringify({ schema: 1, links }, null, 2) + '\n');
+}
 export function executable(name: string) {
   const found = spawnSync('/usr/bin/which', [name], { encoding: 'utf8' }); assert.equal(found.status, 0, 'required native/dev executable: ' + name);
   return realpathSync(found.stdout.trim());
