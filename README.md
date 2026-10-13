@@ -34,7 +34,7 @@ Vesta submits only the literal marker `VESTA_CACHE_KEEPALIVE`. Add this required
 rule to `~/.claude/CLAUDE.md` for Claude and `~/.codex/AGENTS.md` for Codex before
 enabling marker warming:
 
-> When a Vesta cache keepalive message has the exact body VESTA_CACHE_KEEPALIVE (including inside the native Claude plugin-message envelope), reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.
+> When a Vesta cache keepalive message has the exact body VESTA_CACHE_KEEPALIVE, reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.
 
 With custom `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, put the rule in that directory's
 `CLAUDE.md` or `AGENTS.md`. A Codex `AGENTS.override.md` can take precedence over
