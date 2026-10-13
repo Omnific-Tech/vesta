@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { hash, nextReleaseVersion, releaseVersion, root } from './e2e-common.ts';
 
-export const requiredUpdateCases = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'default-update-owned-only', 'empty-owned-update', 'api-error', 'draft', 'prerelease', 'unsafe-asset-name', 'wrong-platform', 'wrong-version', 'digest-mismatch', 'truncated-download', 'missing-owned-provider', 'explicit-missing-provider', 'edited-shell-conflict', 'symlink-version-root', 'concurrent-operation', 'refresh-failure-rollback', 'rollback-failure-reported'];
+export const requiredUpdateCases = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'default-update-owned-only', 'empty-owned-update', 'missing-owned-update', 'api-error', 'draft', 'prerelease', 'unsafe-asset-name', 'wrong-platform', 'wrong-version', 'digest-mismatch', 'truncated-download', 'missing-owned-provider', 'explicit-missing-provider', 'edited-shell-conflict', 'symlink-version-root', 'concurrent-operation', 'refresh-failure-rollback', 'rollback-failure-reported'];
 export type CommandEvidence = { name: string; argv: string[]; code: number | null; stdoutFile: string; stderrFile: string };
 export type ReleaseEvidence = {
   schema: 1; kind: 'standalone-install-update'; startedAt: number; endedAt: number;

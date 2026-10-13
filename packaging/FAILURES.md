@@ -12,6 +12,9 @@ Public v0.2.1 scope (contracts precede the public bug fixes):
   Default update forwards only existing owned targets to the newer binary even
   when another native provider becomes available; an empty owned inventory fails
   before download/installation instead of selecting discovered providers.
+  Default update without installation metadata also fails before creating an
+  integration. Curl disables personal curl configuration before all other flags,
+  so transport cannot inherit authentication or redirect/protocol overrides.
 - Owned config or shell path overrides fail before any integration writes.
   Relocating integrations is outside this release's scope.
 - Uninstall preflights every selected JSON file before changes. A native failure

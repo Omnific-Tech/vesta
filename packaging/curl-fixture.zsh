@@ -1,5 +1,6 @@
 #!/bin/zsh
 # Only public HTTP transport is controlled; asset bytes are compiled Vesta.
+[[ "$1" == --disable ]] || { print -r -- 'Public transport must disable personal curl configuration first' >&2; exit 94; }
 destination=''
 url=''
 while (( $# )); do

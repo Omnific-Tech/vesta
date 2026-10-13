@@ -99,7 +99,7 @@ try {
   evidence.settingsBefore = JSON.parse(readFileSync(join(main.config, 'vesta-codex.json'), 'utf8'));
   for (const name of requiredUpdateCases) {
     const ctx = name === 'stable-upgrade' ? main : context('case-' + name);
-    if (ctx !== main) {
+    if (ctx !== main && name !== 'missing-owned-update') {
       const initialArgs = name === 'default-update-owned-only' || name === 'empty-owned-update' ? ['install', '--provider', 'codex', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json'] : installArgs(ctx);
       assert.equal(run(ctx, name + '-install', initialArgs).status, 0);
       if (!['default-update-owned-only', 'empty-owned-update'].includes(name)) customize(ctx);
