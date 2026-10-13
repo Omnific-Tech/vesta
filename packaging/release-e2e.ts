@@ -124,6 +124,7 @@ try {
       const plugin = JSON.parse(nativeBefore.stdout).find((row: any) => row.id === 'vesta@vesta-local' && row.scope === 'user');
       assert.equal(plugin?.version, releaseVersion, 'Codex-only upgrade leaves Claude registration untouched');
       assert.ok(existsSync(plugin.installPath), 'old native cache retained after subset upgrade');
+      if (name === 'default-provider-catchup') release(ctx, 'same-version'); // An older API release must not downgrade the installed shared version.
       ctx.env.VESTA_FIXTURE_FAULT = 'catchup-no-download';
     }
     const before = snapshot(ctx, name + '-before');

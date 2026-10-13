@@ -19,6 +19,7 @@ Public v0.2.1 scope (contracts precede the public bug fixes):
   remains on its prior version. Explicit Claude and default owned-provider update
   must detect that lag, refresh through the already installed immutable manager,
   preserve settings/ownership/old runtime and never redownload that same version.
+  An older stable API result still catches up to the newer installed version.
   A second update after actual native registration catches up is a no-op.
 - Owned config or shell path overrides fail before any integration writes.
   Relocating integrations is outside this release's scope.
