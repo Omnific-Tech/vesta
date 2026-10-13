@@ -61,3 +61,13 @@ semantics in the TUI and owned server. Native conflicts retain native errors;
 unsupported command/ownership flags and non-TTY invocations remain pass-through.
 Prove unrestricted native metadata and three-turn continuity with bounded, tool-free
 live probes. This does not establish arbitrary flag-independent attachment.
+
+## Marker-only warmer (MARKER-001)
+
+The developer selected exact VESTA_CACHE_KEEPALIVE as the active warm payload,
+without inline instructions or correlation IDs. Global instruction files must
+tell the model to answer exactly uppercase K and do no other work. Document this
+as a first-setup prerequisite, a model instruction rather than hard enforcement.
+Keep correlation in metadata and preserve all gate/lifecycle policies. Native
+Claude may add its own envelope. Personal global instruction updates remain the
+developer's responsibility; installers do not modify them automatically.

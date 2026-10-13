@@ -27,5 +27,9 @@ verification_inputs:
     path: experiments/setup-native-fixture.mjs
   - repo: app
     path: experiments/setup-tty-forwarding-e2e.ts
+  - repo: app
+    path: experiments/marker-acceptance.ts
+  - repo: app
+    path: experiments/watcher-live.ts
 retention:
   max_runs_per_task: 5
