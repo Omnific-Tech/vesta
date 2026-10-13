@@ -17,6 +17,8 @@ const provider = process.argv[2]; assert.ok(provider === 'claude' || provider ==
 const yolo = process.argv[4] ?? (process.argv[3]?.startsWith('--') ? process.argv[3] : undefined);
 assert.ok(yolo === undefined || (provider === 'codex' && ['--yolo', '--yolo-sandbox'].includes(yolo)) || (provider === 'claude' && yolo === '--marker'), 'optional native proof variant');
 const here = dirname(fileURLToPath(import.meta.url));
+const releaseVersion: string = JSON.parse(readFileSync(join(here, '../package.json'), 'utf8')).version;
+const nextReleaseVersion = releaseVersion.split('.').map((part, index) => index === 2 ? Number(part) + 1 : part).join('.');
 const artifacts = resolve((process.argv[3]?.startsWith('--') ? undefined : process.argv[3]) ?? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/setup-live-' + provider, 'artifacts'));
 if (existsSync(artifacts) && readdirSync(artifacts).length) throw new Error('Choose fresh artifacts');
 mkdirSync(artifacts, { recursive: true });
@@ -200,10 +202,10 @@ try {
     await waitFor(() => completed().length >= 2, 'managed policy-driven warm');
     if (process.env.VESTA_E2E_UPDATE_CLI) {
       run(process.env.VESTA_E2E_UPDATE_CLI, ['install', '--provider', 'codex', '--config-dir', configDir, '--shell-file', shellFile, '--json']);
-      assert.ok(realpathSync(join(env.VESTA_HOME!, 'current')).endsWith('/versions/0.2.1'), 'new binary refresh activated the new immutable version');
+      assert.ok(realpathSync(join(env.VESTA_HOME!, 'current')).endsWith('/versions/' + nextReleaseVersion), 'new binary refresh activated the new immutable version');
       run(process.env.VESTA_E2E_UPDATE_CLI, ['uninstall', '--config-dir', configDir, '--shell-file', shellFile, '--json']);
       assert.ok(!existsSync(join(env.VESTA_HOME!, 'current')), 'activation removed while original native owner remains alive');
-      assert.ok(existsSync(join(env.VESTA_HOME!, 'versions/0.2.0/runtime/bin/node')), 'original running owner runtime retained');
+      assert.ok(existsSync(join(env.VESTA_HOME!, 'versions', releaseVersion, 'runtime/bin/node')), 'original running owner runtime retained');
     }
     await keepCodexModel(owner, model);
     await type(owner, 'What nonce did I ask you to remember? Reply with exactly that nonce. Do not use tools.');

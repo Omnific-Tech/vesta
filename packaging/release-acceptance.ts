@@ -1,8 +1,9 @@
 // Standalone/install/update acceptance oracle, locked before CLI implementation.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { hash, nextReleaseVersion, releaseVersion } from './e2e-common.ts';
+import { hash, nextReleaseVersion, releaseVersion, root } from './e2e-common.ts';
 
 export const requiredUpdateCases = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'api-error', 'draft', 'prerelease', 'unsafe-asset-name', 'wrong-platform', 'wrong-version', 'digest-mismatch', 'truncated-download', 'missing-owned-provider', 'explicit-missing-provider', 'edited-shell-conflict', 'symlink-version-root', 'concurrent-operation', 'refresh-failure-rollback', 'rollback-failure-reported'];
 export type CommandEvidence = { name: string; argv: string[]; code: number | null; stdoutFile: string; stderrFile: string };
@@ -21,6 +22,10 @@ export function verifyBuildReceipt(file: string, binary: string, version = relea
   const r = JSON.parse(readFileSync(file, 'utf8'));
   assert.equal(r.schema, 1); assert.equal(r.version, version); assert.equal(r.platform, 'darwin-arm64');
   assert.equal(r.fixture, fixture); assert.match(r.sourceHead, /^[0-9a-f]{40}$/);
+  assert.equal(r.cleanSource, true, 'verification builds use clean committed sources');
+  assert.equal(r.publishable, !fixture, 'only production receipts may be published');
+  const head = spawnSync('/usr/bin/git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  assert.equal(head.status, 0); assert.equal(r.sourceHead, head.stdout.trim(), 'build receipt matches verified HEAD');
   assert.equal(r.binarySha256, hash(binary)); assert.equal(r.nodeVersion, '22.17.1');
   assert.match(r.nodeArchiveSha256, /^[0-9a-f]{64}$/); assert.match(r.payloadSha256, /^[0-9a-f]{64}$/);
   assert.ok(r.licenses.includes('Node.js') && r.licenses.includes('Bun') && r.licenses.includes('node-pty'));
