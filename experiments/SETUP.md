@@ -64,7 +64,9 @@ pass-through. An already installed shell function reads this checkout on each
 launch, so this update requires no reinstall or shell reactivation. Start a new
 Codex session to use it; an existing running session keeps its current owner.
 
-Warming is off by default. To opt in once, repeat the explicit installation with
+Warming is off by default. First add the required global marker rule in
+[Keep warm replies minimal](../README.md#keep-warm-replies-minimal), then opt in
+by repeating the explicit installation with
 `--warm`. Claude can also configure `warm` through its native
 `claude plugin configure vesta@vesta-local` flow. Codex configuration is in
 `~/.config/vesta/vesta-codex.json`. `status` reports the configured default values;
@@ -75,13 +77,19 @@ since actual user activity. Only fresh native last-response input strictly above
 100,000 tokens qualifies; cache input counts once, output and cumulative counts
 do not qualify. A busy, stale, disconnected, or unknown owner skips. Local input
 observed before dispatch cancels a pending ping. Native queue removal after
-dispatch is not guaranteed. The ping requests exactly `K` and no tools; that
-instruction does not guarantee tool restraint in an unrestricted session. Cache
+dispatch is not guaranteed. The submitted body is exactly
+`VESTA_CACHE_KEEPALIVE`; session/reservation IDs stay in metadata and Claude adds
+its native plugin-message envelope. The required global instruction requests
+only uppercase `K` and no tools, questions or other work; it does not guarantee
+tool restraint in an unrestricted session. Cache
 retention and net usage savings remain unproven.
 
-For an optional instruction-file rule that reinforces minimal warm replies, see
-[Keep warm replies minimal](../README.md#keep-warm-replies-minimal). The rule does
-not enforce model output or remove warm turns from conversation history.
+The installer never edits global instruction files. The old rule matching a ping
+"asking for exactly K" does not cover the marker-only body. After updating that
+rule, existing installed Claude users must run
+`claude plugin update vesta@vesta-local --scope user` and restart Claude to load
+version 0.1.1. Start a new Codex session to read the updated checkout. The global
+rule does not enforce model output or remove warm turns from conversation history.
 
 ```sh
 node --experimental-strip-types experiments/setup.ts uninstall --provider all --json
@@ -106,10 +114,11 @@ network errors fail verification.
 node --experimental-strip-types experiments/setup-e2e.ts
 node --experimental-strip-types experiments/setup-forwarding-e2e.ts
 node --experimental-strip-types experiments/setup-live.ts claude
+node --experimental-strip-types experiments/setup-live.ts claude --marker
 node --experimental-strip-types experiments/setup-live.ts codex
 node --experimental-strip-types experiments/setup-live.ts codex --yolo
 node --experimental-strip-types experiments/setup-live.ts codex --yolo-sandbox
-telos verify YOLO-001
+telos verify MARKER-001
 ```
 
 Each run retains exact native transcripts/protocol rows, metadata, command and
@@ -122,3 +131,7 @@ directory flag. The live Codex fixture explicitly sets
 `VESTA_WATCHER_TEST_OPTIONS` to a JSON string array containing `--probe`; ordinary
 mode rejects capture or threshold overrides without that explicit probe mode.
 Probe timings/thresholds do not change installation defaults.
+The installed Claude marker proof retains the strict production threshold with
+genuine native input above 100,000 tokens and a configured ten-second idle
+interval. It uses an isolated global CLAUDE.md and exactly nonce/K/nonce answers;
+these accelerated checks do not prove cache retention over normal idle intervals.

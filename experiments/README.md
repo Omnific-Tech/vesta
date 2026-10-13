@@ -44,8 +44,10 @@ installation has been applied by the development tests. Isolated E2E runs use
 personal settings and credentials unchanged.
 
 See [complete setup/status/uninstall instructions](SETUP.md) for native option
-configuration, shell activation, exact boundaries and the six repeatable Telos
-checks. The following manual launchers and probes remain useful for experiments.
+configuration, shell activation, exact boundaries and repeatable Telos checks.
+The following manual launchers and probes remain useful for experiments.
+The historical standalone probes below retain their older inline reply prompts;
+active installed and manual watcher warming uses only `VESTA_CACHE_KEEPALIVE`.
 
 ## Disposable live integration probes
 
@@ -169,8 +171,11 @@ Defaults are 50 minutes idle for Claude, 20 minutes for Codex and a four-hour
 budget since real user activity. Configure `--idle-ms N` and `--budget-ms N` with
 positive integer milliseconds, at most four hours. Every completed response also
 starts a fresh idle interval. Warming never renews the user budget. A warm prompt
-requests exactly `K` and no tools. In an unrestricted session this instruction is
-not a guarantee against tool use.
+contains only `VESTA_CACHE_KEEPALIVE`. Before opting in, add the required
+[global instruction rule](../README.md#keep-warm-replies-minimal) requesting only
+uppercase `K`, no tools, questions or other work. Claude retains its native plugin
+envelope. The instruction does not guarantee tool restraint in an unrestricted
+session, and the watcher does not edit global instruction files.
 
 Only native last-response input strictly above 100,000 tokens qualifies, including
 cached input once and excluding output/cumulative totals. Unknown, malformed,

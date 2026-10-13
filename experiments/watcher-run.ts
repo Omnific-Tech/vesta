@@ -53,7 +53,6 @@ let warms = 0;
 let threadId = '';
 let nextId = 1;
 let received: any[] = [];
-let lastWarmText = '';
 const usage = new Map<string, { row: any; generation: number }>();
 process.on('SIGINT', () => { stop = true; reason = 'SIGINT'; });
 process.on('SIGTERM', () => { stop = true; reason = 'SIGTERM'; });
@@ -254,9 +253,8 @@ async function runCodex() {
     const dispatch = trace('dispatch', { reservationId: reserve.state.reservationId });
     if (dispatch.action !== 'dispatch') return;
     warms += 1;
-    lastWarmText = `Reply with exactly K. Do not use tools. Vesta idle ping ${threadId}:${dispatch.state.reservationId}.`;
     lifecycle({ kind: 'keepalive-submitted', sessionId: threadId, ownerPid: server.pid });
-    const queue = launch(nativeCommand, ['queue', '--thread', threadId, '--message', lastWarmText, '--remote', endpoint], 'codex-queue.txt');
+    const queue = launch(nativeCommand, ['queue', '--thread', threadId, '--message', 'VESTA_CACHE_KEEPALIVE', '--remote', endpoint], 'codex-queue.txt');
     queue.stdout!.on('data', data => capture('codex-queue.txt', String(data)));
     queue.on('exit', code => { if (code !== 0 && !stop) trace('submit-failed'); });
   })().catch(error => { reason = 'timer failed: ' + String(error); stop = true; }); }, Math.min(probe ? 1000 : 30000, watcher.defaults.idleMs));

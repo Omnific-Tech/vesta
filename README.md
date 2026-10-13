@@ -16,6 +16,7 @@ npm run setup -- install --provider all
 npm run setup -- status --provider all
 ```
 
+Before enabling warming, add the required [global instruction rule](#keep-warm-replies-minimal).
 Open a new terminal after installation. To opt in once, use
 `npm run setup -- install --provider all --warm`. To remove the integration, use
 `npm run setup -- uninstall --provider all`, then open a new terminal.
@@ -29,17 +30,29 @@ and disposable probes remain available.
 
 ## Keep warm replies minimal
 
-Vesta already asks for exactly `K` and no tools. For extra reinforcement, add this
-line to your existing Claude instructions (`CLAUDE.md`) or Codex instructions
-(`AGENTS.md`), at a scope that applies to the conversation:
+Vesta submits only the literal marker `VESTA_CACHE_KEEPALIVE`. Add this required
+rule to `~/.claude/CLAUDE.md` for Claude and `~/.codex/AGENTS.md` for Codex before
+enabling marker warming:
 
-> When a message is a Vesta idle ping asking for exactly K, reply with only the single character K; do not ask questions, add commentary, use tools, or start other work.
+> When a Vesta cache keepalive message has the exact body VESTA_CACHE_KEEPALIVE (including inside the native Claude plugin-message envelope), reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.
+
+With custom `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, put the rule in that directory's
+`CLAUDE.md` or `AGENTS.md`. A Codex `AGENTS.override.md` can take precedence over
+`AGENTS.md`; put the rule in the instruction file your native session actually
+loads. The old rule matching an idle ping "asking for exactly K" is insufficient
+because the new marker contains no inline reply instruction.
 
 This is a model instruction, not an enforced output constraint. A model may still
 respond with extra text or tools. Warm pings and their replies are real turns in
 the conversation and consume usage; extra replies can clutter its context.
-The rule is limited to Vesta idle pings so ordinary requests for `K` retain their
-usual meaning. Vesta does not edit your instruction files automatically.
+Claude still adds its native plugin-message envelope around the literal body.
+Session and reservation IDs remain internal metadata. Vesta does not edit or
+validate your global instruction files automatically.
+
+After adding the rule, existing Claude installations need
+`claude plugin update vesta@vesta-local --scope user`, then a Claude restart, to
+load plugin version 0.1.1. The installed Codex shell function reads this checkout
+on every launch; start a new Codex session after updating the checkout.
 
 ## Follow-up verification
 

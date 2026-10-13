@@ -6,7 +6,8 @@ let configuredOptions;
   let timer;
   let resetReason = 'start';
   let nextReset = '';
-  let warmMarker = '';
+  let warmPending = false;
+  let nextTurnIsWarm = false;
   let config;
   const status = () => ({ ...watcher.state, pluginId: 'vesta@vesta-local', sessionId, storeKey: 'status:' + sessionId,
     warmEnabled: config.warm, idleMs: watcher.defaults.idleMs, budgetMs: watcher.defaults.budgetMs,
@@ -33,7 +34,7 @@ let configuredOptions;
       sessionId = id;
       config = { warm: configuredOptions.warm === true, idleMs: configuredOptions.idle_ms ?? 3000000, budgetMs: configuredOptions.budget_ms ?? 14400000 };
       watcher = new Watcher('claude', { idleMs: config.idleMs, budgetMs: config.budgetMs });
-      resetReason = nextReset || (old ? 'reload' : 'start'); nextReset = ''; warmMarker = '';
+      resetReason = nextReset || (old ? 'reload' : 'start'); nextReset = ''; warmPending = false; nextTurnIsWarm = false;
       const owner = watcher; const ownerSession = sessionId; const ownerConfig = config;
       await persist($, owner, ownerSession);
       if (owner !== watcher || ownerSession !== sessionId) return;
@@ -47,17 +48,18 @@ let configuredOptions;
         if (owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
         const dispatch = await event($, 'dispatch', { reservationId: reserve.state.reservationId }, owner, ownerSession);
         if (!dispatch || dispatch.action !== 'dispatch' || owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
-        const marker = `Vesta idle ping ${ownerSession}:${dispatch.state.reservationId}.`;
-        const text = `Reply with exactly K. Do not use tools. ${marker}`;
-        warmMarker = marker;
-        try { await $.prompt.submit({ text }); }
-        catch { await event($, 'submit-failed', {}, owner, ownerSession); }
+        warmPending = true;
+        try { await $.prompt.submit({ text: 'VESTA_CACHE_KEEPALIVE' }); }
+        catch {
+          if (owner === watcher && ownerSession === sessionId) warmPending = false;
+          await event($, 'submit-failed', {}, owner, ownerSession);
+        }
       });
     }
   };
 export function register(on, options) {
   if (watcher) {
-    timer?.cancel(); watcher = undefined; sessionId = ''; nextReset = 'reload'; warmMarker = '';
+    timer?.cancel(); watcher = undefined; sessionId = ''; nextReset = 'reload'; warmPending = false; nextTurnIsWarm = false;
   }
   configuredOptions = options;
   on('session.start', async ($, e, next) => {
@@ -77,11 +79,14 @@ export function register(on, options) {
   on('prompt.edit', async ($, e, next) => { await ensure($); await event($, 'activity', { source: 'user' }); return next(e); });
   on('prompt.submit', async ($, e, next) => {
     await ensure($);
+    nextTurnIsWarm = warmPending && e.origin.kind === 'plugin' && e.origin.name === 'vesta' && e.text === 'VESTA_CACHE_KEEPALIVE';
+    if (nextTurnIsWarm) warmPending = false;
     if (['composer', 'bridge'].includes(e.origin.kind)) await event($, 'activity', { source: 'user' });
     return next(e);
   });
   on('turn.start', async ($, e, next) => {
-    await ensure($); await event($, 'turn-start', { sessionId, turnId: e.turnId, source: warmMarker && e.text.includes(warmMarker) ? 'warm' : 'other' });
+    await ensure($); const source = nextTurnIsWarm ? 'warm' : 'other'; nextTurnIsWarm = false;
+    await event($, 'turn-start', { sessionId, turnId: e.turnId, source });
     return next(e);
   });
   on('turn.complete', async ($, e, next) => {
@@ -93,7 +98,7 @@ export function register(on, options) {
   on('session.attach', async ($, e, next) => { await event($, 'reconnect'); return next(e); });
   on('session.detach', async ($, e, next) => { await event($, 'reconnect'); return next(e); });
   on('session.end', async ($, e, next) => {
-    timer?.cancel(); await event($, 'exit');
+    timer?.cancel(); warmPending = false; nextTurnIsWarm = false; await event($, 'exit');
     if (['clear', 'resume'].includes(e.reason)) nextReset ||= e.reason;
     return next(e);
   });

@@ -9,8 +9,8 @@ let started = false;
 let stopped = false;
 let warms = 0;
 let ownWarmTurn = '';
-let lastWarmText = '';
-let lastWarmMarker = '';
+let warmPending = false;
+let nextTurnIsWarm = false;
 let tools = 0;
 async function record($, data) {
   if (!options?.captureNative) return;
@@ -43,12 +43,12 @@ export function register(on) {
       const dispatch = await event($, 'dispatch', { reservationId: reserve.state.reservationId });
       if (dispatch.action !== 'dispatch') return;
       warms += 1;
-      lastWarmMarker = `Vesta idle ping ${await $.session.id()}:${dispatch.state.reservationId}.`;
-      lastWarmText = `Reply with exactly K. Do not use tools. ${lastWarmMarker}`;
+      warmPending = true;
       try {
         await record($, { kind: 'keepalive-submitted' });
-        await $.prompt.submit({ text: lastWarmText });
+        await $.prompt.submit({ text: 'VESTA_CACHE_KEEPALIVE' });
       } catch (error) {
+        warmPending = false;
         await event($, 'submit-failed');
         await record($, { kind: 'native-rejection', text: String(error) });
       }
@@ -60,6 +60,8 @@ export function register(on) {
     return next(e);
   });
   on('prompt.submit', async ($, e, next) => {
+    nextTurnIsWarm = warmPending && e.origin.kind === 'plugin' && e.origin.name === 'vesta-watcher' && e.text === 'VESTA_CACHE_KEEPALIVE';
+    if (nextTurnIsWarm) warmPending = false;
     if (['composer', 'bridge'].includes(e.origin.kind)) {
       await event($, 'activity', { source: 'user' });
     }
@@ -67,7 +69,7 @@ export function register(on) {
   });
   on('turn.start', async ($, e, next) => {
     tools = 0;
-    const source = lastWarmMarker && e.text.includes(lastWarmMarker) ? 'warm' : 'other';
+    const source = nextTurnIsWarm ? 'warm' : 'other'; nextTurnIsWarm = false;
     if (source === 'warm') ownWarmTurn = e.turnId;
     // A positional initial prompt may precede the composer hook; it is the local
     // launcher's explicit user prompt, recorded in configuration, never a warm.
@@ -90,7 +92,7 @@ export function register(on) {
   on('session.attach', async ($, e, next) => { await event($, 'reconnect'); return next(e); });
   on('session.detach', async ($, e, next) => { await event($, 'reconnect'); return next(e); });
   on('session.end', async ($, e, next) => {
-    stopped = true; timer?.cancel();
+    stopped = true; timer?.cancel(); warmPending = false; nextTurnIsWarm = false;
     await event($, 'exit');
     await record($, { kind: 'owner-ended', reason: e.reason });
     return next(e);
