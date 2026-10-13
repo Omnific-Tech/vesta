@@ -117,11 +117,10 @@ function restore(saved: SavedFile[]) {
     if (existsSync(file.path) && /settings\.json$|known_marketplaces\.json$|installed_plugins\.json$/.test(file.path)) {
       const old = JSON.parse(bytes.toString()); const current = readJson(file.path);
       const container = file.path.endsWith('installed_plugins.json') ? 'plugins' : undefined;
-      const keys = file.path.endsWith('settings.json') ? ['enabledPlugins', 'pluginConfigs'] : [container ?? ''];
-      const key = file.path.endsWith('known_marketplaces.json') ? 'vesta-local' : pluginId;
-      const normalized = (data: any) => { const result = structuredClone(data); for (const field of keys) { const target = field ? result[field] : result; if (target) delete target[key]; } return result; };
+      const keys = file.path.endsWith('settings.json') ? [['enabledPlugins', pluginId], ['pluginConfigs', pluginId], ['extraKnownMarketplaces', 'vesta-local']] : [[container ?? '', file.path.endsWith('known_marketplaces.json') ? 'vesta-local' : pluginId]];
+      const normalized = (data: any) => { const result = structuredClone(data); for (const [field, key] of keys) { const target = field ? result[field] : result; if (target) delete target[key!]; } return result; };
       if (JSON.stringify(normalized(old)) !== JSON.stringify(normalized(current))) {
-        for (const field of keys) { const oldTarget = field ? old[field] : old; const target = field ? (current[field] ??= {}) : current; if (oldTarget?.[key] !== undefined) target[key] = oldTarget[key]; else delete target[key]; }
+        for (const [field, key] of keys) { const oldTarget = field ? old[field] : old; const target = field ? (current[field] ??= {}) : current; if (oldTarget?.[key!] !== undefined) target[key!] = oldTarget[key!]; else delete target[key!]; }
         bytes = Buffer.from(JSON.stringify(current, null, 2) + '\n');
       }
     }
@@ -178,6 +177,14 @@ export function install(args: string[], root: string) {
             native(command, ['plugin', 'install', pluginId, '--scope', 'user', '--json'], p);
           }
           native(command, ['plugin', 'update', pluginId, '--scope', 'user', '--json'], p);
+          const settingsFile = join(p.configDir, 'settings.json'); const before = saved.find(file => file.path === settingsFile)?.bytes;
+          if (before) {
+            const old = JSON.parse(before.toString()); const current = readJson(settingsFile, {});
+            for (const field of ['enabledPlugins', 'pluginConfigs']) {
+              const target = current[field] ??= {}; if (old[field]?.[pluginId] !== undefined) target[pluginId] = old[field][pluginId]; else delete target[pluginId];
+            }
+            saveJson(settingsFile, current);
+          }
         }
         setup(assets, p, 'install', args.includes('--warm'), root);
       }
