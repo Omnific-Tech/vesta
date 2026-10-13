@@ -27,10 +27,13 @@ const hash = (path: string) => existsSync(path) ? createHash('sha256').update(re
 const tree = (path: string) => Object.fromEntries(readdirSync(path, { recursive: true, withFileTypes: true }).filter(d => d.isFile()).map(d => { const p = join(d.parentPath, d.name); return [p.slice(path.length + 1), hash(p)]; }));
 const personal = provider === 'claude' ? [join(homedir(), '.claude/settings.json'), join(homedir(), '.claude.json'), join(homedir(), '.claude/.credentials.json'), join(homedir(), '.claude/CLAUDE.md')]
   : [join(homedir(), '.codex/config.toml'), join(homedir(), '.codex/auth.json'), join(homedir(), '.zshrc'), join(homedir(), '.codex/AGENTS.md')];
+personal.push(join(homedir(), '.local/bin/vesta'));
 const env: Record<string, string> = { ...process.env as Record<string, string>, TERM: 'xterm-256color' };
+if (process.env.VESTA_E2E_CLI) { env.VESTA_HOME = join(artifacts, 'owned-install'); env.VESTA_BIN_DIR = join(artifacts, 'owned-bin'); }
 const e: SetupLiveEvidence = { schema: 1, kind: 'native-installed-launch', provider, startedAt: Date.now(), endedAt: 0, configDir, commands: [], personalFiles: personal.map(path => ({ path, before: hash(path), after: '' })), sourceFiles: [], cleanup: [], rawFiles: [] };
 const terminals: { terminal: pty.IPty; exited: boolean; file: string }[] = [];
 let failure: string | undefined;
+let packagedSourceRoot: string | undefined;
 const deadline = Date.now() + 225000;
 const sleep = (ms: number) => new Promise(done => setTimeout(done, ms));
 const text = (file: string) => existsSync(join(artifacts, file)) ? readFileSync(join(artifacts, file), 'utf8') : '';
@@ -40,10 +43,18 @@ async function waitFor<T>(get: () => T | false | undefined, label: string): Prom
   throw new Error('Native E2E deadline: ' + label);
 }
 function run(command: string, argv: string[], input?: string) {
+  if (process.env.VESTA_E2E_CLI && command === process.execPath && argv.some(arg => arg.endsWith('/setup.ts'))) {
+    const offset = argv.findIndex(arg => arg.endsWith('/setup.ts')); command = process.env.VESTA_E2E_CLI; argv = argv.slice(offset + 1);
+  }
   e.commands.push({ argv: [command, ...argv], role: 'setup' });
   const result = spawnSync(command, argv, { cwd: fixture, env, input, encoding: 'utf8', timeout: 30000 });
   const file = 'setup-' + e.commands.length + '.txt'; writeFileSync(join(artifacts, file), (result.stdout ?? '') + (result.stderr ?? '')); e.rawFiles.push(file);
-  assert.equal(result.status, 0, result.stderr || result.error?.message); return result.stdout;
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
+  if (process.env.VESTA_E2E_CLI && argv.includes('install') && !packagedSourceRoot) {
+    packagedSourceRoot = realpathSync(join(env.VESTA_HOME!, 'current/app/experiments'));
+    if (provider === 'codex') { copyFileSync(shellFile, join(artifacts, 'installed-zshrc')); e.rawFiles.push('installed-zshrc'); }
+  }
+  return result.stdout;
 }
 function launch(command: string, argv: string[], file: string) {
   e.commands.push({ argv: [command, ...argv], role: 'owner' });
@@ -182,6 +193,13 @@ try {
     await type(owner, noncePrompt);
     const completed = () => rows('codex-protocol.jsonl').filter(row => row.method === 'turn/completed' && row.params?.turn?.status === 'completed');
     await waitFor(() => completed().length >= 2, 'managed policy-driven warm');
+    if (process.env.VESTA_E2E_UPDATE_CLI) {
+      run(process.env.VESTA_E2E_UPDATE_CLI, ['install', '--provider', 'codex', '--config-dir', configDir, '--shell-file', shellFile, '--json']);
+      assert.ok(realpathSync(join(env.VESTA_HOME!, 'current')).endsWith('/versions/0.2.1'), 'new binary refresh activated the new immutable version');
+      run(process.env.VESTA_E2E_UPDATE_CLI, ['uninstall', '--config-dir', configDir, '--shell-file', shellFile, '--json']);
+      assert.ok(!existsSync(join(env.VESTA_HOME!, 'current')), 'activation removed while original native owner remains alive');
+      assert.ok(existsSync(join(env.VESTA_HOME!, 'versions/0.2.0/runtime/bin/node')), 'original running owner runtime retained');
+    }
     await keepCodexModel(owner, model);
     await type(owner, 'What nonce did I ask you to remember? Reply with exactly that nonce. Do not use tools.');
     await waitFor(() => completed().length === 3, 'managed native continuity');
@@ -208,7 +226,11 @@ finally {
     e.rawFiles.push('codex-protocol.jsonl', 'watcher-trace.jsonl', 'watcher-lifecycle.jsonl', 'watcher-runtime.json');
   }
   if (provider === 'codex' && existsSync(join(configDir, 'config.toml'))) { copyFileSync(join(configDir, 'config.toml'), join(artifacts, 'codex-final-config.toml')); e.rawFiles.push('codex-final-config.toml'); }
-  e.sourceFiles = ['setup.ts', 'setup-live.ts', 'setup-live-acceptance.ts', 'marker-acceptance.ts', 'watcher-run.ts', 'watcher-policy.ts', ...(provider === 'claude' ? ['vesta-claude/hooks/register.ts', 'vesta-claude/hooks/policy.ts', 'vesta-claude/.claude-plugin/plugin.json', 'vesta-claude/hooks/hooks.json'] : ['codex-autoload.ts'])].filter(file => existsSync(join(here, file))).map(file => ({ path: join(here, file), sha256: hash(join(here, file)) }));
+  if (provider === 'codex' && existsSync(shellFile) && !existsSync(join(artifacts, 'installed-zshrc'))) { copyFileSync(shellFile, join(artifacts, 'installed-zshrc')); e.rawFiles.push('installed-zshrc'); }
+  e.sourceFiles = ['setup.ts', 'setup-live.ts', 'setup-live-acceptance.ts', 'marker-acceptance.ts', 'watcher-run.ts', 'watcher-policy.ts', ...(provider === 'claude' ? ['vesta-claude/hooks/register.ts', 'vesta-claude/hooks/policy.ts', 'vesta-claude/.claude-plugin/plugin.json', 'vesta-claude/hooks/hooks.json'] : ['codex-autoload.ts'])].map(file => {
+    const packaged = join(packagedSourceRoot ?? '', file);
+    return process.env.VESTA_E2E_CLI && existsSync(packaged) ? packaged : join(here, file);
+  }).filter(path => existsSync(path)).map(path => ({ path, sha256: hash(path) }));
   for (const file of e.personalFiles) file.after = hash(file.path); e.endedAt = Date.now();
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ ...e, failure }, null, 2)); rmSync(fixture, { recursive: true, force: true });
 }
