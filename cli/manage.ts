@@ -145,7 +145,12 @@ function restore(saved: SavedFile[]) {
       const old = JSON.parse(bytes.toString()); const current = readJson(file.path);
       const container = file.path.endsWith('installed_plugins.json') ? 'plugins' : undefined;
       const keys = file.path.endsWith('settings.json') ? [['enabledPlugins', pluginId], ['pluginConfigs', pluginId], ['extraKnownMarketplaces', 'vesta-local']] : [[container ?? '', file.path.endsWith('known_marketplaces.json') ? 'vesta-local' : pluginId]];
-      const normalized = (data: any) => { const result = structuredClone(data); for (const [field, key] of keys) { const target = field ? result[field] : result; if (target) delete target[key!]; } return result; };
+      const normalized = (data: any) => {
+        const result = structuredClone(data);
+        for (const [field, key] of keys) { const target = field ? result[field] : result; if (target) { delete target[key!]; if (field && Object.keys(target).length === 0) delete result[field]; } }
+        const sorted = (value: any): any => Array.isArray(value) ? value.map(sorted) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, sorted(value[key])])) : value;
+        return sorted(result);
+      };
       if (JSON.stringify(normalized(old)) !== JSON.stringify(normalized(current))) {
         for (const [field, key] of keys) { const oldTarget = field ? old[field] : old; const target = field ? (current[field] ??= {}) : current; if (oldTarget?.[key!] !== undefined) target[key!] = oldTarget[key!]; else delete target[key!]; }
         bytes = Buffer.from(JSON.stringify(current, null, 2) + '\n');
