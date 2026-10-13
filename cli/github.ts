@@ -1,8 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, readlinkSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { sha256, version } from './assets.ts';
-import { compare, executable, preflight, providers, value, withLock } from './manage.ts';
+import { readJson, sha256, version } from './assets.ts';
+import { compare, executable, pluginId, preflight, providers, value, withLock } from './manage.ts';
 
 const repository = 'Omnific-Tech/vesta'; const assetName = 'vesta-darwin-arm64';
 function curl(argv: string[]) {
@@ -25,7 +25,25 @@ export function update(args: string[], root: string) {
       if (release.draft || release.prerelease || !/^v\d+\.\d+\.\d+$/.test(release.tag_name)) throw new Error('Latest release must be a stable published semantic version');
       const wanted = release.tag_name.slice(1);
       const installed = JSON.parse(existsSync(join(root, 'installation.json')) ? readFileSync(join(root, 'installation.json'), 'utf8') : '{}').version ?? version;
-      if (compare(wanted, installed) <= 0) return { version: installed, updated: false };
+      if (compare(wanted, installed) <= 0) {
+        const lagging = targets.some(p => {
+          if (p.provider !== 'claude') return false; // Codex already uses the shared current runtime.
+          const registered = readJson(join(p.configDir, 'plugins/installed_plugins.json'), {}).plugins?.[pluginId]?.find((row: any) => row.scope === 'user')?.version;
+          if (typeof registered !== 'string' || !/^\d+\.\d+\.\d+$/.test(registered)) throw new Error('Invalid owned Claude plugin version');
+          return compare(registered, installed) < 0;
+        });
+        if (!lagging) return { version: installed, updated: false };
+        if (!/^\d+\.\d+\.\d+$/.test(installed)) throw new Error('Invalid owned installation version');
+        const current = join(root, 'current');
+        if (!lstatSync(current).isSymbolicLink() || readlinkSync(current) !== 'versions/' + installed) throw new Error('Owned current activation mismatch');
+        const assets = join(root, 'versions', installed);
+        for (const path of [join(root, 'versions'), assets, join(assets, 'bin')]) if (!lstatSync(path).isDirectory() || lstatSync(path).isSymbolicLink()) throw new Error('Unsafe owned manager directory');
+        candidate = join(assets, 'bin/vesta');
+        if (!lstatSync(candidate).isFile() || lstatSync(candidate).isSymbolicLink()) throw new Error('Unsafe owned immutable manager');
+        const announced = spawnSync(candidate, ['--version'], { encoding: 'utf8', timeout: 15000 });
+        if (announced.status !== 0 || announced.stdout.trim() !== 'vesta ' + installed) throw new Error('Owned immutable manager version mismatch');
+        return { version: installed, updated: true };
+      }
       const asset = release.assets?.find((item: any) => item.name === assetName);
       if (!asset || !/^sha256:[0-9a-f]{64}$/.test(asset.digest)) throw new Error('Stable macOS arm64 release asset/digest is missing');
       const downloadUrl = 'https://github.com/' + repository + '/releases/download/' + release.tag_name + '/' + assetName;
