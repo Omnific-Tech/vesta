@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { sha256, version } from './assets.ts';
-import { compare, executable, preflight, providers, withLock } from './manage.ts';
+import { compare, executable, preflight, providers, value, withLock } from './manage.ts';
 
 const repository = 'Omnific-Tech/vesta'; const assetName = 'vesta-darwin-arm64';
 function curl(argv: string[]) {
@@ -13,9 +13,13 @@ function curl(argv: string[]) {
 }
 export function update(args: string[], root: string) {
   let stage: string | undefined; let candidate: string | undefined;
+  let ownedTargets: string[] | undefined;
   try {
     const result = withLock(root, () => {
-      preflight(providers(args, root, 'update'), 'update');
+      const targets = providers(args, root, 'update');
+      if (!targets.length) throw new Error('No owned provider is available to update');
+      preflight(targets, 'update');
+      if (!value(args, '--provider') && existsSync(join(root, 'installation.json'))) ownedTargets = targets.map(p => p.provider);
       const release = JSON.parse(curl(['--max-filesize', '1048576', 'https://api.github.com/repos/' + repository + '/releases/latest']));
       if (release.draft || release.prerelease || !/^v\d+\.\d+\.\d+$/.test(release.tag_name)) throw new Error('Latest release must be a stable published semantic version');
       const wanted = release.tag_name.slice(1);
@@ -38,7 +42,7 @@ export function update(args: string[], root: string) {
     if (!candidate) return result;
     // The candidate takes its own operation lock and rechecks ownership/version.
     // Never grant a nested-lock bypass or activate a binary before integrations.
-    const installed = spawnSync(candidate, ['install', ...args.slice(1)], { encoding: 'utf8', timeout: 120000 });
+    const installed = spawnSync(candidate, ['install', ...args.slice(1), ...(ownedTargets ? ['--provider', ownedTargets.length === 1 ? ownedTargets[0]! : 'all'] : [])], { encoding: 'utf8', timeout: 120000 });
     if (installed.status !== 0) throw new Error(installed.stderr || installed.error?.message || 'Candidate refresh failed');
     return result;
   } finally { if (stage) rmSync(stage, { recursive: true, force: true }); }
