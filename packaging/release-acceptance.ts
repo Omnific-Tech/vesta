@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { hash, nextReleaseVersion, releaseVersion, root } from './e2e-common.ts';
 
-export const requiredUpdateCases = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'api-error', 'draft', 'prerelease', 'unsafe-asset-name', 'wrong-platform', 'wrong-version', 'digest-mismatch', 'truncated-download', 'missing-owned-provider', 'explicit-missing-provider', 'edited-shell-conflict', 'symlink-version-root', 'concurrent-operation', 'refresh-failure-rollback', 'rollback-failure-reported'];
+export const requiredUpdateCases = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'default-update-owned-only', 'empty-owned-update', 'api-error', 'draft', 'prerelease', 'unsafe-asset-name', 'wrong-platform', 'wrong-version', 'digest-mismatch', 'truncated-download', 'missing-owned-provider', 'explicit-missing-provider', 'edited-shell-conflict', 'symlink-version-root', 'concurrent-operation', 'refresh-failure-rollback', 'rollback-failure-reported'];
 export type CommandEvidence = { name: string; argv: string[]; code: number | null; stdoutFile: string; stderrFile: string };
 export type ReleaseEvidence = {
   schema: 1; kind: 'standalone-install-update'; startedAt: number; endedAt: number;
@@ -88,6 +88,12 @@ export function verifyReleaseEvidence(e: ReleaseEvidence, directory: string) {
       assert.equal(after.current, before.current, c.name + ' retains old activation'); assert.deepEqual(after.files, before.files, c.name + ' compensates both integrations');
     }
     if (c.name === 'rollback-failure-reported') assert.match(raw(command.stderrFile), /rollback|compensat/i);
+    if (c.name === 'default-update-owned-only') {
+      const inventory = JSON.parse(raw(c.name + '-inventory.json'));
+      assert.deepEqual(inventory.providers.map((p: any) => p.provider), ['codex']);
+      assert.equal(after.files['.vesta-setup-claude.json'], 'absent', 'default update does not install an available unowned provider');
+      assert.equal(after.files['plugins/installed_plugins.json'], 'absent');
+    }
   }
   assert.equal(e.finalActivationBeforeUninstall, 'versions/' + nextReleaseVersion, 'successful stable upgrade activated the new immutable version');
   assert.equal(e.commands.find(c => c.name === e.uninstallCommand)?.code, 0);

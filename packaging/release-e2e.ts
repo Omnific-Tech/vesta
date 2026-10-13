@@ -99,7 +99,11 @@ try {
   evidence.settingsBefore = JSON.parse(readFileSync(join(main.config, 'vesta-codex.json'), 'utf8'));
   for (const name of requiredUpdateCases) {
     const ctx = name === 'stable-upgrade' ? main : context('case-' + name);
-    if (ctx !== main) { assert.equal(run(ctx, name + '-install', installArgs(ctx)).status, 0); customize(ctx); }
+    if (ctx !== main) {
+      const initialArgs = name === 'default-update-owned-only' || name === 'empty-owned-update' ? ['install', '--provider', 'codex', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json'] : installArgs(ctx);
+      assert.equal(run(ctx, name + '-install', initialArgs).status, 0);
+      if (!['default-update-owned-only', 'empty-owned-update'].includes(name)) customize(ctx);
+    }
     release(ctx, name);
     if (['missing-owned-provider', 'explicit-missing-provider'].includes(name)) rmSync(join(ctx.bin, 'claude'));
     if (name === 'edited-shell-conflict') writeFileSync(ctx.shell, readFileSync(ctx.shell, 'utf8').replace('# >>> Vesta managed Codex >>>', '# >>> Vesta managed Codex >>>\n# user modification'));
@@ -108,14 +112,21 @@ try {
       symlinkSync(outside, join(ctx.installation, 'versions', nextReleaseVersion));
     }
     if (name === 'concurrent-operation') writeFileSync(join(ctx.installation, '.operation.lock'), JSON.stringify({ pid: process.pid, version: releaseVersion }));
+    if (name === 'empty-owned-update') {
+      const file = join(ctx.installation, 'installation.json'); const inventory = JSON.parse(readFileSync(file, 'utf8')); inventory.providers = []; writeFileSync(file, JSON.stringify(inventory, null, 2) + '\n');
+    }
     const before = snapshot(ctx, name + '-before');
     const argv = name === 'explicit-missing-provider' ? ['install', '--provider', 'claude', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json']
       : name === 'install-refresh' ? installArgs(ctx) : [name === 'alias-update' ? '--update' : 'update', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json'];
     const command = name + '-operation'; const result = run(ctx, command, argv, name === 'install-refresh' ? candidate.binary : built.binary);
     const after = snapshot(ctx, name + '-after');
-    const success = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth'].includes(name);
+    const success = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'default-update-owned-only'].includes(name);
     assert.equal(result.status === 0, success, name + ': ' + result.stderr);
     evidence.cases.push({ name, before: before.name, after: after.name, command, expectedCode: success ? 'success' : 'failure' });
+    if (name === 'default-update-owned-only') {
+      copyFileSync(join(ctx.installation, 'installation.json'), join(artifacts, name + '-inventory.json'));
+      assert.deepEqual(JSON.parse(readFileSync(join(ctx.installation, 'installation.json'), 'utf8')).providers.map((p: any) => p.provider), ['codex'], 'default update preserves owned provider subset');
+    }
     if (ctx !== main) rmSync(ctx.directory, { recursive: true, force: true });
   }
   evidence.settingsAfter = JSON.parse(readFileSync(join(main.config, 'vesta-codex.json'), 'utf8'));

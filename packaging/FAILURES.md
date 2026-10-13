@@ -9,6 +9,9 @@ Public v0.2.1 scope (contracts precede the public bug fixes):
 - Explicit provider install/status/update/uninstall touches only the selected
   provider. The installation inventory retains unselected integrations; partial
   uninstall retains global activation while an integration remains.
+  Default update forwards only existing owned targets to the newer binary even
+  when another native provider becomes available; an empty owned inventory fails
+  before download/installation instead of selecting discovered providers.
 - Owned config or shell path overrides fail before any integration writes.
   Relocating integrations is outside this release's scope.
 - Uninstall preflights every selected JSON file before changes. A native failure
