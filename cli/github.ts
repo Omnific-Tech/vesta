@@ -7,7 +7,7 @@ import { compare, executable, preflight, providers, value, withLock } from './ma
 const repository = 'Omnific-Tech/vesta'; const assetName = 'vesta-darwin-arm64';
 function curl(argv: string[]) {
   const command = executable('curl'); if (!command) throw new Error('Public release retrieval requires curl on PATH');
-  const result = spawnSync(command, ['--fail', '--silent', '--show-error', '--location', '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '10', '--max-time', '90', ...argv], { encoding: 'utf8', timeout: 100000 });
+  const result = spawnSync(command, ['--disable', '--fail', '--silent', '--show-error', '--location', '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '10', '--max-time', '90', ...argv], { encoding: 'utf8', timeout: 100000 });
   if (result.status !== 0) throw new Error('Public release download failed: ' + (result.stderr || result.error?.message || 'curl failed'));
   return result.stdout;
 }
@@ -16,6 +16,7 @@ export function update(args: string[], root: string) {
   let ownedTargets: string[] | undefined;
   try {
     const result = withLock(root, () => {
+      if (!value(args, '--provider') && !existsSync(join(root, 'installation.json'))) throw new Error('Owned installation required for default update; run vesta install first');
       const targets = providers(args, root, 'update');
       if (!targets.length) throw new Error('No owned provider is available to update');
       preflight(targets, 'update');
