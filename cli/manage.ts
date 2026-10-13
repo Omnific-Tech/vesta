@@ -29,7 +29,7 @@ export function providers(args: string[], root: string, operation: string): Prov
   const names = [...new Set<string>(selected ? selected === 'all' ? ['claude', 'codex'] : [selected]
     : previous && ['update', 'uninstall', 'status'].includes(operation) ? ownedNames
       : [...ownedNames, ...['claude', 'codex'].filter(name => executable(name))])];
-  if (!names.length && !['uninstall', 'status'].includes(operation)) throw new Error('No native Claude or Codex provider is available on PATH');
+  if (!names.length && !['uninstall', 'status'].includes(operation)) throw new Error(operation === 'update' ? 'No owned provider is available to update' : 'No native Claude or Codex provider is available on PATH');
   return names.map(name => {
     if (name !== 'claude' && name !== 'codex') throw new Error('Invalid owned provider record');
     const owned = previous?.providers?.find((p: Provider) => p.provider === name);
