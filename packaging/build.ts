@@ -34,6 +34,8 @@ try {
   mkdirSync(join(payload, 'licenses')); copyFileSync(join(nodeRoot, 'LICENSE'), join(payload, 'licenses/Node.txt'));
   command('/usr/bin/curl', ['-fsSL', '--max-time', '30', '-o', join(payload, 'licenses/Bun.txt'), 'https://raw.githubusercontent.com/oven-sh/bun/bun-v' + Bun.version + '/LICENSE.md']);
   copyFileSync(join(root, 'node_modules/node-pty/LICENSE'), join(payload, 'licenses/node-pty.txt'));
+  copyFileSync(join(root, 'LICENSE'), join(payload, 'licenses/Vesta.txt'));
+  copyFileSync(join(root, 'NOTICE'), join(payload, 'licenses/Vesta-NOTICE.txt'));
   const files = ['package.json', '.claude-plugin/marketplace.json', 'experiments/setup.ts', 'experiments/codex-autoload.ts', 'experiments/watcher-run.ts', 'experiments/watcher-policy.ts'];
   for (const directory of ['experiments/vesta-claude', 'experiments/watcher-claude']) for (const entry of readdirSync(join(root, directory), { recursive: true, withFileTypes: true }).filter(entry => entry.isFile() && !entry.parentPath.includes('/types'))) files.push(join(directory, join(entry.parentPath, entry.name).slice(join(root, directory).length + 1)));
   for (const file of ['package.json', 'LICENSE', ...readdirSync(join(root, 'node_modules/node-pty/lib')).filter(file => file.endsWith('.js') && !file.endsWith('.test.js')).map(file => 'lib/' + file), 'prebuilds/darwin-arm64/pty.node', 'prebuilds/darwin-arm64/spawn-helper']) files.push('node_modules/node-pty/' + file);
@@ -47,6 +49,6 @@ try {
   mkdirSync(dirname(out), { recursive: true });
   command(process.execPath, ['build', '--compile', '--target=bun-darwin-arm64', join(root, 'cli/main.ts'), '--outfile', out, '--define', '__VESTA_VERSION__=' + JSON.stringify(version), '--define', '__VESTA_PAYLOAD_SHA__=' + JSON.stringify(hash(payloadFile)), '--define', '__VESTA_MANIFEST_SHA__=' + JSON.stringify(hash(join(payload, 'manifest.json')))]);
   const sourceHead = command('/usr/bin/git', ['rev-parse', 'HEAD']).trim(); mkdirSync(dirname(receipt), { recursive: true });
-  writeFileSync(receipt, JSON.stringify({ schema: 1, version, platform: 'darwin-arm64', fixture: !!fixture, publishable: !fixture && !development && cleanSource, cleanSource, sourceHead, binarySha256: hash(out), nodeVersion: '22.17.1', bunVersion: Bun.version, nodeArchiveSha256, payloadSha256: hash(payloadFile), licenses: ['Node.js', 'Bun', 'node-pty'], assets, versions: { package: version, plugin: version, catalog: version, binary: version, tag: 'v' + version } }, null, 2) + '\n');
+  writeFileSync(receipt, JSON.stringify({ schema: 1, version, platform: 'darwin-arm64', fixture: !!fixture, publishable: !fixture && !development && cleanSource, cleanSource, sourceHead, binarySha256: hash(out), nodeVersion: '22.17.1', bunVersion: Bun.version, nodeArchiveSha256, payloadSha256: hash(payloadFile), licenses: ['Vesta (Apache-2.0)', 'Node.js', 'Bun', 'node-pty'], assets, versions: { package: version, plugin: version, catalog: version, binary: version, tag: 'v' + version } }, null, 2) + '\n');
   console.log(JSON.stringify({ out, receipt, version, fixture: !!fixture }));
 } finally { rmSync(work, { recursive: true, force: true }); }
