@@ -22,7 +22,9 @@ const executable = (name: string) => {
 };
 const quote = (text: string) => "'" + text.replaceAll("'", "'\\''") + "'";
 const start = '# >>> Vesta managed Codex >>>'; const end = '# <<< Vesta managed Codex <<<';
-const block = (native: string, configPath: string) => `${start}\nfunction codex() {\n  if [[ ! -t 0 || ! -t 1 ]]; then\n    command ${quote(native)} "$@"\n  else\n    command ${quote(process.execPath)} --disable-warning=ExperimentalWarning --experimental-strip-types ${quote(join(here, 'codex-autoload.ts'))} --config ${quote(configPath)} --native ${quote(native)} -- "$@"\n  fi\n}\n${end}\n`;
+const managedNode = process.env.VESTA_STABLE_NODE ?? process.execPath;
+const managedEntrypoint = process.env.VESTA_STABLE_ENTRYPOINT ?? join(here, 'codex-autoload.ts');
+const block = (native: string, configPath: string) => `${start}\nfunction codex() {\n  if [[ ! -t 0 || ! -t 1 || ! -x ${quote(managedNode)} || ! -f ${quote(managedEntrypoint)} ]]; then\n    command ${quote(native)} "$@"\n  else\n    command ${quote(managedNode)} --disable-warning=ExperimentalWarning --experimental-strip-types ${quote(managedEntrypoint)} --config ${quote(configPath)} --native ${quote(native)} -- "$@"\n  fi\n}\n${end}\n`;
 const removeBlock = (text: string) => {
   const from = text.indexOf(start); if (from < 0) return text;
   const to = text.indexOf(end, from); if (to < 0 || text.indexOf(start, from + start.length) >= 0) throw new Error('Conflicting/incomplete Vesta shell block; repair it before setup');
@@ -61,7 +63,7 @@ function handle(selected: 'claude' | 'codex') {
       if (!installed) {
         if (read(join(configDir, 'plugins/known_marketplaces.json'))[marketplace] && !state) throw new Error('Existing vesta-local marketplace is not owned by this setup');
         save(statePath, { provider: selected, marketplaceOwned: true });
-        native(['plugin', 'marketplace', 'add', root, '--scope', 'user', '--json']);
+        native(['plugin', 'marketplace', 'add', process.env.VESTA_MARKETPLACE_ROOT ?? root, '--scope', 'user', '--json']);
         native(['plugin', 'install', pluginId, '--scope', 'user', '--json']);
       }
       if (args.includes('--warm') && options.warm !== true) native(['plugin', 'configure', pluginId, '--values-stdin', '--json'], JSON.stringify({ warm: 'true' }));
@@ -80,6 +82,10 @@ function handle(selected: 'claude' | 'codex') {
       const createdConfig = { warm: args.includes('--warm'), idleMs: 1200000, budgetMs: 14400000, statusDir: join(configDir, 'sessions') };
       save(configPath, createdConfig);
       save(statePath, { provider: selected, native, shellFile, shellCreated: !existsSync(shellFile), block: addition, createdConfig }); mkdirSync(dirname(shellFile), { recursive: true }); writeFileSync(shellFile, shellText + addition);
+    } else if (args.includes('--refresh')) {
+      const addition = block(state.native, configPath);
+      if (addition !== state.block) { writeFileSync(shellFile, shellText.replace(state.block, addition)); save(statePath, { ...state, block: addition }); }
+      if (args.includes('--warm') && !codexConfig.warm) { const changed = { ...codexConfig, warm: true }; save(configPath, changed); save(statePath, { ...read(statePath), createdConfig: changed }); }
     } else if (args.includes('--warm') && !codexConfig.warm) {
       const changed = { ...codexConfig, warm: true }; save(configPath, changed); save(statePath, { ...state, createdConfig: changed });
     }

@@ -1,11 +1,12 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import payloadFile from './payload.tar.gz' with { type: 'file' };
 
 declare const __VESTA_VERSION__: string;
 declare const __VESTA_PAYLOAD_SHA__: string;
+declare const __VESTA_MANIFEST_SHA__: string;
 export const version = __VESTA_VERSION__;
 export const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 export const readJson = (file: string, fallback: any = null) => existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : fallback;
@@ -15,18 +16,25 @@ export function directory(path: string) {
   mkdirSync(path, { recursive: true, mode: 0o700 });
 }
 function validate(path: string) {
-  const manifest = readJson(join(path, 'manifest.json')); if (manifest?.version !== version || manifest?.platform !== 'darwin-arm64') throw new Error('Invalid embedded manifest');
+  const manifestFile = join(path, 'manifest.json');
+  if (lstatSync(manifestFile).isSymbolicLink() || sha256(readFileSync(manifestFile)) !== __VESTA_MANIFEST_SHA__) throw new Error('Embedded manifest integrity failure');
+  const manifest = readJson(manifestFile); if (manifest?.version !== version || manifest?.platform !== 'darwin-arm64') throw new Error('Invalid embedded manifest');
   for (const asset of manifest.assets) {
     if (asset.path.startsWith('/') || asset.path.split('/').includes('..')) throw new Error('Unsafe embedded asset path');
-    const file = join(path, asset.path); if (!existsSync(file) || lstatSync(file).isSymbolicLink() || !lstatSync(file).isFile() || sha256(readFileSync(file)) !== asset.sha256) throw new Error('Embedded asset integrity failure: ' + asset.path);
+    const file = join(path, asset.path); if (!existsSync(file) || !realpathSync(file).startsWith(realpathSync(path) + '/') || lstatSync(file).isSymbolicLink() || !lstatSync(file).isFile() || sha256(readFileSync(file)) !== asset.sha256) throw new Error('Embedded asset integrity failure: ' + asset.path);
   }
   return manifest;
 }
 export function prepareVersion(root: string) {
   directory(root); directory(join(root, 'versions'));
   const destination = join(root, 'versions', version);
-  if (existsSync(destination)) { directory(destination); validate(destination); return destination; }
-  const staged = join(root, 'versions', '.stage-' + process.pid); directory(staged);
+  if (existsSync(destination)) {
+    directory(destination); validate(destination);
+    const manager = join(destination, 'bin/vesta');
+    if (!existsSync(manager) || lstatSync(manager).isSymbolicLink() || !lstatSync(manager).isFile() || sha256(readFileSync(manager)) !== sha256(readFileSync(process.execPath))) throw new Error('Immutable manager integrity failure');
+    return destination;
+  }
+  const staged = mkdtempSync(join(root, 'versions', '.stage-'));
   try {
     const payload = readFileSync(payloadFile); if (sha256(payload) !== __VESTA_PAYLOAD_SHA__) throw new Error('Embedded payload digest mismatch');
     const archive = join(staged, 'payload.tar.gz'); writeFileSync(archive, payload, { mode: 0o600 });
