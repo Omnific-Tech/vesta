@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "bbed9463be4dd3e04f0c50b5a539bbf5",
+  "generation": "ae300e6494b2f8ad3deea375081dd45b",
   "repositories": {
-    "app": "ba071e1183994a5bae7846eaf9149d1c1ca172fc"
+    "app": "d7aa9dc5469dfef95bfe7d84c9a06a358cc109da"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -18,7 +18,7 @@
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
     "app:experiments/watcher-live-acceptance.ts": "9513917eab4f89987aca2ddd3542a8ac36311add734389e7c24f2c4f457100f0",
     "app:experiments/watcher-live.ts": "77be3508932d44f8f619b0549d61a45fbf9477f598e39dc1a15a803bd8dfc63c",
-    "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/plan.md": "3ee03a7733d401b40103ec0b83e7315fe095be47cb1d1e407747050fc5e2dc51",
+    "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/plan.md": "82e33e8f902acf71465b4ae229004d4dce31e7a743395fcccb446bce0fbbd6c5",
     "app:harness/artifacts/DISTRIBUTION/spec.md": "9113edd3259ff3277845e2c3de39bcc0e871de710d361c404750e5fc3b5afebd",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/history/DOCS-001.json": "354e3ecc3e4121726afe1db876f4cddc865b12e6ce4e9ffc0709001496c9e46c",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/plan.md": "6e045b2a98a7c240bee81a5ca46ef4fc1c87f5e0ea828c1181ef70e5a85419ed",
@@ -66,8 +66,8 @@
     "app:packaging/gh-fixture.zsh": "60f31eb9f81c8e3ae8f24dc78d0555fc2630a121f2f96b0d4ba2f03cff20126f",
     "app:packaging/native-e2e.ts": "81d1bd2fe46f1874ad938f8e099fefe96ef7adff8a56ee46959ab1444bb97bbe",
     "app:packaging/provider-fault.zsh": "514259af4dbc2544253ca11e482ad6b3c5f84148961ff466345ff65dfac547b4",
-    "app:packaging/release-acceptance.ts": "14e300e32c70f60416ec8f15ded19336e6b40cdbaec19d35ae7a84c420d4cb31",
-    "app:packaging/release-e2e.ts": "265bbd206a73fecf0140794c7fc9cbf3661d87e506caf69e46a2b3fa0fb23a56"
+    "app:packaging/release-acceptance.ts": "0c7f5e9a09aa4b9d2fbbcf5321c3085b93305fd7b3e538fe1d010732507d8681",
+    "app:packaging/release-e2e.ts": "121a56b0c3fcea18f371a823d30698e7248edf063bcd89fe1dbc10f29384fa1e"
   },
   "modes": {
     "RELEASE-001": "quick"
@@ -241,6 +241,16 @@
       },
       "repositories": {
         "app": "ba071e1183994a5bae7846eaf9149d1c1ca172fc"
+      }
+    },
+    {
+      "reason": "Allow required owned marketplace path migration while retaining every other Claude setting; preserve raw rollback checks and add exact source provenance",
+      "prior_generation": "bbed9463be4dd3e04f0c50b5a539bbf5",
+      "prior_repositories": {
+        "app": "ba071e1183994a5bae7846eaf9149d1c1ca172fc"
+      },
+      "repositories": {
+        "app": "d7aa9dc5469dfef95bfe7d84c9a06a358cc109da"
       }
     }
   ]
