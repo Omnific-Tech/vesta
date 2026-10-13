@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "bfa7e8198e23eea66d5db044b3e39e5a",
+  "generation": "6288acddacc00b540e44353df00971d2",
   "repositories": {
-    "app": "a95cfec1bd6ef4eb7aadd430752cecd5df2cba23"
+    "app": "6584209030054f722367586091f8bf9185db29bd"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -12,14 +12,16 @@
     "app:experiments/setup-e2e.ts": "94394f562703d1f08a7f1fdbad1cdb0407b9cb97cc68dfd9e318262f99e2e08b",
     "app:experiments/setup-forwarding-e2e.ts": "c1518c2e759d4a2cce786ad64c2a22db647b4b42c3c3fd4afe4b964e89bdd734",
     "app:experiments/setup-live-acceptance.ts": "4192e2497b81fe46085e24f4e5166f518ec2dd5bdbd654ea0f3eb814add6426e",
-    "app:experiments/setup-live.ts": "a224d266f66938b155b087074c20c83ca14a6689b795ee30b459581fdcb1c781",
+    "app:experiments/setup-live.ts": "1d4c7fbb85c69bd82b91b76759542551786b90fdeb94a9783ab9b936f5d0b614",
     "app:experiments/setup-native-fixture.mjs": "18c8bdcd0233ece36b6a4d192d1c972a3b5e9446accf0c38c1e5a329cb54d7bd",
     "app:experiments/setup-tty-forwarding-e2e.ts": "0cb58a471f27dba4b3ea85a971afa74ca94b5bc5acf7867fdc1e28681e490a2e",
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
     "app:experiments/watcher-live-acceptance.ts": "9513917eab4f89987aca2ddd3542a8ac36311add734389e7c24f2c4f457100f0",
     "app:experiments/watcher-live.ts": "77be3508932d44f8f619b0549d61a45fbf9477f598e39dc1a15a803bd8dfc63c",
+    "app:harness/artifacts/DISTRIBUTION/changes/PUBLIC-001/plan.md": "ad34f2111fa76c933a301b586af777e0570c91c1d36ae65ff76a9263d53a18a8",
+    "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/history/RELEASE-001.json": "b33bc2bbaf8387c4a223b765ba9549a5e16177cf284153404cdc8ce84870a45a",
     "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/plan.md": "ec28752a070d8359acaf2ae127f535b41a8153d2169005dc1d1c6e76a140c5ca",
-    "app:harness/artifacts/DISTRIBUTION/spec.md": "9113edd3259ff3277845e2c3de39bcc0e871de710d361c404750e5fc3b5afebd",
+    "app:harness/artifacts/DISTRIBUTION/spec.md": "0a8bbca6e061a1abc7cca7b276ea13757fe4dc43df157c29772c0bbfbe1f9223",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/history/DOCS-001.json": "354e3ecc3e4121726afe1db876f4cddc865b12e6ce4e9ffc0709001496c9e46c",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/plan.md": "6e045b2a98a7c240bee81a5ca46ef4fc1c87f5e0ea828c1181ef70e5a85419ed",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/MARKER-001/history/MARKER-001.json": "9d71b0c2f437dcf291d2ce8005309354d5a133a160a662fa527ca38234646bf9",
@@ -41,9 +43,10 @@
     "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "9847282d8e08a7a962e3fde846f14f2bba931caab0bf35415b73393883f45b68",
     "app:harness/artifacts/features.md": "957e3fa32435f43672088810dcc5585da6979b5aa4ce42bc081aafd96f0306f7",
     "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
-    "app:harness/harness.yaml": "64de945b2647b28553a0ea32f3c8cd14658a442dabd2b5f0e3f6198ead490d72",
+    "app:harness/harness.yaml": "f6c38fc6973f710f3a167a6048135beb22d5035e7a27c480247984152dac20af",
     "app:harness/scenarios/DISTRIBUTION/standalone-install-update.yaml": "a33f123260ca6689d6a38370260da08f3ba6e7a2bf7a5f3baf01af3dc6d76cf8",
     "app:harness/scenarios/DISTRIBUTION/standalone-native.yaml": "33b813c69e55107648de9cdbb3bd17c398b9e32479670dfa7dc3b173cb67d814",
+    "app:harness/scenarios/DISTRIBUTION/standalone-public-safety.yaml": "20b0bf31cd5774fd3acdda3a46926011dda05a848008a96bd6f2f7afaf8ed670",
     "app:harness/scenarios/SESSION-INTEGRATION/claude-context-probe.yaml": "3e8b43be25751053a714f265b84dd122080664a2df84df44bc7b7cb637ec627f",
     "app:harness/scenarios/SESSION-INTEGRATION/claude-installed-live.yaml": "ddd998796e3f281eaa016f950cef69316fa7a84ef34058dda19468d99425e2ba",
     "app:harness/scenarios/SESSION-INTEGRATION/claude-marker-live.yaml": "6fd4a64adc35c2fdc78b8c9c241f9c5f10659f8bb4e254e6f61108358251e9a7",
@@ -61,16 +64,19 @@
     "app:harness/scenarios/SESSION-INTEGRATION/native-forwarding.yaml": "25bdbf096986b46aabadbf4597e461b97e46278efdfa8061b5d04fb62f6a7bf8",
     "app:harness/scenarios/SESSION-INTEGRATION/native-setup.yaml": "11e8d3c08bc08b50e0402812b5a7316f4ccd11b5da8b82ad07a7bfe7dcb33a4b",
     "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "b6e067c4ad01ef3df114acc154c21b2673fdda353c8f4632f12f6efccad422ac",
-    "app:harness/tasks/RELEASE-001.json": "b33bc2bbaf8387c4a223b765ba9549a5e16177cf284153404cdc8ce84870a45a",
-    "app:packaging/e2e-common.ts": "7cf1307fdbc8308057dcbaa595491efe233724fac3ff26a9810d46f17f6139b3",
+    "app:harness/tasks/PUBLIC-001.json": "4773453515b6a21349f668432f0fc325a7ba27792f13fbec07429e3d07348250",
+    "app:packaging/curl-fixture.zsh": "2b9de8410428818ab049ccb8e8c77da519379fdbb753b05855cd3b0993f291d0",
+    "app:packaging/e2e-common.ts": "fd2b413d0b0c655e751d4d827d60e93c9e03784ce947fa8e6dcaabaf77d45226",
     "app:packaging/gh-fixture.zsh": "60f31eb9f81c8e3ae8f24dc78d0555fc2630a121f2f96b0d4ba2f03cff20126f",
-    "app:packaging/native-e2e.ts": "215afc85f002ae8dce16a92914b1362f660b564bd69a84200d0a8126eb5cd2c6",
-    "app:packaging/provider-fault.zsh": "514259af4dbc2544253ca11e482ad6b3c5f84148961ff466345ff65dfac547b4",
-    "app:packaging/release-acceptance.ts": "0c7f5e9a09aa4b9d2fbbcf5321c3085b93305fd7b3e538fe1d010732507d8681",
-    "app:packaging/release-e2e.ts": "4f203278031aebaa88c45845369936a2646d842d13e8834f33c3e8f1e77e94c1"
+    "app:packaging/native-e2e.ts": "0b350e8594aac0766e58cca9b95381fb6e743f015880ad185de62f519f9d3808",
+    "app:packaging/provider-fault.zsh": "e1eeea943dddf7e07301a622091c50a504a3751ca4057ff6885d4ad6278febfc",
+    "app:packaging/public-acceptance.ts": "fb229094869367850161ef74170b4380453116b663f323fc54ca75ab7301f103",
+    "app:packaging/public-e2e.ts": "0748b3cf452385c6f7a791d423c8d70a5d87fde5929f35b8972fe5f464f2ec9c",
+    "app:packaging/release-acceptance.ts": "1daa25a9af978d367d5e71b6eed1f664cafcdf6d1cb2fed43fd26c38990425f2",
+    "app:packaging/release-e2e.ts": "bf3ecbfc6d3d607dda504b9fc35df97dcede5a24fa9895d44c32a2cc3701bf6d"
   },
   "modes": {
-    "RELEASE-001": "quick"
+    "PUBLIC-001": "quick"
   },
   "amendments": [
     {
@@ -271,6 +277,16 @@
       },
       "repositories": {
         "app": "a95cfec1bd6ef4eb7aadd430752cecd5df2cba23"
+      }
+    },
+    {
+      "reason": "Public distribution and audited ownership fixes",
+      "prior_generation": "bfa7e8198e23eea66d5db044b3e39e5a",
+      "prior_repositories": {
+        "app": "a95cfec1bd6ef4eb7aadd430752cecd5df2cba23"
+      },
+      "repositories": {
+        "app": "6584209030054f722367586091f8bf9185db29bd"
       }
     }
   ]
