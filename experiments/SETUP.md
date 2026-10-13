@@ -4,11 +4,11 @@ Use the standalone macOS arm64 release, existing subscription logins, and instal
 native Claude/Codex executables. Vesta embeds pinned Node 22.17.1 and native PTY
 assets; end users need no runtime installation or source checkout. Native support
 was verified against Claude Code 2.1.296 and Codex CLI 0.162.0, then the observed
-0.162.1 patch update. Private release downloads and updates require authenticated
-`gh` with repository access.
+0.162.1 patch update. Public downloads and updates use HTTPS curl without
+GitHub authentication. Follow the [installation instructions](../README.md#install)
+for the download and checksum check, then run:
 
 ```sh
-gh release download v0.2.0 --repo Omnific-Tech/vesta --pattern vesta-darwin-arm64
 chmod +x vesta-darwin-arm64
 ./vesta-darwin-arm64 install
 ~/.local/bin/vesta status
@@ -58,7 +58,7 @@ each launch, so updates require no shell reactivation. Start a new
 Codex session to use it; an existing running session keeps its current owner.
 
 Warming is off by default. First add the required global marker rule in
-[Keep warm replies minimal](../README.md#keep-warm-replies-minimal), then opt in
+[reply rule](../README.md#1-add-the-reply-rule), then opt in
 by repeating the explicit installation with
 `--warm`. Claude can also configure `warm` through its native
 `claude plugin configure vesta@vesta-local` flow. Codex configuration is in
@@ -80,7 +80,7 @@ retention and net usage savings remain unproven.
 The installer never edits global instruction files. The old rule matching a ping
 "asking for exactly K" does not cover the marker-only body. After updating that
 rule, run `vesta update` (or `vesta --update`) and restart Claude. Updates select
-the latest stable private release, verify its digest, platform and version, and
+the latest stable public release, verify its digest, platform and version, and
 refresh owned integrations while preserving custom settings. A failed refresh
 attempt compensates integrations and retains the previous activation; any
 compensation failure is reported. Start a new Codex session after updating. The global
@@ -95,13 +95,16 @@ block. It preserves unrelated configuration and later shell edits. An edited
 managed block produces an ownership conflict instead of silently removing it.
 Externally edited Codex configuration is retained. Open a new terminal after
 uninstall; an already sourced shell function falls back to the native command.
-The CLI link and current activation are removed; immutable version assets and
+Removing all providers removes the CLI link and current activation. Removing
+one selected provider retains other integrations and their activation.
+Immutable version assets and
 prior Claude package caches are retained for running owners. Native plugin data is retained with
 `--keep-data`; it may be removed separately through native plugin management.
 
 For isolated tests, `--config-dir /absolute/fixture` selects the native Claude
 configuration or Vesta Codex configuration, and `--shell-file /absolute/zshrc`
-selects a disposable shell file. Set `CODEX_HOME` separately to isolate native
+selects a disposable shell file. Existing owned paths cannot be relocated with
+these overrides; differing paths fail before writes. Set `CODEX_HOME` separately to isolate native
 Codex history. The native E2E fixtures use existing credentials through native
 flows and never print credential contents. Native authentication, quota, and
 network errors fail verification.
@@ -116,7 +119,8 @@ node --experimental-strip-types experiments/setup-live.ts codex --yolo
 node --experimental-strip-types experiments/setup-live.ts codex --yolo-sandbox
 node --experimental-strip-types packaging/release-e2e.ts
 node --experimental-strip-types packaging/native-e2e.ts
-telos verify RELEASE-001
+node --experimental-strip-types packaging/public-e2e.ts
+telos verify PUBLIC-001
 ```
 
 Each run retains exact native transcripts/protocol rows, metadata, command and
