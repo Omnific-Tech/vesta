@@ -1,76 +1,142 @@
 # Vesta
 
-Keep coding sessions warm.
+Opt-in keepalive for idle Claude Code and Codex sessions.
 
-Private project exploring prompt-cache continuity for coding harnesses. One-time
-setup installs a native Claude plugin and reversible macOS zsh integration for
-verified Codex command forms. Continue using ordinary `claude` and `codex`
-commands afterward. Warming is opt-in; cache retention and usage savings remain
-unproven.
+Vesta watches an open session and submits `VESTA_CACHE_KEEPALIVE` when its idle
+timer expires. Continue using ordinary `claude` and `codex` commands after setup.
+Cache retention and net usage savings are **unverified**. Each keepalive is a
+real model turn and consumes usage.
 
-The standalone v0.2.0 release supports macOS arm64 and zsh. It bundles its runtime;
-installation needs no Node, npm, Bun, or source checkout. Native Claude/Codex and
-their existing logins are prerequisites. This repository and its releases are
-private; authenticate `gh` with access to `Omnific-Tech/vesta` before downloading
-or updating.
+## Requirements
 
-```sh
-gh release download v0.2.0 --repo Omnific-Tech/vesta --pattern vesta-darwin-arm64
-chmod +x vesta-darwin-arm64
-./vesta-darwin-arm64 install
-~/.local/bin/vesta status
-```
+- macOS on Apple Silicon, with zsh.
+- Claude Code, Codex, or both installed and signed in.
+- `curl` for downloading and updating.
 
-Put `~/.local/bin` on PATH to use `vesta` directly. Default installation discovers
-available native providers; `--provider claude`, `codex`, or `all` selects them
-explicitly. An explicitly selected missing provider stops installation.
+The standalone release bundles its runtime. Node, npm, Bun and GitHub CLI are
+not required for installation.
 
-Before enabling warming, add the required [global instruction rule](#keep-warm-replies-minimal).
-Open a new terminal after installation. To opt in once, use
-`vesta install --warm`. Use `vesta update` (or `vesta --update`) to install the
-latest stable private release and refresh owned integrations. Installation also
-migrates earlier npm-owned setup records and preserves warming preferences and
-timers. To remove the integration and CLI link, use `vesta uninstall`, then open
-a new terminal. Immutable version assets remain available to running owners.
+## Install
 
-See [one-time setup and verified native support](experiments/SETUP.md) for the
-exact flag table, configuration, ownership limits and repeatable verification.
-Unsupported Codex forms retain native behavior without warming. Development
-verification installs only into isolated fixtures; personal installation remains
-an explicit user action. The older [manual watcher](experiments/README.md#local-experimental-watcher)
-and disposable probes remain available.
+### 1. Add the reply rule
 
-## Keep warm replies minimal
-
-Vesta submits only the literal marker `VESTA_CACHE_KEEPALIVE`. Add this required
-rule to `~/.claude/CLAUDE.md` for Claude and `~/.codex/AGENTS.md` for Codex before
-enabling marker warming:
+Add this instruction to each provider's global instruction file before enabling
+warming:
 
 > When a Vesta cache keepalive message has the exact body VESTA_CACHE_KEEPALIVE, reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.
 
-With custom `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, put the rule in that directory's
-`CLAUDE.md` or `AGENTS.md`. A Codex `AGENTS.override.md` can take precedence over
-`AGENTS.md`; put the rule in the instruction file your native session actually
-loads. The old rule matching an idle ping "asking for exactly K" is insufficient
-because the new marker contains no inline reply instruction.
+| Provider | Instruction file |
+| --- | --- |
+| Claude Code | `~/.claude/CLAUDE.md` |
+| Codex | `~/.codex/AGENTS.md` |
 
-This is a model instruction, not an enforced output constraint. A model may still
-respond with extra text or tools. Warm pings and their replies are real turns in
-the conversation and consume usage; extra replies can clutter its context.
-Claude still adds its native plugin-message envelope around the literal body.
-Session and reservation IDs remain internal metadata. Vesta does not edit or
-validate your global instruction files automatically.
+With `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, use that directory instead. Codex can
+load `AGENTS.override.md` in preference to `AGENTS.md`; add the rule to the file
+your session loads. Vesta does not edit these files automatically.
 
-After adding the rule, run `vesta update` and restart Claude to load the installed
-plugin. The installed Codex shell function uses the stable current version path;
-start a new Codex session after updating. Existing sessions retain their runtime.
+This instruction guides the model; it does not enforce its output. Claude Code
+adds a native plugin-message envelope around the marker.
 
-## Follow-up verification
+### 2. Download and verify
 
-Unverified behavior and support gaps are tracked in the
-[GitHub issues](https://github.com/Omnific-Tech/vesta/issues). Cache retention and
-net savings, Claude subagent isolation, wider Codex launch support, shared-daemon
-attachment, and model compliance with minimal warm replies still need evidence.
+Run these commands in a directory where you can save the download:
 
-Engineering uses Telos. Read [AGENTS.md](AGENTS.md) and the
-[consumer harness guide](harness/README.md) before starting work.
+```sh
+curl -fL https://github.com/Omnific-Tech/vesta/releases/download/v0.2.1/vesta-darwin-arm64 -o vesta-darwin-arm64
+curl -fL https://github.com/Omnific-Tech/vesta/releases/download/v0.2.1/SHA256SUMS -o SHA256SUMS
+grep '  vesta-darwin-arm64$' SHA256SUMS | shasum -a 256 -c -
+```
+
+Continue only when the checksum reports `vesta-darwin-arm64: OK`.
+
+### 3. Install
+
+```sh
+chmod +x vesta-darwin-arm64
+./vesta-darwin-arm64 install --warm
+~/.local/bin/vesta status
+```
+
+`chmod +x` makes the downloaded file executable. It grants no administrator
+privileges.
+
+Installation discovers the available providers. Use `--provider claude` or
+`--provider codex` to select one explicitly. Omit `--warm` to install without
+enabling warming on a new installation; refreshes preserve existing preferences.
+
+Open a new terminal and start new Claude/Codex sessions after installation.
+Put `~/.local/bin` on your PATH to use `vesta` directly:
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Add that line to your shell configuration if the directory is not already on PATH.
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `vesta install --warm` | Install or refresh integrations and enable warming |
+| `vesta status` | Inspect installation and provider setup |
+| `vesta update` | Download the latest stable release and refresh owned integrations |
+| `vesta uninstall` | Remove managed integrations and the CLI link |
+| `vesta --version` | Print the CLI version |
+
+`vesta --update` is an alias for `vesta update`. Provider selection applies to
+the chosen operation. Uninstalling one provider retains other installed providers.
+Vesta preserves unrelated configuration and keeps version assets needed by
+running sessions. Restart Claude and start a new Codex session after updates;
+existing sessions keep their current runtime.
+
+## How it works
+
+Claude Code loads a native Vesta plugin. Codex uses a managed zsh launch function
+and an owned app-server connection for supported interactive launches. Each
+watcher belongs to its open session; Vesta does not reopen ended conversations.
+
+Warming starts only after a fresh model reply reports more than 100,000 input
+tokens in the current context. Cached input counts once. Output tokens and
+cumulative lifetime usage do not count toward this threshold. Reopening or
+compacting a session requires a fresh reply before warming can resume.
+
+| Setting | Default |
+| --- | --- |
+| Input threshold | Strictly greater than 100,000 tokens |
+| Claude idle interval | 50 minutes |
+| Codex idle interval | 20 minutes |
+| Maximum time since real user activity | 4 hours |
+
+Busy, stale and ended sessions are skipped. Keepalives do not extend the real
+user activity budget. User activity can cancel a pending ping before dispatch;
+once submitted to a native queue, retraction is not guaranteed.
+
+Supported Codex launches include bare `codex`, `--yolo`, and verified model,
+directory, approval, sandbox and alternate-screen options. Combining `--yolo`
+with an explicit approval policy preserves Codex's native error. Utilities,
+resume/fork, profiles, worktrees, positional prompts, remote connections and
+unverified flags run native Codex without warming. See the
+[setup reference](experiments/SETUP.md) for the exact supported forms and settings.
+
+## Troubleshooting
+
+If `vesta` is not found, use `~/.local/bin/vesta` and check your PATH. If no ping
+appears, inspect `vesta status`, open a new supported session, and send a normal
+message. The next reply must meet the input threshold before the idle timer can
+produce a keepalive. Claude's `vesta-status` command also reports watcher state.
+
+Keepalives and replies remain in the conversation. Models may add text or use
+tools despite the reply rule. Cache savings, Claude subagent isolation, broader
+Codex launch support and reply compliance are tracked in
+[GitHub issues](https://github.com/Omnific-Tech/vesta/issues).
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for building, verification and releases.
+The [original proposal](harness/artifacts/init_spec.md) is historical; current
+behavior is described above and in the setup reference.
+
+## License
+
+[Apache License 2.0](LICENSE). Bundled dependencies retain their own licenses,
+included in the standalone distribution.
