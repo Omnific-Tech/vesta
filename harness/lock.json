@@ -1,21 +1,24 @@
 {
   "schema_version": 1,
-  "generation": "7f69691bad9eeb1e310b0e6bf398c715",
+  "generation": "ca65683d25920549dae1a93be5323648",
   "repositories": {
-    "app": "d017927b3eeb154583802932abd464031a3ea93e"
+    "app": "bc5e69adfa0c54b1f424cef1a5164d11ffd132bc"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
     "app:experiments/context-acceptance.ts": "79c2305fefd415faf7d02fee8c644be3d8c790d5ef355841cd74b97e294432c2",
+    "app:experiments/marker-acceptance.ts": "b76c3906ee6ef3b90219088af99b42c87329376e91c47e5986b642bf8ced83b2",
     "app:experiments/setup-acceptance.ts": "dfc27754f1d5b6642475f3a354b1ab41ea65a1c9406a85f7c17488cdd85d4d58",
     "app:experiments/setup-e2e.ts": "94394f562703d1f08a7f1fdbad1cdb0407b9cb97cc68dfd9e318262f99e2e08b",
     "app:experiments/setup-forwarding-e2e.ts": "c1518c2e759d4a2cce786ad64c2a22db647b4b42c3c3fd4afe4b964e89bdd734",
-    "app:experiments/setup-live-acceptance.ts": "886dadbe94944ece062c1afa46451828577199b037fc897471abed4ee9188c94",
-    "app:experiments/setup-live.ts": "7d9c927a8ccfd080b97fa82d2c48601711c2524f9ae1770f327ae14968096627",
+    "app:experiments/setup-live-acceptance.ts": "4192e2497b81fe46085e24f4e5166f518ec2dd5bdbd654ea0f3eb814add6426e",
+    "app:experiments/setup-live.ts": "6216176bb9edbbd3688e114ef10d86d0c7dea60c4a723c8e2c51c39036db6c65",
     "app:experiments/setup-native-fixture.mjs": "18c8bdcd0233ece36b6a4d192d1c972a3b5e9446accf0c38c1e5a329cb54d7bd",
     "app:experiments/setup-tty-forwarding-e2e.ts": "0cb58a471f27dba4b3ea85a971afa74ca94b5bc5acf7867fdc1e28681e490a2e",
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
-    "app:experiments/watcher-live-acceptance.ts": "c2fc37caf711c4442bcb2d9a8f37ebd5219f475bb3019bb61c208457da5dba99",
+    "app:experiments/watcher-live-acceptance.ts": "9513917eab4f89987aca2ddd3542a8ac36311add734389e7c24f2c4f457100f0",
+    "app:experiments/watcher-live.ts": "77be3508932d44f8f619b0549d61a45fbf9477f598e39dc1a15a803bd8dfc63c",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/MARKER-001/plan.md": "2cd404e33ec22703bf1d305f6e931d9cbb62ebe6782403d0f53373f98354291e",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/failures.md": "3e646558afcb76fcb226c99fa08df765f3d18f1c6e39b04c5fbe39838d8afe6f",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/history/PROBE-001.json": "cfa515c7915f4673444954f8a91bd619a28ffe531fc397d42422ac445d22721b",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/plan.md": "2b2de02d8f9e3610487f526e6ada28f97a61f1e507c622bb4c70ab2d0b4fd6b4",
@@ -28,13 +31,15 @@
     "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/failures.md": "46b3fb82b2b4c66783b4d36e907d2b1ebc7c3c5ec439b4b4fa29741955761fd2",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/history/WATCH-001.json": "a80bde6e1f5b5291044b09241e8adfab592cc8113804ab9de4719bedd3beb378",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/plan.md": "7402a5d1760f9b08a22b2bcf3864251a1dd2f1838dc4a4bf7b95e27d158e93a5",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/YOLO-001/history/YOLO-001.json": "010b83090df58650964cdaafcfba14aa90f4ee3d84b950556a59645c4c627ee0",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/YOLO-001/plan.md": "95b77c74b7e71fdec880ca25ac6e03b8b7574d6328870efe8d6c2af7da21763a",
-    "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "41d467d35cc8aa6066d4081b2b1828438d7515050cdc2cd45f0c4bb7078675fa",
+    "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "9847282d8e08a7a962e3fde846f14f2bba931caab0bf35415b73393883f45b68",
     "app:harness/artifacts/features.md": "0f2701f3eb5e1d646cd2dc2f91fd3e175f7ffa3536fee1926296b0d7dff97c67",
     "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
-    "app:harness/harness.yaml": "5c5bb68dfa3ffb82d72d66cfc197d468960d5519a52f11f64c3b2fdb5ffeb884",
+    "app:harness/harness.yaml": "0304c3c6424482d89d9f4f07d1b17e20347511faf349dfcded5cd84f96345814",
     "app:harness/scenarios/SESSION-INTEGRATION/claude-context-probe.yaml": "3e8b43be25751053a714f265b84dd122080664a2df84df44bc7b7cb637ec627f",
     "app:harness/scenarios/SESSION-INTEGRATION/claude-installed-live.yaml": "ddd998796e3f281eaa016f950cef69316fa7a84ef34058dda19468d99425e2ba",
+    "app:harness/scenarios/SESSION-INTEGRATION/claude-marker-live.yaml": "6fd4a64adc35c2fdc78b8c9c241f9c5f10659f8bb4e254e6f61108358251e9a7",
     "app:harness/scenarios/SESSION-INTEGRATION/claude-watcher-live.yaml": "56c38d02379a741ae062150ec05419f17c8ac6cbe4c4654c8eb85d3434e540be",
     "app:harness/scenarios/SESSION-INTEGRATION/claude.yaml": "214c4a273efcef778f4091f98a5f6893155550f5715cc07bcf24d3c1ab1b49be",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-context-probe.yaml": "49e774026dee1e65ec4df8e0679029ba5de9378cc1e8ea9c36b9535c3606d87f",
@@ -48,10 +53,10 @@
     "app:harness/scenarios/SESSION-INTEGRATION/native-forwarding.yaml": "25bdbf096986b46aabadbf4597e461b97e46278efdfa8061b5d04fb62f6a7bf8",
     "app:harness/scenarios/SESSION-INTEGRATION/native-setup.yaml": "11e8d3c08bc08b50e0402812b5a7316f4ccd11b5da8b82ad07a7bfe7dcb33a4b",
     "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "b6e067c4ad01ef3df114acc154c21b2673fdda353c8f4632f12f6efccad422ac",
-    "app:harness/tasks/YOLO-001.json": "010b83090df58650964cdaafcfba14aa90f4ee3d84b950556a59645c4c627ee0"
+    "app:harness/tasks/MARKER-001.json": "9d71b0c2f437dcf291d2ce8005309354d5a133a160a662fa527ca38234646bf9"
   },
   "modes": {
-    "YOLO-001": "quick"
+    "MARKER-001": "quick"
   },
   "amendments": [
     {
@@ -192,6 +197,16 @@
       },
       "repositories": {
         "app": "d017927b3eeb154583802932abd464031a3ea93e"
+      }
+    },
+    {
+      "reason": "Approve MARKER-001 literal payload and required instruction fixtures, archive submitted YOLO-001",
+      "prior_generation": "7f69691bad9eeb1e310b0e6bf398c715",
+      "prior_repositories": {
+        "app": "d017927b3eeb154583802932abd464031a3ea93e"
+      },
+      "repositories": {
+        "app": "bc5e69adfa0c54b1f424cef1a5164d11ffd132bc"
       }
     }
   ]
