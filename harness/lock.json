@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "ae300e6494b2f8ad3deea375081dd45b",
+  "generation": "2885ed6eb7eb6465e9868b885d68fe3d",
   "repositories": {
-    "app": "d7aa9dc5469dfef95bfe7d84c9a06a358cc109da"
+    "app": "17cb47e8961c148cd57141321c58bd2a7755d607"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -18,7 +18,7 @@
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
     "app:experiments/watcher-live-acceptance.ts": "9513917eab4f89987aca2ddd3542a8ac36311add734389e7c24f2c4f457100f0",
     "app:experiments/watcher-live.ts": "77be3508932d44f8f619b0549d61a45fbf9477f598e39dc1a15a803bd8dfc63c",
-    "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/plan.md": "82e33e8f902acf71465b4ae229004d4dce31e7a743395fcccb446bce0fbbd6c5",
+    "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/plan.md": "3e64ef30756248865e3e1eb08c779318b2e791ed82b4a96d6439779683bb72b9",
     "app:harness/artifacts/DISTRIBUTION/spec.md": "9113edd3259ff3277845e2c3de39bcc0e871de710d361c404750e5fc3b5afebd",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/history/DOCS-001.json": "354e3ecc3e4121726afe1db876f4cddc865b12e6ce4e9ffc0709001496c9e46c",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/plan.md": "6e045b2a98a7c240bee81a5ca46ef4fc1c87f5e0ea828c1181ef70e5a85419ed",
@@ -62,12 +62,12 @@
     "app:harness/scenarios/SESSION-INTEGRATION/native-setup.yaml": "11e8d3c08bc08b50e0402812b5a7316f4ccd11b5da8b82ad07a7bfe7dcb33a4b",
     "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "b6e067c4ad01ef3df114acc154c21b2673fdda353c8f4632f12f6efccad422ac",
     "app:harness/tasks/RELEASE-001.json": "b33bc2bbaf8387c4a223b765ba9549a5e16177cf284153404cdc8ce84870a45a",
-    "app:packaging/e2e-common.ts": "27a670bfc96e85bf7f2ea69dd55925bdf5eef88f5885f4e6089e48d0a9d5f8e4",
+    "app:packaging/e2e-common.ts": "7cf1307fdbc8308057dcbaa595491efe233724fac3ff26a9810d46f17f6139b3",
     "app:packaging/gh-fixture.zsh": "60f31eb9f81c8e3ae8f24dc78d0555fc2630a121f2f96b0d4ba2f03cff20126f",
-    "app:packaging/native-e2e.ts": "81d1bd2fe46f1874ad938f8e099fefe96ef7adff8a56ee46959ab1444bb97bbe",
+    "app:packaging/native-e2e.ts": "215afc85f002ae8dce16a92914b1362f660b564bd69a84200d0a8126eb5cd2c6",
     "app:packaging/provider-fault.zsh": "514259af4dbc2544253ca11e482ad6b3c5f84148961ff466345ff65dfac547b4",
     "app:packaging/release-acceptance.ts": "0c7f5e9a09aa4b9d2fbbcf5321c3085b93305fd7b3e538fe1d010732507d8681",
-    "app:packaging/release-e2e.ts": "121a56b0c3fcea18f371a823d30698e7248edf063bcd89fe1dbc10f29384fa1e"
+    "app:packaging/release-e2e.ts": "4f203278031aebaa88c45845369936a2646d842d13e8834f33c3e8f1e77e94c1"
   },
   "modes": {
     "RELEASE-001": "quick"
@@ -251,6 +251,16 @@
       },
       "repositories": {
         "app": "d7aa9dc5469dfef95bfe7d84c9a06a358cc109da"
+      }
+    },
+    {
+      "reason": "Seal operational symlinks only after real acceptance and process cleanup; retain literal targets and all regular evidence for Telos collection",
+      "prior_generation": "ae300e6494b2f8ad3deea375081dd45b",
+      "prior_repositories": {
+        "app": "d7aa9dc5469dfef95bfe7d84c9a06a358cc109da"
+      },
+      "repositories": {
+        "app": "17cb47e8961c148cd57141321c58bd2a7755d607"
       }
     }
   ]
