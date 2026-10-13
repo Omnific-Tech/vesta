@@ -89,6 +89,10 @@ Vesta preserves unrelated configuration and keeps version assets needed by
 running sessions. Restart Claude and start a new Codex session after updates;
 existing sessions keep their current runtime.
 
+Upgrading from v0.2.0: download this release and run `install` again to replace
+the older updater, which requires GitHub CLI. Existing warming settings are
+preserved unless you explicitly enable them with `--warm`.
+
 ## How it works
 
 Claude Code loads a native Vesta plugin. Codex uses a managed zsh launch function
