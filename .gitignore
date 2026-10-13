@@ -3,3 +3,6 @@
 harness/runs/
 harness/.telos/
 node_modules/
+dist/
+packaging/.cache/
+cli/payload.tar.gz
