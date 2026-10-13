@@ -31,5 +31,17 @@ verification_inputs:
     path: experiments/marker-acceptance.ts
   - repo: app
     path: experiments/watcher-live.ts
+  - repo: app
+    path: packaging/release-e2e.ts
+  - repo: app
+    path: packaging/native-e2e.ts
+  - repo: app
+    path: packaging/release-acceptance.ts
+  - repo: app
+    path: packaging/e2e-common.ts
+  - repo: app
+    path: packaging/gh-fixture.zsh
+  - repo: app
+    path: packaging/provider-fault.zsh
 retention:
   max_runs_per_task: 5

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "RELEASE-001",
+  "mode": "quick",
+  "scope": "Deliver standalone macOS arm64 Vesta CLI, owned versioned installation and latest-stable authenticated update, native integration synchronization and private v0.2.0 release. Preserve SESSION-INTEGRATION behavior; feature DISTRIBUTION, change RELEASE-001.",
+  "implementor_id": "gpt-6.1-sol-medium",
+  "dependencies": [],
+  "risk_tags": [],
+  "acceptance": [
+    { "id": "AC-LIFECYCLE", "description": "Preserve strict input/freshness/idle/user budget and cancellation contracts." },
+    { "id": "AC-INSTALL", "description": "Preserve idempotent reversible setup and unrelated configuration ownership." },
+    { "id": "AC-FLAGS", "description": "Preserve native unsupported forwarding and model/permission semantics through packaged execution." },
+    { "id": "AC-SETUP-INTEGRITY", "description": "Preserve actual source identities, unchanged personal globals, raw evidence and owned cleanup." },
+    { "id": "AC-STANDALONE", "description": "Real relocated macOS arm64 binary works without external Node/npm/Bun or checkout; runtime/addon/helper/assets/licenses and version are bundled and fingerprinted." },
+    { "id": "AC-CLI-INSTALL", "description": "Install/status/uninstall use owned stable paths, discover available providers, reject explicit missing providers/conflicts, migrate earlier owned setup and preserve options/global instructions." },
+    { "id": "AC-UPDATE", "description": "Newer install and update/--update synchronize existing owned integrations using verified stable release assets; authentication, version/platform/digest/download faults leave prior usable state, compensating rollback is verified and concurrent writes fail safely." },
+    { "id": "AC-PACKAGED-NATIVE", "description": "Built CLI installs native Claude and Codex fixtures that pass original rollover and literal-marker nonce/K/nonce/permission/cleanup oracles under sanitized PATH, including real strict >100k Claude gate." },
+    { "id": "AC-RELEASE", "description": "One production version binds package/plugin/catalog/tag; tested production binary has source/platform/hash/license receipt and is ready for private root publication; fixture artifacts are distinct." }
+  ],
+  "verification": ["native-setup", "native-forwarding", "interactive-forwarding", "watcher-lifecycle", "standalone-install-update", "standalone-native"]
+}

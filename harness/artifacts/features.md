@@ -8,6 +8,7 @@ meaningful behavior/interface changes, not ordinary fixes or assignment history.
 | Feature ID | Capability description | Owning module | Contract revision (optional) |
 | --- | --- | --- | --- |
 | SESSION-INTEGRATION | Install and attach watchers that submit bounded keepalives through owning live coding sessions | experiments/ | |
+| DISTRIBUTION | Package, install and update the standalone Vesta CLI and synchronize owned native integrations | cli/, packaging/ | |
 
 Current specs/contracts belong under `artifacts/FEATURE/`; per-assignment plan,
 handoff and completed task snapshots belong under `changes/CHANGE/` there. This
