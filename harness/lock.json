@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "de91a08ea1f6deee8d87d90ffd138c09",
+  "generation": "00a623a66b2ebe31d4c8a2800d21bf81",
   "repositories": {
-    "app": "fef6b25dfc74c4bfe5b428d05ecd6a9f560f8f9e"
+    "app": "8ed2be408b4ebc73d85ffbfb96c7432aa7a0b22b"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -65,15 +65,15 @@
     "app:harness/scenarios/SESSION-INTEGRATION/native-setup.yaml": "11e8d3c08bc08b50e0402812b5a7316f4ccd11b5da8b82ad07a7bfe7dcb33a4b",
     "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "b6e067c4ad01ef3df114acc154c21b2673fdda353c8f4632f12f6efccad422ac",
     "app:harness/tasks/PUBLIC-001.json": "4773453515b6a21349f668432f0fc325a7ba27792f13fbec07429e3d07348250",
-    "app:packaging/curl-fixture.zsh": "9170f5f49e531990162bdd4a9a52c474cdf4a75d8c80cdcf731dd50ee3e9f5f5",
+    "app:packaging/curl-fixture.zsh": "96d51db92ae35d21b9265139fae3e4fbed7c8b95460e77aad5c9baa47c7d4f58",
     "app:packaging/e2e-common.ts": "fd2b413d0b0c655e751d4d827d60e93c9e03784ce947fa8e6dcaabaf77d45226",
     "app:packaging/gh-fixture.zsh": "60f31eb9f81c8e3ae8f24dc78d0555fc2630a121f2f96b0d4ba2f03cff20126f",
     "app:packaging/native-e2e.ts": "0b350e8594aac0766e58cca9b95381fb6e743f015880ad185de62f519f9d3808",
     "app:packaging/provider-fault.zsh": "e1eeea943dddf7e07301a622091c50a504a3751ca4057ff6885d4ad6278febfc",
     "app:packaging/public-acceptance.ts": "fb229094869367850161ef74170b4380453116b663f323fc54ca75ab7301f103",
     "app:packaging/public-e2e.ts": "0748b3cf452385c6f7a791d423c8d70a5d87fde5929f35b8972fe5f464f2ec9c",
-    "app:packaging/release-acceptance.ts": "67e1272eb71222544c1cdb30e71e93868aa2e9af22b3f05b11ff140666ea949c",
-    "app:packaging/release-e2e.ts": "a33c0b61766220fc1ab8c89b5c9e1f72509796a83fa9d35d18d2bea1ff0fad73"
+    "app:packaging/release-acceptance.ts": "75799f882bb9b3d0d71a4b79322cd7c7fb95701d8a4cabc649a7d7adba88cabf",
+    "app:packaging/release-e2e.ts": "21ff837f2544c6001dc905cde3dd1121e6a68da70b2ed7c888c83d29fd962453"
   },
   "modes": {
     "PUBLIC-001": "quick"
@@ -317,6 +317,16 @@
       },
       "repositories": {
         "app": "fef6b25dfc74c4bfe5b428d05ecd6a9f560f8f9e"
+      }
+    },
+    {
+      "reason": "Lock native catch-up and older release metadata regression",
+      "prior_generation": "de91a08ea1f6deee8d87d90ffd138c09",
+      "prior_repositories": {
+        "app": "fef6b25dfc74c4bfe5b428d05ecd6a9f560f8f9e"
+      },
+      "repositories": {
+        "app": "8ed2be408b4ebc73d85ffbfb96c7432aa7a0b22b"
       }
     }
   ]
