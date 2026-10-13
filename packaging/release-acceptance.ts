@@ -88,6 +88,7 @@ export function verifyReleaseEvidence(e: ReleaseEvidence, directory: string) {
       assert.equal(after.current, before.current, c.name + ' retains old activation'); assert.deepEqual(after.files, before.files, c.name + ' compensates both integrations');
     }
     if (c.name === 'rollback-failure-reported') assert.match(raw(command.stderrFile), /rollback|compensat/i);
+    if (c.name === 'empty-owned-update' || c.name === 'missing-owned-update') assert.match(raw(command.stderrFile), /owned.*(?:provider|installation)|installation.*required/i, 'missing ownership rejected before transport');
     if (c.name === 'default-update-owned-only') {
       const inventory = JSON.parse(raw(c.name + '-inventory.json'));
       assert.deepEqual(inventory.providers.map((p: any) => p.provider), ['codex']);

@@ -122,6 +122,7 @@ try {
     const after = snapshot(ctx, name + '-after');
     const success = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'default-update-owned-only'].includes(name);
     assert.equal(result.status === 0, success, name + ': ' + result.stderr);
+    if (name === 'empty-owned-update' || name === 'missing-owned-update') assert.match(result.stderr, /owned.*(?:provider|installation)|installation.*required/i, 'ownership precondition precedes HTTP transport');
     evidence.cases.push({ name, before: before.name, after: after.name, command, expectedCode: success ? 'success' : 'failure' });
     if (name === 'default-update-owned-only') {
       copyFileSync(join(ctx.installation, 'installation.json'), join(artifacts, name + '-inventory.json'));
