@@ -1,0 +1,10 @@
+schema_version: 1
+id: standalone-public-safety
+repo: app
+runner: command
+kind: fixture
+command: [node, --experimental-strip-types, packaging/public-e2e.ts]
+acceptance: [AC-PUBLIC-SAFETY, AC-CLI-INSTALL, AC-SETUP-INTEGRITY]
+timeout_ms: 600000
+expect:
+  exit_code: 0

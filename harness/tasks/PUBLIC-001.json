@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "id": "PUBLIC-001",
+  "mode": "quick",
+  "scope": "Public v0.2.1 distribution: anonymous curl updates, scoped provider operations, ownership-safe configuration and compensated uninstall, Apache-2.0 licensing and concise documentation. Preserve session behavior; feature DISTRIBUTION, change PUBLIC-001.",
+  "implementor_id": "gpt-6.1-sol-medium",
+  "dependencies": [],
+  "risk_tags": [],
+  "acceptance": [
+    {
+      "id": "AC-LIFECYCLE",
+      "description": "Preserve strict input/freshness/idle/user budget and cancellation contracts."
+    },
+    {
+      "id": "AC-INSTALL",
+      "description": "Preserve idempotent reversible setup and unrelated configuration ownership."
+    },
+    {
+      "id": "AC-FLAGS",
+      "description": "Preserve native unsupported forwarding and model/permission semantics through packaged execution."
+    },
+    {
+      "id": "AC-SETUP-INTEGRITY",
+      "description": "Preserve actual source identities, unchanged personal globals, raw evidence and owned cleanup."
+    },
+    {
+      "id": "AC-STANDALONE",
+      "description": "Real relocated macOS arm64 binary works without external Node/npm/Bun or checkout; runtime/addon/helper/assets/licenses and version are bundled and fingerprinted."
+    },
+    {
+      "id": "AC-CLI-INSTALL",
+      "description": "Install/status/uninstall use owned stable paths, discover available providers, reject explicit missing providers/conflicts, migrate earlier owned setup and preserve options/global instructions."
+    },
+    {
+      "id": "AC-UPDATE",
+      "description": "Newer install and update/--update synchronize existing owned integrations using verified stable release assets; HTTP, version/platform/digest/download faults leave prior usable state, compensating rollback is verified and concurrent writes fail safely."
+    },
+    {
+      "id": "AC-PACKAGED-NATIVE",
+      "description": "Built CLI installs native Claude and Codex fixtures that pass original rollover and literal-marker nonce/K/nonce/permission/cleanup oracles under sanitized PATH, including real strict >100k Claude gate."
+    },
+    {
+      "id": "AC-RELEASE",
+      "description": "One production version binds package/plugin/catalog/tag; tested production binary has source/platform/hash/license receipt and is ready for public root publication; fixture artifacts are distinct."
+    },
+    {
+      "id": "AC-PUBLIC-SAFETY",
+      "description": "Explicit provider targets preserve unselected inventory; reject owned path relocation before writes; preflight and compensate uninstall; preserve customized configuration after warm refresh."
+    }
+  ],
+  "verification": [
+    "native-setup",
+    "native-forwarding",
+    "interactive-forwarding",
+    "watcher-lifecycle",
+    "standalone-install-update",
+    "standalone-native",
+    "standalone-public-safety"
+  ]
+}

@@ -43,5 +43,11 @@ verification_inputs:
     path: packaging/gh-fixture.zsh
   - repo: app
     path: packaging/provider-fault.zsh
+  - repo: app
+    path: packaging/public-e2e.ts
+  - repo: app
+    path: packaging/public-acceptance.ts
+  - repo: app
+    path: packaging/curl-fixture.zsh
 retention:
   max_runs_per_task: 5

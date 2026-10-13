@@ -2,14 +2,14 @@
 
 The developer approved a standalone macOS arm64 CLI rather than end-user npm
 commands, plus versioned GitHub releases and explicit self-update. The repository
-remains private; use authenticated GitHub access without storing or printing
-credentials. First released version is v0.2.0.
+becomes public under Apache License 2.0. First released version was v0.2.0;
+the public distribution patch is v0.2.1. Use anonymous HTTPS curl release access.
 
 Commands: vesta install --warm, status, update (also --update), uninstall, --version.
 Installation of a newer version refreshes owned Claude/Codex integrations through
 the same mechanism as update. No background update, checkout dependency, or end-user
-Node/npm/Bun requirement. Native harnesses remain prerequisites; private update
-transport may require authenticated gh, documented clearly.
+Node/npm/Bun requirement. Native harnesses and curl remain prerequisites;
+end-user GitHub CLI and release credentials are not required.
 
 Keep TypeScript. Compile a management launcher with Bun and embed the pinned,
 previously verified Node 22.17.1 runtime plus exact watcher/plugin/native PTY assets.
@@ -35,6 +35,6 @@ without modifying tracked source; publication only accepts production artifacts.
 Keep runtime/dependency licenses and build source/version/platform/hash receipt.
 
 Release follows committed source, real isolated verification and successful submit.
-Root publishes the private release and verifies downloaded assets match frozen
+Root publishes the public release and verifies downloaded assets match frozen
 tested artifacts. Personal installation remains unapplied unless separately asked.
 Only macOS arm64/zsh is supported initially; cache savings remain unverified.
