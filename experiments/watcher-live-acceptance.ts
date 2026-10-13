@@ -5,11 +5,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Evidence, Observation } from './acceptance.ts';
+import { marker, verifyInstruction, claudePluginBody } from './marker-acceptance.ts';
+import type { InstructionEvidence } from './marker-acceptance.ts';
 
 export type WatcherLiveEvidence = Omit<Evidence, 'schema' | 'observations'> & {
   schema: 3;
   evidenceKind: 'live-owned-watcher';
   observations: (Omit<Observation, 'kind'> & { kind: Observation['kind'] | 'context-measured' })[];
+  instruction: InstructionEvidence; configDir: string;
   watcher: {
     mode: 'probe'; warmEnabled: true; idleMs: number; budgetMs: number;
     threshold: number; maxWarms: 1; traceFile: string;
@@ -25,7 +28,8 @@ export function verifyWatcherLiveEvidence(e: WatcherLiveEvidence, directory: str
   assert.equal(e.outcome, 'supported', `watcher incomplete: ${e.reason}`);
   assert.ok(['claude', 'codex'].includes(e.provider));
   assert.ok(e.version.trim() && e.reason.trim());
-  assert.match(e.version, e.provider === 'claude' ? /2\.1\.296/ : /0\.162\.0/, 'tested installed native version');
+  assert.match(e.version, e.provider === 'claude' ? /2\.1\.296/ : /0\.162\.[01]/, 'tested installed native version');
+  verifyInstruction(e.instruction, e.provider, e.configDir, directory);
   assert.ok(Number.isSafeInteger(e.startedAt) && e.endedAt >= e.startedAt);
   assert.ok(e.deadlineMs > 0 && e.deadlineMs <= 240000);
   assert.ok(e.endedAt - e.startedAt <= e.deadlineMs + 15000, 'bounded run plus cleanup');
@@ -85,6 +89,7 @@ export function verifyWatcherLiveEvidence(e: WatcherLiveEvidence, directory: str
   assert.equal(warm.text?.trim(), 'K');
   assert.equal(warm.toolEvents, 0);
   assert.match(initial.text?.trim() ?? '', /^VESTA-/);
+  assert.equal(initial.text?.trim(), e.instruction.nonce, 'nonce available only through native global instructions');
   assert.equal(continuity.text?.trim(), initial.text?.trim());
   assert.equal(new Set([initial.turnId, warm.turnId, continuity.turnId]).size, 3);
   assert.ok([initial.turnId, warm.turnId, continuity.turnId].every(Boolean));
@@ -131,11 +136,20 @@ export function verifyWatcherLiveEvidence(e: WatcherLiveEvidence, directory: str
   if (e.provider === 'claude') {
     assert.ok(e.commands.some(command => command.includes('--plugin-dir')));
     assert.ok(e.observations.some(row => row.rawFile.includes('mod')));
+    const records = readFileSync(resolve(directory, 'watcher-mod.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    const starts = records.filter(row => row.kind === 'turn-start' && row.turnId === warm.turnId);
+    assert.equal(starts.length, 1); assert.equal(claudePluginBody(starts[0].text, 'vesta-watcher'), marker, 'literal body inside native envelope');
+    assert.equal(starts[0].source, 'warm', 'marker correlation remains internal');
   } else {
     assert.ok(e.commands.some(command => command.includes('--listen') && command.some(arg => arg.startsWith('unix://'))));
     assert.ok(e.commands.some(command => command.includes('--remote') && command.some(arg => arg.startsWith('unix://'))));
     assert.ok(e.commands.some(command => command.includes('proxy') && command.includes('--sock')));
     assert.ok(e.commands.some(command => command.includes('queue')), 'native same-owner queue');
+    const queue = e.commands.filter(command => command.includes('queue')); assert.equal(queue.length, 1);
+    assert.equal(queue[0]![queue[0]!.indexOf('--message') + 1], marker, 'native submitted body');
+    const protocol = readFileSync(resolve(directory, 'codex-protocol.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    const starts = protocol.filter(row => row.method === 'item/started' && row.params?.turnId === warm.turnId && row.params.item.type === 'userMessage');
+    assert.equal(starts.length, 1); assert.deepEqual(starts[0].params.item.content, [{ type: 'text', text: marker, text_elements: [] }]);
   }
 }
 

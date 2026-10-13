@@ -11,10 +11,11 @@ import * as pty from 'node-pty';
 import { verifySetupLiveEvidence } from './setup-live-acceptance.ts';
 import type { SetupLiveEvidence } from './setup-live-acceptance.ts';
 import { parseClaudeStatuses } from './setup-acceptance.ts';
+import { globalInstructions, noncePrompt } from './marker-acceptance.ts';
 
 const provider = process.argv[2]; assert.ok(provider === 'claude' || provider === 'codex');
 const yolo = process.argv[4] ?? (process.argv[3]?.startsWith('--') ? process.argv[3] : undefined);
-assert.ok(yolo === undefined || (provider === 'codex' && ['--yolo', '--yolo-sandbox'].includes(yolo)), 'optional Codex yolo proof variant');
+assert.ok(yolo === undefined || (provider === 'codex' && ['--yolo', '--yolo-sandbox'].includes(yolo)) || (provider === 'claude' && yolo === '--marker'), 'optional native proof variant');
 const here = dirname(fileURLToPath(import.meta.url));
 const artifacts = resolve((process.argv[3]?.startsWith('--') ? undefined : process.argv[3]) ?? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/setup-live-' + provider, 'artifacts'));
 if (existsSync(artifacts) && readdirSync(artifacts).length) throw new Error('Choose fresh artifacts');
@@ -24,8 +25,8 @@ const configDir = join(fixture, provider + '-config'); mkdirSync(configDir);
 const shellFile = join(fixture, 'zshrc'); writeFileSync(shellFile, '# isolated native launch fixture\n');
 const hash = (path: string) => existsSync(path) ? createHash('sha256').update(readFileSync(path)).digest('hex') : 'absent';
 const tree = (path: string) => Object.fromEntries(readdirSync(path, { recursive: true, withFileTypes: true }).filter(d => d.isFile()).map(d => { const p = join(d.parentPath, d.name); return [p.slice(path.length + 1), hash(p)]; }));
-const personal = provider === 'claude' ? [join(homedir(), '.claude/settings.json'), join(homedir(), '.claude.json'), join(homedir(), '.claude/.credentials.json')]
-  : [join(homedir(), '.codex/config.toml'), join(homedir(), '.codex/auth.json'), join(homedir(), '.zshrc')];
+const personal = provider === 'claude' ? [join(homedir(), '.claude/settings.json'), join(homedir(), '.claude.json'), join(homedir(), '.claude/.credentials.json'), join(homedir(), '.claude/CLAUDE.md')]
+  : [join(homedir(), '.codex/config.toml'), join(homedir(), '.codex/auth.json'), join(homedir(), '.zshrc'), join(homedir(), '.codex/AGENTS.md')];
 const env: Record<string, string> = { ...process.env as Record<string, string>, TERM: 'xterm-256color' };
 const e: SetupLiveEvidence = { schema: 1, kind: 'native-installed-launch', provider, startedAt: Date.now(), endedAt: 0, configDir, commands: [], personalFiles: personal.map(path => ({ path, before: hash(path), after: '' })), sourceFiles: [], cleanup: [], rawFiles: [] };
 const terminals: { terminal: pty.IPty; exited: boolean; file: string }[] = [];
@@ -88,7 +89,40 @@ async function requestStatus(entry: typeof terminals[number], warmEnabled = fals
   return row;
 }
 try {
-  if (provider === 'claude') {
+  if (provider === 'claude' && yolo === '--marker') {
+    env.CLAUDE_CONFIG_DIR = configDir; env.CLAUDE_SECURESTORAGE_CONFIG_DIR = '';
+    const nonce = 'VESTA-' + randomUUID(); const instructionPath = join(configDir, 'CLAUDE.md');
+    writeFileSync(instructionPath, globalInstructions(nonce)); copyFileSync(instructionPath, join(artifacts, 'global-CLAUDE.md')); e.rawFiles.push('global-CLAUDE.md');
+    writeFileSync(join(configDir, '.claude.json'), JSON.stringify({ hasCompletedOnboarding: true, theme: 'dark', projects: { [fixture]: { hasTrustDialogAccepted: true } } }));
+    run(process.execPath, ['--experimental-strip-types', join(here, 'setup.ts'), 'install', '--provider', 'claude', '--config-dir', configDir, '--json']);
+    run('claude', ['plugin', 'configure', 'vesta@vesta-local', '--values-stdin', '--json'], JSON.stringify({ warm: 'true', idle_ms: '10000', budget_ms: '180000' }));
+    const installed = JSON.parse(run('claude', ['plugin', 'list', '--json'])).find((p: any) => p.id === 'vesta@vesta-local'); assert.ok(installed?.installPath);
+    const owner = launch('claude', ['--ax-screen-reader'], 'claude-marker.txt');
+    const first = await requestStatus(owner, true); const before = tree(installed.installPath);
+    const projects = join(configDir, 'projects');
+    const rolloutPath = () => {
+      if (!existsSync(projects)) return;
+      const file = readdirSync(projects, { recursive: true, withFileTypes: true }).find(file => file.isFile() && file.name === first.sessionId + '.jsonl');
+      return file ? join(file.parentPath, file.name) : undefined;
+    };
+    const nativeRows = () => { const path = rolloutPath(); return path ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : []; };
+    const answers = () => [...new Map(nativeRows().filter(row => row.type === 'assistant' && row.sessionId === first.sessionId && row.message.stop_reason === 'end_turn'
+      && row.message.content.some((block: any) => block.type === 'text')).map(row => [row.message.id, row])).values()];
+    // Genuine >100k native input exercises the unchanged installed production
+    // threshold. The nonce itself is supplied only by global CLAUDE.md.
+    await type(owner, 'Ignore this verification padding: ' + 'x '.repeat(110000) + '\n' + noncePrompt);
+    await waitFor(() => answers().length === 1, 'native large-input nonce');
+    const metric = await requestStatus(owner, true); assert.ok(metric.tokens > 100000, 'actual strict threshold satisfied');
+    writeFileSync(join(artifacts, 'claude-marker-status.txt'), 'VESTA_STATUS ' + JSON.stringify(metric) + '\n'); e.rawFiles.push('claude-marker-status.txt');
+    await waitFor(() => answers().length >= 2, 'real installed marker warm');
+    await type(owner, 'What nonce did I ask you to remember? Reply with exactly that nonce. Do not use tools.');
+    await waitFor(() => answers().length === 3, 'native marker continuity');
+    owner.terminal.write(' '); // Native prompt.edit prevents another warm while cleanup starts.
+    const path = rolloutPath(); assert.ok(path); assert.ok(realpathSync(path).startsWith(realpathSync(projects) + '/'));
+    copyFileSync(path, join(artifacts, 'claude-marker-rollout.jsonl')); e.rawFiles.push('claude-marker-rollout.jsonl');
+    e.claudeMarker = { instruction: { path: instructionPath, rawFile: 'global-CLAUDE.md', nonce }, rolloutFile: 'claude-marker-rollout.jsonl', statusFile: 'claude-marker-status.txt', sessionId: first.sessionId,
+      pluginTreeBefore: before, pluginTreeAfter: tree(installed.installPath) };
+  } else if (provider === 'claude') {
     env.CLAUDE_CONFIG_DIR = configDir; env.CLAUDE_SECURESTORAGE_CONFIG_DIR = '';
     writeFileSync(join(configDir, '.claude.json'), JSON.stringify({ hasCompletedOnboarding: true, theme: 'dark', projects: { [fixture]: { hasTrustDialogAccepted: true } } }));
     run(process.execPath, ['--experimental-strip-types', join(here, 'setup.ts'), 'install', '--provider', 'claude', '--config-dir', configDir, '--json']);
@@ -127,6 +161,9 @@ try {
       pluginTreeBefore: before, pluginTreeAfter: tree(installed.installPath), sessionKeys: [...observed.map(row => row.storeKey), optIn.storeKey] };
   } else {
     env.CODEX_HOME = configDir;
+    const nonce = 'VESTA-' + randomUUID();
+    const instructionPath = join(configDir, 'AGENTS.md'); writeFileSync(instructionPath, globalInstructions(nonce));
+    copyFileSync(instructionPath, join(artifacts, 'global-AGENTS.md')); e.rawFiles.push('global-AGENTS.md');
     const auth = join(homedir(), '.codex/auth.json'); if (existsSync(auth)) symlinkSync(auth, join(configDir, 'auth.json'));
     const personalConfig = join(homedir(), '.codex/config.toml');
     const model = (existsSync(personalConfig) ? readFileSync(personalConfig, 'utf8') : '').match(/^model\s*=\s*"([^"\n]+)"/m)?.[1]; assert.ok(model, 'existing native model selection');
@@ -138,11 +175,11 @@ try {
     const originalArgv = ['-m', model, '-C', fixture, ...(yolo ? ['--yolo', ...(yolo === '--yolo-sandbox' ? ['-s', 'read-only'] : [])] : ['-a', 'never', '-s', 'read-only']), '--no-alt-screen'];
     const owner = launch('zsh', ['-f', '-c', 'source "$1"; shift; codex "$@"', 'vesta-e2e', shellFile, ...originalArgv], 'codex-owner.txt');
     await waitFor(() => rows('watcher-lifecycle.jsonl').find(row => row.kind === 'owner-ready'), 'managed native owner');
-    const nonce = 'VESTA-' + randomUUID();
     e.codex = { originalArgv, managedArgv: [], nonce, protocolFile: 'codex-protocol.jsonl', traceFile: 'watcher-trace.jsonl', lifecycleFile: 'watcher-lifecycle.jsonl',
+      instruction: { path: instructionPath, rawFile: 'global-AGENTS.md', nonce },
       ownerTranscriptFile: 'codex-owner.txt', configFile: 'codex-final-config.toml', modalActions, defaults, yoloVariant: yolo ? (yolo === '--yolo-sandbox' ? 'sandbox' : 'plain') : undefined,
       expected: { model, cwd: fixture, sandbox: yolo ? 'danger-full-access' : 'read-only', approvalPolicy: 'never' } };
-    await type(owner, `Remember ${nonce}. Reply with exactly ${nonce}. Do not use tools.`);
+    await type(owner, noncePrompt);
     const completed = () => rows('codex-protocol.jsonl').filter(row => row.method === 'turn/completed' && row.params?.turn?.status === 'completed');
     await waitFor(() => completed().length >= 2, 'managed policy-driven warm');
     await keepCodexModel(owner, model);
@@ -171,7 +208,7 @@ finally {
     e.rawFiles.push('codex-protocol.jsonl', 'watcher-trace.jsonl', 'watcher-lifecycle.jsonl', 'watcher-runtime.json');
   }
   if (provider === 'codex' && existsSync(join(configDir, 'config.toml'))) { copyFileSync(join(configDir, 'config.toml'), join(artifacts, 'codex-final-config.toml')); e.rawFiles.push('codex-final-config.toml'); }
-  e.sourceFiles = ['setup.ts', 'setup-live.ts', 'setup-live-acceptance.ts', 'watcher-run.ts', 'watcher-policy.ts', ...(provider === 'claude' ? ['vesta-claude/hooks/register.ts', 'vesta-claude/hooks/policy.ts', 'vesta-claude/.claude-plugin/plugin.json', 'vesta-claude/hooks/hooks.json'] : ['codex-autoload.ts'])].filter(file => existsSync(join(here, file))).map(file => ({ path: join(here, file), sha256: hash(join(here, file)) }));
+  e.sourceFiles = ['setup.ts', 'setup-live.ts', 'setup-live-acceptance.ts', 'marker-acceptance.ts', 'watcher-run.ts', 'watcher-policy.ts', ...(provider === 'claude' ? ['vesta-claude/hooks/register.ts', 'vesta-claude/hooks/policy.ts', 'vesta-claude/.claude-plugin/plugin.json', 'vesta-claude/hooks/hooks.json'] : ['codex-autoload.ts'])].filter(file => existsSync(join(here, file))).map(file => ({ path: join(here, file), sha256: hash(join(here, file)) }));
   for (const file of e.personalFiles) file.after = hash(file.path); e.endedAt = Date.now();
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ ...e, failure }, null, 2)); rmSync(fixture, { recursive: true, force: true });
 }

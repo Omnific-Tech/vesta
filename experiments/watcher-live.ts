@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import * as pty from 'node-pty';
 import { verifyWatcherLiveEvidence } from './watcher-live-acceptance.ts';
 import type { WatcherLiveEvidence } from './watcher-live-acceptance.ts';
+import { globalInstructions, noncePrompt } from './marker-acceptance.ts';
 
 const provider = process.argv[2];
 if (provider !== 'claude' && provider !== 'codex') throw new Error('provider must be claude or codex');
@@ -22,23 +23,29 @@ const deadline = startedAt + 240000;
 let interrupted = false;
 process.once('SIGINT', () => { interrupted = true; }); process.once('SIGTERM', () => { interrupted = true; });
 const hash = (path: string) => existsSync(path) ? createHash('sha256').update(readFileSync(path)).digest('hex') : 'absent';
-const personalPaths = provider === 'claude' ? [join(homedir(), '.claude.json'), join(homedir(), '.claude/settings.json'), join(homedir(), '.claude/.credentials.json')]
-  : [join(homedir(), '.codex/config.toml'), join(homedir(), '.codex/auth.json')];
+const personalPaths = provider === 'claude' ? [join(homedir(), '.claude.json'), join(homedir(), '.claude/settings.json'), join(homedir(), '.claude/.credentials.json'), join(homedir(), '.claude/CLAUDE.md')]
+  : [join(homedir(), '.codex/config.toml'), join(homedir(), '.codex/auth.json'), join(homedir(), '.codex/AGENTS.md')];
 const nonce = 'VESTA-' + randomUUID();
-const prompt = `Remember this nonce: ${nonce}. Reply with exactly ${nonce}. Do not use tools.`;
+const prompt = noncePrompt;
+const configDir = join(fixture, provider === 'claude' ? 'claude-config' : 'codex-home');
+const instructionPath = join(configDir, provider === 'claude' ? 'CLAUDE.md' : 'AGENTS.md');
 const argv = ['--experimental-strip-types', join(here, 'watcher-run.ts'), provider, '--probe', '--warm', '--capture-native', '--probe-threshold', '0', '--max-warms', '1', '--idle-ms', '1500', '--budget-ms', '180000', '--cwd', fixture, '--artifacts', artifacts, '--initial-prompt', prompt];
 const evidence: WatcherLiveEvidence = {
   schema: 3, evidenceKind: 'live-owned-watcher', provider, outcome: 'blocked', reason: 'incomplete', version: execFileSync(provider, ['--version'], { encoding: 'utf8' }).trim(),
   startedAt, endedAt: startedAt, deadlineMs: 240000, modelTurns: 0, fixtureDirectory: fixture, commands: [[process.execPath, ...argv]], observations: [], cleanup: [],
+  configDir, instruction: { path: instructionPath, rawFile: 'global-instructions.md', nonce },
   personalFiles: personalPaths.map(path => ({ path, before: hash(path), after: '' })),
   limitations: ['Short probes do not prove TTL retention.', 'No net usage savings are established.', 'Input observed before dispatch cancels pending warming; native queue races after dispatch do not guarantee cancellation or retraction.',
     provider === 'claude' ? 'Model tools are disabled in the Claude fixture; zero calls does not prove an unrestricted session obeys.' : 'Codex fixture uses a read-only sandbox; zero warm tool calls does not prove an unrestricted session obeys.', 'Default shared daemon attachment remains untested.'],
   watcher: { mode: 'probe', warmEnabled: true, idleMs: 1500, budgetMs: 180000, threshold: 0, maxWarms: 1, traceFile: 'watcher-trace.jsonl',
-    sourceFiles: ['watcher.ts', 'watcher-policy.ts', 'watcher-run.ts', ...(provider === 'claude' ? ['watcher-claude/hooks/register.ts'] : [])].map(file => ({ path: join(here, file), sha256: hash(join(here, file)) })),
+    sourceFiles: ['watcher.ts', 'watcher-policy.ts', 'watcher-run.ts', 'marker-acceptance.ts', 'watcher-live.ts', 'watcher-live-acceptance.ts', ...(provider === 'claude' ? ['watcher-claude/hooks/register.ts'] : [])].map(file => ({ path: join(here, file), sha256: hash(join(here, file)) })),
     measurement: { provider, sessionId: '', turnId: '', generation: 0, observedAt: 0, raw: null, rawFile: '', rawNeedle: '' } },
 };
 const env: Record<string, string> = { ...process.env as Record<string, string>, TERM: 'xterm-256color' };
 function prepareEnvironment() {
+mkdirSync(configDir, { recursive: true });
+writeFileSync(instructionPath, globalInstructions(nonce));
+writeFileSync(join(artifacts, 'global-instructions.md'), globalInstructions(nonce));
 if (provider === 'claude') {
   const config = join(fixture, 'claude-config'); mkdirSync(config, { recursive: true });
   writeFileSync(join(config, '.claude.json'), JSON.stringify({ hasCompletedOnboarding: true, theme: 'dark', projects: { [fixture]: { hasTrustDialogAccepted: true } } }));

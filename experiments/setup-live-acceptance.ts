@@ -6,6 +6,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { parseClaudeStatuses, verifyClaudeAutoload } from './setup-acceptance.ts';
+import { marker, verifyInstruction, claudePluginBody, noncePrompt } from './marker-acceptance.ts';
+import type { InstructionEvidence } from './marker-acceptance.ts';
 
 export type SetupLiveEvidence = {
   schema: 1; kind: 'native-installed-launch'; provider: 'claude' | 'codex';
@@ -15,6 +17,8 @@ export type SetupLiveEvidence = {
   sourceFiles: { path: string; sha256: string }[];
   cleanup: { pid: number; owned: boolean; exited: boolean }[];
   rawFiles: string[];
+  claudeMarker?: { instruction: InstructionEvidence; rolloutFile: string; statusFile: string; sessionId: string;
+    pluginTreeBefore: Record<string, string>; pluginTreeAfter: Record<string, string> };
   claude?: { transcriptFile: string; optInTranscriptFile: string;
     seedFile: string; seedSessionId: string; seedNonce: string;
     statusRequests: { rawFile: string; at: number; resetReason?: string; sessionId: string; warmEnabled: boolean }[];
@@ -22,7 +26,7 @@ export type SetupLiveEvidence = {
   codex?: { originalArgv: string[]; managedArgv: string[]; nonce: string; protocolFile: string; traceFile: string;
     ownerTranscriptFile: string; configFile: string;
     modalActions: { warningOffset: number; selectionOffset: number; submitOffset: number; detectedAt: number; selectedAt: number; composerAt: number }[];
-    lifecycleFile: string; yoloVariant?: 'plain' | 'sandbox'; defaults?: { warm: boolean; idleMs: number; budgetMs: number };
+    lifecycleFile: string; instruction: InstructionEvidence; yoloVariant?: 'plain' | 'sandbox'; defaults?: { warm: boolean; idleMs: number; budgetMs: number };
     expected: { model: string; cwd: string; sandbox: 'read-only' | 'danger-full-access'; approvalPolicy: 'never' } };
 };
 export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string) {
@@ -39,7 +43,7 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
     assert.ok(e.sourceFiles.some(file => file.path.endsWith('/codex-autoload.ts')), 'installed shell adapter fingerprinted');
   }
   for (const file of e.sourceFiles) assert.equal(createHash('sha256').update(readFileSync(file.path)).digest('hex'), file.sha256);
-  assert.ok(e.cleanup.length >= 3);
+  assert.ok(e.cleanup.length >= (e.claudeMarker ? 1 : 3));
   for (const child of e.cleanup) { assert.ok(child.pid > 0); assert.equal(child.owned, true); assert.equal(child.exited, true); }
   const raw = (file: string) => { const path = resolve(directory, file); assert.ok(path.startsWith(resolve(directory) + '/')); return readFileSync(path, 'utf8'); };
   for (const file of e.rawFiles) raw(file);
@@ -47,6 +51,42 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   const owners = e.commands.filter(c => c.role === 'owner');
   assert.ok(owners.length >= 1);
   assert.ok(e.commands.some(c => c.role === 'setup' && c.argv.includes('install')));
+  if (e.claudeMarker) {
+    const c = e.claudeMarker; assert.equal(e.provider, 'claude'); assert.equal(e.codex, undefined); assert.equal(e.claude, undefined);
+    verifyInstruction(c.instruction, 'claude', e.configDir, directory);
+    assert.equal(owners.length, 1); assert.equal(owners[0]!.argv[0], 'claude');
+    assert.ok(owners[0]!.argv.includes('--ax-screen-reader')); assert.ok(!owners[0]!.argv.includes('--plugin-dir'));
+    const rollout = rows(c.rolloutFile).filter(row => row.sessionId === c.sessionId);
+    const assistantRows = rollout.filter(row => row.type === 'assistant');
+    const answers = [...new Map(assistantRows.filter(row => row.message.stop_reason === 'end_turn' && row.message.content.some((block: any) => block.type === 'text')).map(row => [row.message.id, row])).values()];
+    assert.equal(answers.length, 3, 'native nonce/K/nonce only');
+    const answer = (row: any) => row.message.content.filter((block: any) => block.type === 'text').map((block: any) => block.text).join('').trim();
+    assert.deepEqual(answers.map(answer), [c.instruction.nonce, 'K', c.instruction.nonce]);
+    assert.ok(assistantRows.every(row => row.message.content.every((block: any) => ['text', 'thinking', 'redacted_thinking'].includes(block.type))), 'no native tools or other work');
+    const users = rollout.filter(row => row.type === 'user' && !row.isMeta);
+    const userText = (row: any) => typeof row.message.content === 'string' ? row.message.content : row.message.content.map((block: any) => block.text ?? '').join('');
+    const initial = users.find(row => userText(row).includes(noncePrompt)); assert.ok(initial);
+    assert.ok(!userText(initial).includes(c.instruction.nonce), 'initial nonce came from global instruction');
+    const pluginMessages = rollout.filter(row => row.type === 'user' && userText(row).startsWith('The vesta plugin sent a message:\n'));
+    assert.equal(pluginMessages.length, 1);
+    assert.equal(claudePluginBody(userText(pluginMessages[0]), 'vesta'), marker, 'exact outgoing body in actual native envelope');
+    assert.equal(pluginMessages[0].origin?.kind, 'plugin', 'native warm provenance');
+    assert.equal(pluginMessages[0].origin?.name, 'vesta', 'native originating plugin');
+    const usage = answers[0].message.usage;
+    const input = usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens;
+    assert.ok(input > 100000, 'real native current last input exceeds strict production gate');
+    const status = parseClaudeStatuses(raw(c.statusFile)).at(-1); assert.ok(status);
+    assert.ok(parseClaudeStatuses(raw('claude-marker.txt')).some(native => JSON.stringify(native) === JSON.stringify(status)), 'normalized status exists in untouched native terminal capture');
+    assert.equal(status.sessionId, c.sessionId); assert.equal(status.threshold, 100000); assert.equal(status.warmEnabled, true);
+    assert.equal(status.idleMs, 10000); assert.equal(status.budgetMs, 180000); assert.equal(status.tokens, input);
+    assert.equal(status.busy, false); assert.equal(status.ended, false);
+    assert.deepEqual(c.pluginTreeAfter, c.pluginTreeBefore, 'native cached package unchanged after initialization');
+    for (const file of ['hooks/register.ts', 'hooks/policy.ts']) {
+      const source = e.sourceFiles.find(row => row.path.endsWith('/vesta-claude/' + file)); assert.ok(source);
+      assert.equal(c.pluginTreeBefore[file], source.sha256, 'native installed adapter and policy identity');
+    }
+    return;
+  }
   if (e.provider === 'claude') {
     assert.ok(e.claude); assert.equal(e.codex, undefined);
     assert.equal(owners.length, 3, 'concurrent ordinary native sessions including isolated opt-in owner');
@@ -92,6 +132,8 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   }
   assert.ok(e.codex); assert.equal(e.claude, undefined);
   const c = e.codex;
+  verifyInstruction(c.instruction, 'codex', e.configDir, directory);
+  assert.equal(c.instruction.nonce, c.nonce);
   assert.equal(owners.length, 1);
   assert.deepEqual(owners[0]!.argv.slice(-c.originalArgv.length), c.originalArgv, 'normal command receives the original CLI arguments');
   const transport = c.managedArgv.indexOf('--remote'); assert.ok(transport >= 0);
@@ -149,6 +191,11 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   const answer = (row: any) => row.params.turn.items.filter((item: any) => item.type === 'agentMessage').map((item: any) => item.text).join('').trim();
   assert.equal(answer(turns[0]), c.nonce); assert.equal(answer(turns[1]), 'K'); assert.equal(answer(turns[2]), c.nonce);
   const warmId = turns[1].params.turn.id;
+  const queued = e.commands.filter(command => command.role === 'queue'); assert.equal(queued.length, 1);
+  assert.equal(queued[0]!.argv[queued[0]!.argv.indexOf('--message') + 1], marker, 'outgoing native queue body is literal marker');
+  const warmInput = protocol.filter(row => row.method === 'item/started' && row.params?.turnId === warmId && row.params.item.type === 'userMessage');
+  assert.equal(warmInput.length, 1);
+  assert.deepEqual(warmInput[0].params.item.content, [{ type: 'text', text: marker, text_elements: [] }], 'exact native warm input');
   assert.equal(protocol.filter(row => row.method === 'item/started' && row.params?.turnId === warmId && !['userMessage', 'agentMessage', 'reasoning'].includes(row.params.item.type)).length, 0);
   const dispatch = trace.filter(row => row.action === 'dispatch'); assert.equal(dispatch.length, 1);
   assert.equal(dispatch[0].state.sessionId, owner.sessionId); assert.equal(dispatch[0].state.busy, false);
