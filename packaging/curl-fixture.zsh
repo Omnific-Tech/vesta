@@ -16,6 +16,7 @@ if [[ "$url" == https://api.github.com/repos/Omnific-Tech/vesta/releases/latest 
   exec /bin/cat "$VESTA_FIXTURE_RELEASE"
 fi
 if [[ "$url" == https://github.com/Omnific-Tech/vesta/releases/download/v*/vesta-darwin-arm64 && -n "$destination" ]]; then
+  [[ "$VESTA_FIXTURE_FAULT" == catchup-no-download ]] && { print -r -- 'Catchup must reuse installed immutable manager' >&2; exit 95; }
   exec /bin/cp "$VESTA_FIXTURE_BINARY" "$destination"
 fi
 print -r -- 'Unexpected controlled curl invocation' >&2

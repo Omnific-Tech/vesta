@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { hash, nextReleaseVersion, releaseVersion, root } from './e2e-common.ts';
 
-export const requiredUpdateCases = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'default-update-owned-only', 'empty-owned-update', 'missing-owned-update', 'api-error', 'draft', 'prerelease', 'unsafe-asset-name', 'wrong-platform', 'wrong-version', 'digest-mismatch', 'truncated-download', 'missing-owned-provider', 'explicit-missing-provider', 'edited-shell-conflict', 'symlink-version-root', 'concurrent-operation', 'refresh-failure-rollback', 'rollback-failure-reported'];
+export const requiredUpdateCases = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'default-update-owned-only', 'empty-owned-update', 'missing-owned-update', 'selected-provider-catchup', 'default-provider-catchup', 'api-error', 'draft', 'prerelease', 'unsafe-asset-name', 'wrong-platform', 'wrong-version', 'digest-mismatch', 'truncated-download', 'missing-owned-provider', 'explicit-missing-provider', 'edited-shell-conflict', 'symlink-version-root', 'concurrent-operation', 'refresh-failure-rollback', 'rollback-failure-reported'];
 export type CommandEvidence = { name: string; argv: string[]; code: number | null; stdoutFile: string; stderrFile: string };
 export type ReleaseEvidence = {
   schema: 1; kind: 'standalone-install-update'; startedAt: number; endedAt: number;
@@ -94,6 +94,18 @@ export function verifyReleaseEvidence(e: ReleaseEvidence, directory: string) {
       assert.deepEqual(inventory.providers.map((p: any) => p.provider), ['codex']);
       assert.equal(after.files['.vesta-setup-claude.json'], 'absent', 'default update does not install an available unowned provider');
       assert.equal(after.files['plugins/installed_plugins.json'], 'absent');
+    }
+    if (c.name.endsWith('-provider-catchup')) {
+      assert.equal(before.current, 'versions/' + nextReleaseVersion); assert.equal(after.current, before.current);
+      assert.deepEqual(JSON.parse(raw(command.stdoutFile)), { version: nextReleaseVersion, updated: true });
+      for (const stage of ['before', 'after']) {
+        const list = e.commands.find(row => row.name === c.name + '-native-' + stage); assert.ok(list && list.code === 0);
+        const plugin = JSON.parse(raw(list.stdoutFile)).find((row: any) => row.id === 'vesta@vesta-local' && row.scope === 'user');
+        assert.equal(plugin?.version, stage === 'before' ? releaseVersion : nextReleaseVersion, 'actual native registration catches up to shared installation');
+      }
+      for (const file of ['shell', 'vesta-codex.json', '.vesta-setup-codex.json', '.vesta-setup-claude.json']) assert.equal(after.files[file], before.files[file], 'catchup preserves owned integration/user records');
+      const again = e.commands.find(row => row.name === c.name + '-already-current'); assert.ok(again && again.code === 0);
+      assert.deepEqual(JSON.parse(raw(again.stdoutFile)), { version: nextReleaseVersion, updated: false }, 'caught-up native target is an honest no-op');
     }
   }
   assert.equal(e.finalActivationBeforeUninstall, 'versions/' + nextReleaseVersion, 'successful stable upgrade activated the new immutable version');

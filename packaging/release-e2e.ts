@@ -115,18 +115,41 @@ try {
     if (name === 'empty-owned-update') {
       const file = join(ctx.installation, 'installation.json'); const inventory = JSON.parse(readFileSync(file, 'utf8')); inventory.providers = []; writeFileSync(file, JSON.stringify(inventory, null, 2) + '\n');
     }
+    if (name.endsWith('-provider-catchup')) {
+      const subset = run(ctx, name + '-subset-upgrade', ['update', '--provider', 'codex', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json']);
+      assert.equal(subset.status, 0, subset.stderr);
+      assert.equal(readlinkSync(join(ctx.installation, 'current')), 'versions/' + nextReleaseVersion);
+      const nativeBefore = run(ctx, name + '-native-before', ['plugin', 'list', '--json'], nativeClaude);
+      assert.equal(nativeBefore.status, 0, nativeBefore.stderr);
+      const plugin = JSON.parse(nativeBefore.stdout).find((row: any) => row.id === 'vesta@vesta-local' && row.scope === 'user');
+      assert.equal(plugin?.version, releaseVersion, 'Codex-only upgrade leaves Claude registration untouched');
+      assert.ok(existsSync(plugin.installPath), 'old native cache retained after subset upgrade');
+      ctx.env.VESTA_FIXTURE_FAULT = 'catchup-no-download';
+    }
     const before = snapshot(ctx, name + '-before');
-    const argv = name === 'explicit-missing-provider' ? ['install', '--provider', 'claude', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json']
+    const argv = name === 'selected-provider-catchup' ? ['update', '--provider', 'claude', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json']
+      : name === 'explicit-missing-provider' ? ['install', '--provider', 'claude', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json']
       : name === 'install-refresh' ? installArgs(ctx) : [name === 'alias-update' ? '--update' : 'update', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json'];
     const command = name + '-operation'; const result = run(ctx, command, argv, name === 'install-refresh' ? candidate.binary : built.binary);
     const after = snapshot(ctx, name + '-after');
-    const success = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'default-update-owned-only'].includes(name);
+    const success = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'default-update-owned-only', 'selected-provider-catchup', 'default-provider-catchup'].includes(name);
     assert.equal(result.status === 0, success, name + ': ' + result.stderr);
     if (name === 'empty-owned-update' || name === 'missing-owned-update') assert.match(result.stderr, /owned.*(?:provider|installation)|installation.*required/i, 'ownership precondition precedes HTTP transport');
     evidence.cases.push({ name, before: before.name, after: after.name, command, expectedCode: success ? 'success' : 'failure' });
     if (name === 'default-update-owned-only') {
       copyFileSync(join(ctx.installation, 'installation.json'), join(artifacts, name + '-inventory.json'));
       assert.deepEqual(JSON.parse(readFileSync(join(ctx.installation, 'installation.json'), 'utf8')).providers.map((p: any) => p.provider), ['codex'], 'default update preserves owned provider subset');
+    }
+    if (name.endsWith('-provider-catchup')) {
+      assert.deepEqual(JSON.parse(result.stdout), { version: nextReleaseVersion, updated: true });
+      const nativeAfter = run(ctx, name + '-native-after', ['plugin', 'list', '--json'], nativeClaude);
+      assert.equal(nativeAfter.status, 0, nativeAfter.stderr);
+      const plugin = JSON.parse(nativeAfter.stdout).find((row: any) => row.id === 'vesta@vesta-local' && row.scope === 'user');
+      assert.equal(plugin?.version, nextReleaseVersion);
+      assert.equal(run(ctx, name + '-native-validate', ['plugin', 'validate', plugin.installPath, '--strict'], nativeClaude).status, 0);
+      assert.ok(existsSync(join(ctx.installation, 'versions', releaseVersion, 'runtime/bin/node')), 'catchup retains earlier runtime');
+      const again = run(ctx, name + '-already-current', argv); assert.equal(again.status, 0, again.stderr);
+      assert.deepEqual(JSON.parse(again.stdout), { version: nextReleaseVersion, updated: false });
     }
     if (ctx !== main) rmSync(ctx.directory, { recursive: true, force: true });
   }

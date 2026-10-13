@@ -15,6 +15,11 @@ Public v0.2.1 scope (contracts precede the public bug fixes):
   Default update without installation metadata also fails before creating an
   integration. Curl disables personal curl configuration before all other flags,
   so transport cannot inherit authentication or redirect/protocol overrides.
+- A Codex-only upgrade advances the shared runtime while Claude's native plugin
+  remains on its prior version. Explicit Claude and default owned-provider update
+  must detect that lag, refresh through the already installed immutable manager,
+  preserve settings/ownership/old runtime and never redownload that same version.
+  A second update after actual native registration catches up is a no-op.
 - Owned config or shell path overrides fail before any integration writes.
   Relocating integrations is outside this release's scope.
 - Uninstall preflights every selected JSON file before changes. A native failure
