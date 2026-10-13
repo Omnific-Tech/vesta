@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "6288acddacc00b540e44353df00971d2",
+  "generation": "00e1eb04f23719bd221e775c879b6344",
   "repositories": {
-    "app": "6584209030054f722367586091f8bf9185db29bd"
+    "app": "1eda13a262c4cc2fd80cb76cf8b14122975bda88"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -72,8 +72,8 @@
     "app:packaging/provider-fault.zsh": "e1eeea943dddf7e07301a622091c50a504a3751ca4057ff6885d4ad6278febfc",
     "app:packaging/public-acceptance.ts": "fb229094869367850161ef74170b4380453116b663f323fc54ca75ab7301f103",
     "app:packaging/public-e2e.ts": "0748b3cf452385c6f7a791d423c8d70a5d87fde5929f35b8972fe5f464f2ec9c",
-    "app:packaging/release-acceptance.ts": "1daa25a9af978d367d5e71b6eed1f664cafcdf6d1cb2fed43fd26c38990425f2",
-    "app:packaging/release-e2e.ts": "bf3ecbfc6d3d607dda504b9fc35df97dcede5a24fa9895d44c32a2cc3701bf6d"
+    "app:packaging/release-acceptance.ts": "931e4de181425ca1c6b4c1653dbdba244a03e2fa17baedd3cd9deaec459f9827",
+    "app:packaging/release-e2e.ts": "4ad1bdfd63bd6677c56598baa18bb807ffc8fffe6f796bf3090b8e8fd9c69a41"
   },
   "modes": {
     "PUBLIC-001": "quick"
@@ -287,6 +287,16 @@
       },
       "repositories": {
         "app": "6584209030054f722367586091f8bf9185db29bd"
+      }
+    },
+    {
+      "reason": "Lock owned-only and empty-inventory default update regressions",
+      "prior_generation": "6288acddacc00b540e44353df00971d2",
+      "prior_repositories": {
+        "app": "6584209030054f722367586091f8bf9185db29bd"
+      },
+      "repositories": {
+        "app": "1eda13a262c4cc2fd80cb76cf8b14122975bda88"
       }
     }
   ]
