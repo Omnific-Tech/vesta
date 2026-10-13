@@ -25,23 +25,29 @@ const installedClaude = (p: Provider) => !!readJson(join(p.configDir, 'plugins/i
 export function providers(args: string[], root: string, operation: string): Provider[] {
   const previous = readJson(join(root, 'installation.json'));
   const selected = value(args, '--provider'); if (selected && !['all', 'claude', 'codex'].includes(selected)) throw new Error('Unknown provider');
-  const names = [...new Set<string>([
-    ...(previous?.providers ?? []).map((p: Provider) => p.provider),
-    ...(selected === 'all' ? ['claude', 'codex'] : selected ? [selected] : previous && ['uninstall', 'status'].includes(operation) ? [] : ['claude', 'codex'].filter(name => executable(name))),
-  ])];
+  const ownedNames = (previous?.providers ?? []).map((p: Provider) => p.provider);
+  const names = [...new Set<string>(selected ? selected === 'all' ? ['claude', 'codex'] : [selected]
+    : previous && ['update', 'uninstall', 'status'].includes(operation) ? ownedNames
+      : [...ownedNames, ...['claude', 'codex'].filter(name => executable(name))])];
   if (!names.length && !['uninstall', 'status'].includes(operation)) throw new Error('No native Claude or Codex provider is available on PATH');
-  if (selected && selected !== 'all' && !names.includes(selected)) names.push(selected);
   return names.map(name => {
     if (name !== 'claude' && name !== 'codex') throw new Error('Invalid owned provider record');
     const owned = previous?.providers?.find((p: Provider) => p.provider === name);
     const configDir = absolute(value(args, '--config-dir') ?? owned?.configDir ?? (name === 'claude' ? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude') : join(homedir(), '.config/vesta')));
     const shellFile = absolute(value(args, '--shell-file') ?? owned?.shellFile ?? join(homedir(), '.zshrc'));
+    if (owned && (configDir !== owned.configDir || shellFile !== owned.shellFile)) throw new Error('Owned provider paths cannot be overridden: ' + name + '; use the recorded configuration and shell paths');
     return { provider: name, configDir, shellFile };
   });
 }
 export function preflight(selected: Provider[], operation: string) {
   for (const p of selected) {
     const state = readJson(stateFile(p));
+    // Parse every selected configuration before any provider can be changed.
+    readJson(join(p.configDir, p.provider === 'claude' ? 'settings.json' : 'vesta-codex.json'), {});
+    if (p.provider === 'claude') {
+      readJson(join(p.configDir, 'plugins/known_marketplaces.json'), {});
+      readJson(join(p.configDir, 'plugins/installed_plugins.json'), {});
+    }
     if (!executable(p.provider) && (operation !== 'uninstall' || state)) throw new Error('Missing owned/selected native provider: ' + p.provider);
     if (p.provider === 'claude') {
       if (installedClaude(p) && (!state || state.marketplaceOwned !== true)) throw new Error('Foreign Claude plugin ownership; refusing adoption');
@@ -210,7 +216,9 @@ export function install(args: string[], root: string) {
         if (p.provider === 'claude') validateClaude(p);
       }
       link(join(root, 'current'), 'versions/' + version); link(cliLink, join(root, 'current/bin/vesta'));
-      saveJson(join(root, 'installation.json'), { schema: 1, version, providers: selected, binLink: cliLink });
+      const inventory: Provider[] = [...(previous?.providers ?? [])];
+      for (const p of selected) { const index = inventory.findIndex(owned => owned.provider === p.provider); if (index < 0) inventory.push(p); else inventory[index] = p; }
+      saveJson(join(root, 'installation.json'), { schema: 1, version, providers: inventory, binLink: cliLink });
       caches.retain();
       return { version, root, installed: selected.map(p => p.provider), restartClaude: selected.some(p => p.provider === 'claude') };
     } catch (error) {
@@ -231,10 +239,18 @@ export function uninstall(args: string[], root: string) {
     if (previous?.binLink) ownedLink(previous.binLink, join(root, 'current/bin/vesta'));
     ownedLink(join(root, 'current'), previous ? 'versions/' + previous.version : undefined);
     const assets = previous ? join(root, 'versions', previous.version) : prepareVersion(root);
+    const saved = snapshot(root, selected);
     const caches = preserveClaudeCaches(root, selected);
     try { for (const p of selected) if (existsSync(stateFile(p))) setup(assets, p, 'uninstall', false, root); }
+    catch (error) {
+      let rollbackError: unknown;
+      try { caches.retain(); restore(saved); } catch (rollback) { rollbackError = rollback; }
+      throw new Error(String(error) + (rollbackError ? '; rollback/compensation failed: ' + String(rollbackError) : '; prior integrations and activation restored'));
+    }
     finally { try { caches.retain(); } finally { caches.cleanup(); } }
-    if (previous?.binLink) link(previous.binLink); link(join(root, 'current')); rmSync(join(root, 'installation.json'), { force: true });
+    const remaining = (previous?.providers ?? []).filter((p: Provider) => !selected.some(removed => removed.provider === p.provider));
+    if (remaining.length) saveJson(join(root, 'installation.json'), { ...previous, providers: remaining });
+    else { if (previous?.binLink) link(previous.binLink); link(join(root, 'current')); rmSync(join(root, 'installation.json'), { force: true }); }
     return { root, uninstalled: selected.map(p => p.provider), retainedVersions: true };
   });
 }

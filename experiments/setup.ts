@@ -85,9 +85,9 @@ function handle(selected: 'claude' | 'codex') {
     } else if (args.includes('--refresh')) {
       const addition = block(state.native, configPath);
       if (addition !== state.block) { writeFileSync(shellFile, shellText.replace(state.block, addition)); save(statePath, { ...state, block: addition }); }
-      if (args.includes('--warm') && !codexConfig.warm) { const changed = { ...codexConfig, warm: true }; save(configPath, changed); save(statePath, { ...read(statePath), createdConfig: changed }); }
+      if (args.includes('--warm') && !codexConfig.warm) { const changed = { ...codexConfig, warm: true }; save(configPath, changed); const current = read(statePath); save(statePath, { ...current, createdConfig: { ...current.createdConfig, warm: true } }); }
     } else if (args.includes('--warm') && !codexConfig.warm) {
-      const changed = { ...codexConfig, warm: true }; save(configPath, changed); save(statePath, { ...state, createdConfig: changed });
+      const changed = { ...codexConfig, warm: true }; save(configPath, changed); save(statePath, { ...state, createdConfig: { ...state.createdConfig, warm: true } });
     }
     result.installed = true; result.warmEnabled ||= args.includes('--warm'); result.activate = 'Open a new terminal, or source ' + quote(shellFile);
   } else if (state) {
