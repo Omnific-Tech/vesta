@@ -117,7 +117,7 @@ async function runClaude() {
   validation.stdout!.on('data', data => capture('claude-validation.txt', String(data)));
   await waitFor(() => validation.exitCode !== null, 'Claude mod validation');
   if (validation.exitCode !== 0) throw new Error('Claude mod validation failed');
-  const argv = ['--plugin-dir', plugin, ...(probe ? ['--setting-sources', '', '--strict-mcp-config', '--tools', '', '--permission-mode', 'dontAsk'] : []), ...(initialPrompt ? [initialPrompt] : [])];
+  const argv = ['--plugin-dir', plugin, ...(probe ? ['--setting-sources', 'user', '--strict-mcp-config', '--tools', '', '--permission-mode', 'dontAsk'] : []), ...(initialPrompt ? [initialPrompt] : [])];
   owner(argv); relay();
   lifecycle({ kind: 'launcher-ready', ownerPid: terminal!.pid, plugin, provider });
   timer = setInterval(() => {

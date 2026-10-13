@@ -10,7 +10,8 @@ let stopped = false;
 let warms = 0;
 let ownWarmTurn = '';
 let warmPending = false;
-let nextTurnIsWarm = false;
+let nextPromptOrigin;
+const warmEnvelope = "The vesta-watcher plugin sent a message:\nVESTA_CACHE_KEEPALIVE\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above.";
 let tools = 0;
 async function record($, data) {
   if (!options?.captureNative) return;
@@ -60,8 +61,8 @@ export function register(on) {
     return next(e);
   });
   on('prompt.submit', async ($, e, next) => {
-    nextTurnIsWarm = warmPending && e.origin.kind === 'plugin' && e.origin.name === 'vesta-watcher' && e.text === 'VESTA_CACHE_KEEPALIVE';
-    if (nextTurnIsWarm) warmPending = false;
+    await record($, { kind: 'prompt-submit', origin: e.origin, text: e.text });
+    nextPromptOrigin = e.origin;
     if (['composer', 'bridge'].includes(e.origin.kind)) {
       await event($, 'activity', { source: 'user' });
     }
@@ -69,7 +70,8 @@ export function register(on) {
   });
   on('turn.start', async ($, e, next) => {
     tools = 0;
-    const source = nextTurnIsWarm ? 'warm' : 'other'; nextTurnIsWarm = false;
+    const source = warmPending && e.text === warmEnvelope && (!nextPromptOrigin || (nextPromptOrigin.kind === 'plugin' && nextPromptOrigin.name === 'vesta-watcher')) ? 'warm' : 'other';
+    nextPromptOrigin = undefined; if (source === 'warm') warmPending = false;
     if (source === 'warm') ownWarmTurn = e.turnId;
     // A positional initial prompt may precede the composer hook; it is the local
     // launcher's explicit user prompt, recorded in configuration, never a warm.
@@ -92,7 +94,7 @@ export function register(on) {
   on('session.attach', async ($, e, next) => { await event($, 'reconnect'); return next(e); });
   on('session.detach', async ($, e, next) => { await event($, 'reconnect'); return next(e); });
   on('session.end', async ($, e, next) => {
-    stopped = true; timer?.cancel(); warmPending = false; nextTurnIsWarm = false;
+    stopped = true; timer?.cancel(); warmPending = false; nextPromptOrigin = undefined;
     await event($, 'exit');
     await record($, { kind: 'owner-ended', reason: e.reason });
     return next(e);

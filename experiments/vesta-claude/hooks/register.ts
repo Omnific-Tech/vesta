@@ -7,7 +7,8 @@ let configuredOptions;
   let resetReason = 'start';
   let nextReset = '';
   let warmPending = false;
-  let nextTurnIsWarm = false;
+  let nextPromptOrigin;
+  const warmEnvelope = "The vesta plugin sent a message:\nVESTA_CACHE_KEEPALIVE\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above.";
   let config;
   const status = () => ({ ...watcher.state, pluginId: 'vesta@vesta-local', sessionId, storeKey: 'status:' + sessionId,
     warmEnabled: config.warm, idleMs: watcher.defaults.idleMs, budgetMs: watcher.defaults.budgetMs,
@@ -34,7 +35,7 @@ let configuredOptions;
       sessionId = id;
       config = { warm: configuredOptions.warm === true, idleMs: configuredOptions.idle_ms ?? 3000000, budgetMs: configuredOptions.budget_ms ?? 14400000 };
       watcher = new Watcher('claude', { idleMs: config.idleMs, budgetMs: config.budgetMs });
-      resetReason = nextReset || (old ? 'reload' : 'start'); nextReset = ''; warmPending = false; nextTurnIsWarm = false;
+      resetReason = nextReset || (old ? 'reload' : 'start'); nextReset = ''; warmPending = false; nextPromptOrigin = undefined;
       const owner = watcher; const ownerSession = sessionId; const ownerConfig = config;
       await persist($, owner, ownerSession);
       if (owner !== watcher || ownerSession !== sessionId) return;
@@ -59,7 +60,7 @@ let configuredOptions;
   };
 export function register(on, options) {
   if (watcher) {
-    timer?.cancel(); watcher = undefined; sessionId = ''; nextReset = 'reload'; warmPending = false; nextTurnIsWarm = false;
+    timer?.cancel(); watcher = undefined; sessionId = ''; nextReset = 'reload'; warmPending = false; nextPromptOrigin = undefined;
   }
   configuredOptions = options;
   on('session.start', async ($, e, next) => {
@@ -79,13 +80,17 @@ export function register(on, options) {
   on('prompt.edit', async ($, e, next) => { await ensure($); await event($, 'activity', { source: 'user' }); return next(e); });
   on('prompt.submit', async ($, e, next) => {
     await ensure($);
-    nextTurnIsWarm = warmPending && e.origin.kind === 'plugin' && e.origin.name === 'vesta' && e.text === 'VESTA_CACHE_KEEPALIVE';
-    if (nextTurnIsWarm) warmPending = false;
+    nextPromptOrigin = e.origin;
     if (['composer', 'bridge'].includes(e.origin.kind)) await event($, 'activity', { source: 'user' });
     return next(e);
   });
   on('turn.start', async ($, e, next) => {
-    await ensure($); const source = nextTurnIsWarm ? 'warm' : 'other'; nextTurnIsWarm = false;
+    await ensure($);
+    // Native $.prompt.submit skips the submitting plugin's own middleware.
+    // Require our outstanding submission and the exact native envelope; an
+    // observed composer/bridge origin can never become our warm turn.
+    const source = warmPending && e.text === warmEnvelope && (!nextPromptOrigin || (nextPromptOrigin.kind === 'plugin' && nextPromptOrigin.name === 'vesta')) ? 'warm' : 'other';
+    nextPromptOrigin = undefined; if (source === 'warm') warmPending = false;
     await event($, 'turn-start', { sessionId, turnId: e.turnId, source });
     return next(e);
   });
@@ -98,7 +103,7 @@ export function register(on, options) {
   on('session.attach', async ($, e, next) => { await event($, 'reconnect'); return next(e); });
   on('session.detach', async ($, e, next) => { await event($, 'reconnect'); return next(e); });
   on('session.end', async ($, e, next) => {
-    timer?.cancel(); warmPending = false; nextTurnIsWarm = false; await event($, 'exit');
+    timer?.cancel(); warmPending = false; nextPromptOrigin = undefined; await event($, 'exit');
     if (['clear', 'resume'].includes(e.reason)) nextReset ||= e.reason;
     return next(e);
   });
