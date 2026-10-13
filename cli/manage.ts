@@ -1,8 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { accessSync, constants, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, closeSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, closeSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { directory, prepareVersion, readJson, saveJson, version } from './assets.ts';
+import { directory, prepareVersion, readJson, saveJson, sha256, version } from './assets.ts';
 
 export type Provider = { provider: 'claude' | 'codex'; configDir: string; shellFile: string };
 export const pluginId = 'vesta@vesta-local';
@@ -79,9 +79,30 @@ function link(path: string, target?: string) {
 }
 function catalog(root: string, assets: string) {
   const path = join(root, 'marketplace'); directory(path); directory(join(path, '.claude-plugin'));
-  const metadata = readJson(join(assets, 'app/.claude-plugin/marketplace.json')); metadata.plugins[0].source = './plugin';
-  saveJson(join(path, '.claude-plugin/marketplace.json'), metadata); link(join(path, 'plugin'), join(assets, 'app/experiments/vesta-claude'));
+  const plugins = join(path, 'plugins'); directory(plugins); const destination = join(plugins, version);
+  const prefix = 'app/experiments/vesta-claude/'; const expected = readJson(join(assets, 'manifest.json')).assets.filter((asset: any) => asset.path.startsWith(prefix));
+  const validate = (plugin: string) => {
+    directory(plugin);
+    for (const asset of expected) {
+      const file = join(plugin, asset.path.slice(prefix.length));
+      if (!existsSync(file) || lstatSync(file).isSymbolicLink() || !lstatSync(file).isFile() || !realpathSync(file).startsWith(realpathSync(plugin) + '/') || sha256(readFileSync(file)) !== asset.sha256) throw new Error('Immutable marketplace plugin integrity failure: ' + asset.path);
+    }
+  };
+  if (present(destination)) validate(destination);
+  else {
+    const staged = mkdtempSync(join(plugins, '.stage-'));
+    try { cpSync(join(assets, 'app/experiments/vesta-claude'), staged, { recursive: true }); validate(staged); renameSync(staged, destination); }
+    catch (error) { rmSync(staged, { recursive: true, force: true }); throw error; }
+  }
+  const metadata = readJson(join(assets, 'app/.claude-plugin/marketplace.json')); metadata.plugins[0].source = './plugins/' + version;
+  saveJson(join(path, '.claude-plugin/marketplace.json'), metadata);
   return path;
+}
+function validateClaude(p: Provider) {
+  const command = executable('claude')!; const entries = JSON.parse(native(command, ['plugin', 'list', '--json'], p));
+  const installed = entries.find((entry: any) => entry.id === pluginId && entry.scope === 'user');
+  if (!installed || installed.version !== version || installed.errors?.length || installed.errorDetails?.length || !installed.installPath) throw new Error('Native Claude plugin registration is invalid: ' + JSON.stringify(installed?.errors ?? ['Missing expected user plugin/version']));
+  native(command, ['plugin', 'validate', installed.installPath, '--strict'], p);
 }
 function setup(assets: string, p: Provider, operation: string, warm: boolean, root: string) {
   const argv = ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', join(assets, 'app/experiments/setup.ts'), operation, '--provider', p.provider, '--config-dir', p.configDir, '--shell-file', p.shellFile, '--json', ...(warm ? ['--warm'] : []), ...(operation === 'install' ? ['--refresh'] : [])];
@@ -158,9 +179,8 @@ export function install(args: string[], root: string) {
     const assets = prepareVersion(root); const cliLink = previous?.binLink ?? join(absolute(process.env.VESTA_BIN_DIR ?? join(homedir(), '.local/bin')), 'vesta');
     ownedLink(cliLink, previous ? join(root, 'current/bin/vesta') : undefined);
     ownedLink(join(root, 'current'), previous ? 'versions/' + previous.version : undefined);
-    ownedLink(join(root, 'marketplace/plugin'), previous ? join(root, 'versions', previous.version, 'app/experiments/vesta-claude') : undefined);
+    if (present(join(root, 'marketplace/plugin'))) throw new Error('Unsupported legacy marketplace link; refusing to adopt it');
     const saved = snapshot(root, selected); const oldCurrent = existsSync(join(root, 'current')) ? readlinkSync(join(root, 'current')) : undefined;
-    const oldPlugin = existsSync(join(root, 'marketplace/plugin')) ? readlinkSync(join(root, 'marketplace/plugin')) : undefined;
     let claudeChanged = false;
     const caches = preserveClaudeCaches(root, selected);
     try {
@@ -187,6 +207,7 @@ export function install(args: string[], root: string) {
           }
         }
         setup(assets, p, 'install', args.includes('--warm'), root);
+        if (p.provider === 'claude') validateClaude(p);
       }
       link(join(root, 'current'), 'versions/' + version); link(cliLink, join(root, 'current/bin/vesta'));
       saveJson(join(root, 'installation.json'), { schema: 1, version, providers: selected, binLink: cliLink });
@@ -196,7 +217,7 @@ export function install(args: string[], root: string) {
       let rollbackError: unknown;
       try {
         caches.retain();
-        restore(saved.filter(file => file.path.includes('/marketplace/'))); link(join(root, 'marketplace/plugin'), oldPlugin);
+        restore(saved.filter(file => file.path.includes('/marketplace/')));
         if (claudeChanged) for (const p of selected.filter(p => p.provider === 'claude')) native(executable('claude')!, ['plugin', 'update', pluginId, '--scope', 'user', '--json'], p);
       } catch (rollback) { rollbackError = rollback; }
       try { restore(saved); link(join(root, 'current'), oldCurrent); if (!previous && existsSync(cliLink)) link(cliLink); } catch (rollback) { rollbackError = rollback; }
