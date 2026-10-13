@@ -121,7 +121,12 @@ try {
       && row.message.content.some((block: any) => block.type === 'text')).map(row => [row.message.id, row])).values()];
     // Genuine >100k native input exercises the unchanged installed production
     // threshold. The nonce itself is supplied only by global CLAUDE.md.
-    await type(owner, 'Ignore this verification padding: ' + 'x '.repeat(110000) + '\n' + noncePrompt);
+    // Native Claude treats a large paste as attached data. Keep the genuine
+    // user's short request in the composer outside that data, in one turn.
+    owner.terminal.write('\x1b[200~' + 'x '.repeat(110000) + '\x1b[201~');
+    await sleep(500);
+    owner.terminal.write(' Ignore the pasted verification padding. ' + noncePrompt);
+    await sleep(500); owner.terminal.write('\r');
     await waitFor(() => answers().length === 1, 'native large-input nonce');
     const metric = await requestStatus(owner, true); assert.ok(metric.tokens > 100000, 'actual strict threshold satisfied');
     writeFileSync(join(artifacts, 'claude-marker-status.txt'), 'VESTA_STATUS ' + JSON.stringify(metric) + '\n'); e.rawFiles.push('claude-marker-status.txt');

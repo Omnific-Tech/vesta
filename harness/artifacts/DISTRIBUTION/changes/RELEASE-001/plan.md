@@ -57,3 +57,11 @@ process cleanup, retain each operational link's relative path and literal target
 in operational-symlinks.json and unlink only that link. Never follow/delete a
 target. Preserve regular binaries, native source files, snapshots, transcripts,
 protocol rows and receipts. This adjusts artifact storage, not passed assertions.
+
+## Native composer input amendment
+
+Claude correctly treated the first nonce request inside the large bracketed paste
+as untrusted attached data. Paste only the 110k padding, then type the short nonce
+request as normal composer input before the same single submit. Preserve exact
+nonce/K/nonce, nonce-only-global provenance, actual >100k input and no-tools checks.
+Do not modify the warmer payload, global rule or model settings.
