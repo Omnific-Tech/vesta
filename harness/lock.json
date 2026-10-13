@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "2885ed6eb7eb6465e9868b885d68fe3d",
+  "generation": "bfa7e8198e23eea66d5db044b3e39e5a",
   "repositories": {
-    "app": "17cb47e8961c148cd57141321c58bd2a7755d607"
+    "app": "a95cfec1bd6ef4eb7aadd430752cecd5df2cba23"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -12,13 +12,13 @@
     "app:experiments/setup-e2e.ts": "94394f562703d1f08a7f1fdbad1cdb0407b9cb97cc68dfd9e318262f99e2e08b",
     "app:experiments/setup-forwarding-e2e.ts": "c1518c2e759d4a2cce786ad64c2a22db647b4b42c3c3fd4afe4b964e89bdd734",
     "app:experiments/setup-live-acceptance.ts": "4192e2497b81fe46085e24f4e5166f518ec2dd5bdbd654ea0f3eb814add6426e",
-    "app:experiments/setup-live.ts": "ce7adfc96264f9920ea84ef105c604e9632301232cf21fef2696322acd77d5de",
+    "app:experiments/setup-live.ts": "a224d266f66938b155b087074c20c83ca14a6689b795ee30b459581fdcb1c781",
     "app:experiments/setup-native-fixture.mjs": "18c8bdcd0233ece36b6a4d192d1c972a3b5e9446accf0c38c1e5a329cb54d7bd",
     "app:experiments/setup-tty-forwarding-e2e.ts": "0cb58a471f27dba4b3ea85a971afa74ca94b5bc5acf7867fdc1e28681e490a2e",
     "app:experiments/watcher-acceptance.ts": "ecf424ce4d390a0efcdc7cb1a469003b0d34d0c174a9e20bcd43f3802c2102bd",
     "app:experiments/watcher-live-acceptance.ts": "9513917eab4f89987aca2ddd3542a8ac36311add734389e7c24f2c4f457100f0",
     "app:experiments/watcher-live.ts": "77be3508932d44f8f619b0549d61a45fbf9477f598e39dc1a15a803bd8dfc63c",
-    "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/plan.md": "3e64ef30756248865e3e1eb08c779318b2e791ed82b4a96d6439779683bb72b9",
+    "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/plan.md": "ec28752a070d8359acaf2ae127f535b41a8153d2169005dc1d1c6e76a140c5ca",
     "app:harness/artifacts/DISTRIBUTION/spec.md": "9113edd3259ff3277845e2c3de39bcc0e871de710d361c404750e5fc3b5afebd",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/history/DOCS-001.json": "354e3ecc3e4121726afe1db876f4cddc865b12e6ce4e9ffc0709001496c9e46c",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/plan.md": "6e045b2a98a7c240bee81a5ca46ef4fc1c87f5e0ea828c1181ef70e5a85419ed",
@@ -261,6 +261,16 @@
       },
       "repositories": {
         "app": "17cb47e8961c148cd57141321c58bd2a7755d607"
+      }
+    },
+    {
+      "reason": "Keep native user nonce request outside untrusted padding paste; preserve one turn, exact replies, global provenance and real strict threshold",
+      "prior_generation": "2885ed6eb7eb6465e9868b885d68fe3d",
+      "prior_repositories": {
+        "app": "17cb47e8961c148cd57141321c58bd2a7755d607"
+      },
+      "repositories": {
+        "app": "a95cfec1bd6ef4eb7aadd430752cecd5df2cba23"
       }
     }
   ]
