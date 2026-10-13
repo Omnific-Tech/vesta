@@ -1,5 +1,27 @@
 # Standalone release acceptance before implementation
 
+Public v0.2.1 scope (contracts precede the public bug fixes):
+
+- Public stable releases are retrieved with HTTPS curl without gh or a token.
+  HTTP errors retain old activation; digest, platform, version, ownership and
+  old-runtime checks continue to apply. Fixtures derive base/candidate versions
+  from package metadata and never change the published v0.2.0 release.
+- Explicit provider install/status/update/uninstall touches only the selected
+  provider. The installation inventory retains unselected integrations; partial
+  uninstall retains global activation while an integration remains.
+- Owned config or shell path overrides fail before any integration writes.
+  Relocating integrations is outside this release's scope.
+- Uninstall preflights every selected JSON file before changes. A native failure
+  after an earlier provider removal compensates state, shell, user settings,
+  native registries, retained caches and installation inventory. Activation and
+  old runtime files remain available.
+- Enabling warm updates only the owned warm baseline. Unrelated user edits and
+  timing values must survive a subsequent uninstall.
+
+`public-e2e.ts` exercises all of these through a relocated production build and
+actual native registrations. It records command output, byte hashes, before/after
+snapshots and native cache validation. No model calls are needed for these cases.
+
 Feature DISTRIBUTION owns `cli/` and `packaging/`. First production release is
 `v0.2.0`, macOS arm64 only, in the existing private GitHub repository.
 

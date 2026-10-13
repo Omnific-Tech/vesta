@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { hash } from './e2e-common.ts';
+import { hash, nextReleaseVersion, releaseVersion } from './e2e-common.ts';
 
-export const requiredUpdateCases = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'missing-auth', 'api-error', 'draft', 'prerelease', 'unsafe-asset-name', 'wrong-platform', 'wrong-version', 'digest-mismatch', 'truncated-download', 'missing-owned-provider', 'explicit-missing-provider', 'edited-shell-conflict', 'symlink-version-root', 'concurrent-operation', 'refresh-failure-rollback', 'rollback-failure-reported'];
+export const requiredUpdateCases = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth', 'api-error', 'draft', 'prerelease', 'unsafe-asset-name', 'wrong-platform', 'wrong-version', 'digest-mismatch', 'truncated-download', 'missing-owned-provider', 'explicit-missing-provider', 'edited-shell-conflict', 'symlink-version-root', 'concurrent-operation', 'refresh-failure-rollback', 'rollback-failure-reported'];
 export type CommandEvidence = { name: string; argv: string[]; code: number | null; stdoutFile: string; stderrFile: string };
 export type ReleaseEvidence = {
   schema: 1; kind: 'standalone-install-update'; startedAt: number; endedAt: number;
@@ -17,7 +17,7 @@ export type ReleaseEvidence = {
   cases: { name: string; before: string; after: string; command: string; expectedCode: 'success' | 'failure'; rollbackError?: string }[];
   settingsBefore: unknown; settingsAfter: unknown; migration: { foreignCommand: string; foreignBefore: string; foreignAfter: string; npmCommand: string; before: string; after: string };
 };
-export function verifyBuildReceipt(file: string, binary: string, version = '0.2.0', fixture = false) {
+export function verifyBuildReceipt(file: string, binary: string, version = releaseVersion, fixture = false) {
   const r = JSON.parse(readFileSync(file, 'utf8'));
   assert.equal(r.schema, 1); assert.equal(r.version, version); assert.equal(r.platform, 'darwin-arm64');
   assert.equal(r.fixture, fixture); assert.match(r.sourceHead, /^[0-9a-f]{40}$/);
@@ -43,7 +43,7 @@ export function verifyReleaseEvidence(e: ReleaseEvidence, directory: string) {
   assert.ok(e.personalFiles.some(file => file.path.endsWith('/AGENTS.md')) && e.personalFiles.some(file => file.path.endsWith('/CLAUDE.md')));
   const raw = (file: string) => { const path = resolve(directory, file); assert.ok(path.startsWith(resolve(directory) + '/')); return readFileSync(path, 'utf8'); };
   for (const command of e.commands) { for (const file of [command.stdoutFile, command.stderrFile]) assert.ok(!raw(file).includes('VESTA-E2E-AUTH-SENTINEL'), 'authentication never appears in output'); }
-  const version = e.commands.find(c => c.name === 'version'); assert.ok(version); assert.equal(raw(version.stdoutFile).trim(), 'vesta 0.2.0');
+  const version = e.commands.find(c => c.name === 'version'); assert.ok(version); assert.equal(raw(version.stdoutFile).trim(), 'vesta ' + releaseVersion);
   const initial = e.commands.find(c => c.name === 'install'); assert.ok(initial); assert.equal(initial.code, 0);
   assert.deepEqual(e.discovery.map(row => row.name).sort(), ['both', 'claude-only', 'codex-only', 'neither']);
   for (const d of e.discovery) {
@@ -84,10 +84,10 @@ export function verifyReleaseEvidence(e: ReleaseEvidence, directory: string) {
     }
     if (c.name === 'rollback-failure-reported') assert.match(raw(command.stderrFile), /rollback|compensat/i);
   }
-  assert.ok(e.finalActivationBeforeUninstall.includes('0.2.1'), 'successful stable upgrade activated the new immutable version');
+  assert.equal(e.finalActivationBeforeUninstall, 'versions/' + nextReleaseVersion, 'successful stable upgrade activated the new immutable version');
   assert.equal(e.commands.find(c => c.name === e.uninstallCommand)?.code, 0);
   assert.ok(!existsSync(resolve(e.installRoot, 'current')) && !existsSync(e.cliLink), 'uninstall removed activation and owned CLI link');
-  assert.ok(existsSync(resolve(e.installRoot, 'versions/0.2.0/runtime/bin/node')), 'old runtime retained for running owners');
+  assert.ok(existsSync(resolve(e.installRoot, 'versions', releaseVersion, 'runtime/bin/node')), 'old runtime retained for running owners');
   assert.ok(e.sourcedShell.pid > 0 && e.sourcedShell.exited); const shell = raw(e.sourcedShell.rawFile);
   assert.ok(shell.includes(e.sourcedShell.nativeVersion)); assert.match(shell, /(?:^|[\r\n])VESTA_NATIVE_CODE:0(?:[\r\n]|$)/, 'already-sourced function falls back natively after uninstall');
 }

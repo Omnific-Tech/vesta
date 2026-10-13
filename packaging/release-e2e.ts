@@ -1,4 +1,4 @@
-// Actual standalone binaries/native registrations, with controlled gh transport.
+// Actual standalone binaries/native registrations, with controlled public curl transport.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -6,7 +6,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSy
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import * as pty from 'node-pty';
-import { buildRelocated, executable, hash, nativeBin, nodeFlags, root, sealEvidence } from './e2e-common.ts';
+import { buildRelocated, executable, hash, nativeBin, nextReleaseVersion, nodeFlags, releaseVersion, root, sealEvidence } from './e2e-common.ts';
 import { requiredUpdateCases, verifyBuildReceipt, verifyReleaseEvidence } from './release-acceptance.ts';
 import type { ReleaseEvidence } from './release-acceptance.ts';
 
@@ -14,7 +14,7 @@ const artifacts = resolve(process.argv[2] ?? join(process.env.TELOS_RUN_DIR ?? '
 if (existsSync(artifacts)) assert.equal(readdirSync(artifacts).length, 0, 'fresh artifacts');
 mkdirSync(artifacts, { recursive: true }); const startedAt = Date.now();
 const built = buildRelocated(artifacts); const candidateDir = join(artifacts, 'candidate'); mkdirSync(candidateDir);
-const candidate = buildRelocated(candidateDir, '0.2.1'); verifyBuildReceipt(candidate.receipt, candidate.binary, '0.2.1', true);
+const candidate = buildRelocated(candidateDir, nextReleaseVersion); verifyBuildReceipt(candidate.receipt, candidate.binary, nextReleaseVersion, true);
 const personal = [join(homedir(), '.claude/CLAUDE.md'), join(homedir(), '.codex/AGENTS.md'), join(homedir(), '.zshrc'), join(homedir(), '.claude/settings.json'), join(homedir(), '.codex/config.toml')];
 const personalHash = (file: string) => existsSync(file) ? hash(file) : 'absent';
 const evidence: ReleaseEvidence = { schema: 1, kind: 'standalone-install-update', startedAt, endedAt: 0, binary: built.binary, receiptFile: 'build-receipt.json', removedBuildDirectory: built.removedBuildDirectory,
@@ -28,14 +28,16 @@ async function waitShell(test: () => boolean, label: string) {
 }
 function context(name: string) {
   const directory = join(artifacts, name); mkdirSync(directory); const bin = join(directory, 'bin'); const path = nativeBin(bin);
-  copyFileSync(join(root, 'packaging/gh-fixture.zsh'), join(bin, 'gh')); chmodSync(join(bin, 'gh'), 0o755);
+  copyFileSync(join(root, 'packaging/curl-fixture.zsh'), join(bin, 'curl')); chmodSync(join(bin, 'curl'), 0o755);
   rmSync(join(bin, 'claude')); copyFileSync(join(root, 'packaging/provider-fault.zsh'), join(bin, 'claude')); chmodSync(join(bin, 'claude'), 0o755);
   const home = join(directory, 'home'); const config = join(home, '.claude'); mkdirSync(config, { recursive: true });
   mkdirSync(join(home, '.codex')); writeFileSync(join(config, 'CLAUDE.md'), 'Unrelated global Claude instructions must survive.\n'); writeFileSync(join(home, '.codex/AGENTS.md'), 'Unrelated global Codex instructions must survive.\n');
   const shell = join(home, '.zshrc'); writeFileSync(shell, '# unrelated shell preference\n');
   const installation = join(directory, 'owned'); const release = join(directory, 'release.json');
   const env: Record<string, string> = { ...process.env as Record<string, string>, PATH: path, HOME: home, VESTA_HOME: installation, CLAUDE_CONFIG_DIR: config, CLAUDE_SECURESTORAGE_CONFIG_DIR: '', CODEX_HOME: join(home, '.codex'),
-    GH_TOKEN: 'VESTA-E2E-AUTH-SENTINEL', VESTA_FIXTURE_NATIVE_CLAUDE: nativeClaude, VESTA_FIXTURE_FAULT_MARKER: join(directory, 'fault-marker'), VESTA_FIXTURE_RELEASE: release, VESTA_FIXTURE_BINARY: candidate.binary };
+    VESTA_FIXTURE_NATIVE_CLAUDE: nativeClaude, VESTA_FIXTURE_FAULT_MARKER: join(directory, 'fault-marker'), VESTA_FIXTURE_RELEASE: release, VESTA_FIXTURE_BINARY: candidate.binary };
+  delete env.GH_TOKEN; delete env.GITHUB_TOKEN;
+  assert.notEqual(spawnSync('/usr/bin/which', ['gh'], { env }).status, 0, 'no authenticated gh dependency');
   for (const runtime of ['node', 'npm', 'bun']) assert.notEqual(spawnSync('/usr/bin/which', [runtime], { env }).status, 0, 'sanitized PATH contains no ' + runtime);
   return { directory, bin, home, config, shell, installation, release, env };
 }
@@ -70,7 +72,7 @@ function snapshot(ctx: Context, name: string) {
   const value = { name, current, files }; evidence.snapshots.push(value); writeFileSync(join(artifacts, name + '.json'), JSON.stringify(value, null, 2)); return value;
 }
 function release(ctx: Context, fault: string) {
-  const version = fault === 'same-version' ? '0.2.0' : fault === 'wrong-version' ? '0.2.2' : '0.2.1';
+  const version = fault === 'same-version' ? releaseVersion : fault === 'wrong-version' ? nextReleaseVersion.split('.').map((part, index) => index === 2 ? Number(part) + 1 : part).join('.') : nextReleaseVersion;
   const binary = fault === 'same-version' ? built.binary : candidate.binary;
   const digest = fault === 'digest-mismatch' ? '0'.repeat(64) : hash(binary);
   const name = fault === 'unsafe-asset-name' ? '../vesta-darwin-arm64' : fault === 'wrong-platform' ? 'vesta-linux-amd64' : 'vesta-darwin-arm64';
@@ -103,15 +105,15 @@ try {
     if (name === 'edited-shell-conflict') writeFileSync(ctx.shell, readFileSync(ctx.shell, 'utf8').replace('# >>> Vesta managed Codex >>>', '# >>> Vesta managed Codex >>>\n# user modification'));
     if (name === 'symlink-version-root') {
       const outside = join(ctx.directory, 'outside'); mkdirSync(outside); writeFileSync(join(outside, 'sentinel'), 'unchanged outside owned root');
-      symlinkSync(outside, join(ctx.installation, 'versions/0.2.1'));
+      symlinkSync(outside, join(ctx.installation, 'versions', nextReleaseVersion));
     }
-    if (name === 'concurrent-operation') writeFileSync(join(ctx.installation, '.operation.lock'), JSON.stringify({ pid: process.pid, version: '0.2.0' }));
+    if (name === 'concurrent-operation') writeFileSync(join(ctx.installation, '.operation.lock'), JSON.stringify({ pid: process.pid, version: releaseVersion }));
     const before = snapshot(ctx, name + '-before');
     const argv = name === 'explicit-missing-provider' ? ['install', '--provider', 'claude', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json']
       : name === 'install-refresh' ? installArgs(ctx) : [name === 'alias-update' ? '--update' : 'update', '--config-dir', ctx.config, '--shell-file', ctx.shell, '--json'];
     const command = name + '-operation'; const result = run(ctx, command, argv, name === 'install-refresh' ? candidate.binary : built.binary);
     const after = snapshot(ctx, name + '-after');
-    const success = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update'].includes(name);
+    const success = ['same-version', 'stable-upgrade', 'install-refresh', 'alias-update', 'public-no-auth'].includes(name);
     assert.equal(result.status === 0, success, name + ': ' + result.stderr);
     evidence.cases.push({ name, before: before.name, after: after.name, command, expectedCode: success ? 'success' : 'failure' });
     if (ctx !== main) rmSync(ctx.directory, { recursive: true, force: true });
@@ -145,7 +147,7 @@ try {
   snapshot(npm, 'npm-before'); assert.equal(run(npm, 'npm-migrate', installArgs(npm)).status, 0); snapshot(npm, 'npm-after');
   copyFileSync(join(npm.config, 'settings.json'), join(artifacts, 'npm-claude-settings-after.json'));
   assert.equal(run(main, 'uninstall', ['uninstall', '--provider', 'all', '--config-dir', main.config, '--shell-file', main.shell, '--json']).status, 0);
-  assert.ok(existsSync(join(main.installation, 'versions/0.2.0/runtime/bin/node')), 'uninstall retains old runtime');
+  assert.ok(existsSync(join(main.installation, 'versions', releaseVersion, 'runtime/bin/node')), 'uninstall retains old runtime');
   assert.ok(!existsSync(evidence.cliLink) && !existsSync(join(main.installation, 'current')));
   evidence.sourcedShell.nativeVersion = spawnSync(join(main.bin, 'codex'), ['--version'], { env: main.env, encoding: 'utf8' }).stdout.trim();
   shell.write('codex --version; print VESTA_NATIVE_CODE:$?\r');

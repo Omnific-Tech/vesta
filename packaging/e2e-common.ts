@@ -8,6 +8,8 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const releaseVersion: string = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+export const nextReleaseVersion = releaseVersion.split('.').map((part, index) => index === 2 ? Number(part) + 1 : part).join('.');
 export const hash = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
 export const nodeFlags = ['--disable-warning=ExperimentalWarning', '--experimental-strip-types'];
 // Seal operational links only after the command/native acceptance checks and

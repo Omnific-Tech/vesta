@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { buildRelocated, hash, nativeBin, nodeFlags, root, sealEvidence } from './e2e-common.ts';
+import { buildRelocated, hash, nativeBin, nextReleaseVersion, nodeFlags, releaseVersion, root, sealEvidence } from './e2e-common.ts';
 import { verifyBuildReceipt } from './release-acceptance.ts';
 
 const artifacts = resolve(process.argv[2] ?? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/standalone-native', 'artifacts'));
@@ -11,7 +11,7 @@ if (existsSync(artifacts)) assert.equal(readdirSync(artifacts).length, 0, 'fresh
 mkdirSync(artifacts, { recursive: true }); const startedAt = Date.now();
 const built = buildRelocated(artifacts); const receipt = verifyBuildReceipt(built.receipt, built.binary);
 const candidateDir = join(artifacts, 'update-candidate'); mkdirSync(candidateDir);
-const candidate = buildRelocated(candidateDir, '0.2.1'); verifyBuildReceipt(candidate.receipt, candidate.binary, '0.2.1', true);
+const candidate = buildRelocated(candidateDir, nextReleaseVersion); verifyBuildReceipt(candidate.receipt, candidate.binary, nextReleaseVersion, true);
 const path = nativeBin(join(artifacts, 'native-bin'));
 const commands: any[] = []; const cases: any[] = []; let failure: string | undefined;
 try {
@@ -28,7 +28,7 @@ try {
     const evidence = JSON.parse(readFileSync(join(directory, 'summary.json'), 'utf8'));
     const setup = evidence.commands.find((command: any) => command.role === 'setup' && command.argv.includes('install'));
     assert.equal(setup?.argv[0], built.binary, 'actual standalone binary performed installation');
-    const shipped = evidence.sourceFiles.filter((file: any) => file.path.includes('/owned-install/versions/0.2.0/app/'));
+    const shipped = evidence.sourceFiles.filter((file: any) => file.path.includes('/owned-install/versions/' + releaseVersion + '/app/'));
     assert.ok(shipped.some((file: any) => file.path.endsWith('/watcher-policy.ts')));
     assert.ok(shipped.some((file: any) => file.path.endsWith(provider === 'claude' ? '/vesta-claude/hooks/register.ts' : '/watcher-run.ts')));
     for (const file of shipped) {
