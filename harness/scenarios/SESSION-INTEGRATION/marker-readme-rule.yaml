@@ -1,0 +1,13 @@
+schema_version: 1
+id: marker-readme-rule
+repo: app
+runner: command
+kind: fixture
+command:
+  - node
+  - -e
+  - "const fs=require('node:fs'),assert=require('node:assert/strict');const t=fs.readFileSync('README.md','utf8');assert.ok(t.includes('> When a Vesta cache keepalive message has the exact body VESTA_CACHE_KEEPALIVE, reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.'));assert.ok(t.includes('Claude still adds its native plugin-message envelope around the literal body.'));console.log('README rule and native-envelope caveat verified');"
+acceptance: [AC-DOC-RULE]
+timeout_ms: 10000
+expect:
+  exit_code: 0
