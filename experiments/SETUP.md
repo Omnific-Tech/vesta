@@ -1,32 +1,25 @@
 # One-time native CLI setup
 
-Use Node 22.17.1+, the existing subscription logins, and the installed native
-Claude/Codex executables. This local package was verified against Claude Code
-2.1.296 and Codex CLI 0.162.0, then the observed 0.162.1 patch update on macOS arm64. Keep this checkout available: the
-Codex shell function points to its Node entrypoint and pinned `node-pty` dependency.
+Use the standalone macOS arm64 release, existing subscription logins, and installed
+native Claude/Codex executables. Vesta embeds pinned Node 22.17.1 and native PTY
+assets; end users need no runtime installation or source checkout. Native support
+was verified against Claude Code 2.1.296 and Codex CLI 0.162.0, then the observed
+0.162.1 patch update. Private release downloads and updates require authenticated
+`gh` with repository access.
 
 ```sh
-npm ci
-chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
-npm run setup -- plan --provider all
-npm run setup -- install --provider all
-npm run setup -- status --provider all
+gh release download v0.2.0 --repo Omnific-Tech/vesta --pattern vesta-darwin-arm64
+chmod +x vesta-darwin-arm64
+./vesta-darwin-arm64 install
+~/.local/bin/vesta status
 ```
 
-The `setup` npm script runs the local utility once. It is equivalent to:
-
-```sh
-node --experimental-strip-types experiments/setup.ts plan --provider all --json
-node --experimental-strip-types experiments/setup.ts install --provider all --json
-node --experimental-strip-types experiments/setup.ts status --provider all --json
-```
-
-`plan` reads configuration and prints the concrete native plugin commands,
-configuration paths, resolved existing Codex executable, and managed shell file.
-`install` is an explicit local configuration change. These commands have not been
-applied to the developer’s personal configuration during development or tests.
-Review the plan before choosing to install. Use `--provider claude` or
-`--provider codex` to install one integration.
+Put `~/.local/bin` on PATH to use `vesta`. Default installation discovers available
+providers. Use `--provider claude`, `--provider codex`, or `--provider all` to
+select explicitly; missing selections fail before integration writes. `status`
+reports provider availability, ownership, warming, and timers without changing
+configuration. Development tests use isolated configuration; personal installation
+remains an explicit action. Earlier npm-owned integrations migrate automatically.
 
 Claude uses its native user plugin registry and a self-contained local marketplace.
 Restart Claude after installation, then invoke ordinary `claude` commands. The
@@ -39,7 +32,7 @@ declaration generation may initialize the package before this immutability check
 Codex adds one owned `codex` function block to `~/.zshrc`. Open a new terminal, or
 run `source ~/.zshrc` once to activate it in the current terminal. It preserves the
 existing PATH executable, including an existing cmux wrapper; it does not replace
-a binary. This integration targets macOS zsh and Node 22.17.1+ with native
+a binary. This integration targets macOS zsh and embedded Node 22.17.1 with native
 `process.execve`; other shells/platforms have not been verified. Ordinary
 interactive `codex` calls go through the local watcher only
 for its small supported argument set. This starts an owned Unix-socket server,
@@ -60,8 +53,8 @@ The supported flag mapping does not establish every native flag combination or
 every model/provider setting. Unproved forms retain native behavior. Native
 pass-through does not add a Vesta banner to JSON or utility output.
 The exact `--yolo` alias is supported; the long bypass spelling remains native
-pass-through. An already installed shell function reads this checkout on each
-launch, so this update requires no reinstall or shell reactivation. Start a new
+pass-through. An installed shell function reads the stable current runtime path on
+each launch, so updates require no shell reactivation. Start a new
 Codex session to use it; an existing running session keeps its current owner.
 
 Warming is off by default. First add the required global marker rule in
@@ -86,21 +79,24 @@ retention and net usage savings remain unproven.
 
 The installer never edits global instruction files. The old rule matching a ping
 "asking for exactly K" does not cover the marker-only body. After updating that
-rule, existing installed Claude users must run
-`claude plugin update vesta@vesta-local --scope user` and restart Claude to load
-version 0.1.1. Start a new Codex session to read the updated checkout. The global
+rule, run `vesta update` (or `vesta --update`) and restart Claude. Updates select
+the latest stable private release, verify its digest, platform and version, and
+refresh owned integrations while preserving custom settings. A failed refresh
+attempt compensates integrations and retains the previous activation; any
+compensation failure is reported. Start a new Codex session after updating. The global
 rule does not enforce model output or remove warm turns from conversation history.
 
 ```sh
-node --experimental-strip-types experiments/setup.ts uninstall --provider all --json
+vesta uninstall
 ```
 
 Uninstall removes owned native plugin/marketplace entries and the exact owned zsh
 block. It preserves unrelated configuration and later shell edits. An edited
 managed block produces an ownership conflict instead of silently removing it.
 Externally edited Codex configuration is retained. Open a new terminal after
-uninstall; an already sourced shell function remains in that shell until restart
-or an explicit `unfunction codex`. Native plugin data is retained with
+uninstall; an already sourced shell function falls back to the native command.
+The CLI link and current activation are removed; immutable version assets and
+prior Claude package caches are retained for running owners. Native plugin data is retained with
 `--keep-data`; it may be removed separately through native plugin management.
 
 For isolated tests, `--config-dir /absolute/fixture` selects the native Claude
@@ -118,7 +114,9 @@ node --experimental-strip-types experiments/setup-live.ts claude --marker
 node --experimental-strip-types experiments/setup-live.ts codex
 node --experimental-strip-types experiments/setup-live.ts codex --yolo
 node --experimental-strip-types experiments/setup-live.ts codex --yolo-sandbox
-telos verify MARKER-001
+node --experimental-strip-types packaging/release-e2e.ts
+node --experimental-strip-types packaging/native-e2e.ts
+telos verify RELEASE-001
 ```
 
 Each run retains exact native transcripts/protocol rows, metadata, command and

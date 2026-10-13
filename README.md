@@ -8,18 +8,30 @@ verified Codex command forms. Continue using ordinary `claude` and `codex`
 commands afterward. Warming is opt-in; cache retention and usage savings remain
 unproven.
 
+The standalone v0.2.0 release supports macOS arm64 and zsh. It bundles its runtime;
+installation needs no Node, npm, Bun, or source checkout. Native Claude/Codex and
+their existing logins are prerequisites. This repository and its releases are
+private; authenticate `gh` with access to `Omnific-Tech/vesta` before downloading
+or updating.
+
 ```sh
-npm ci
-chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
-npm run setup -- plan --provider all
-npm run setup -- install --provider all
-npm run setup -- status --provider all
+gh release download v0.2.0 --repo Omnific-Tech/vesta --pattern vesta-darwin-arm64
+chmod +x vesta-darwin-arm64
+./vesta-darwin-arm64 install
+~/.local/bin/vesta status
 ```
+
+Put `~/.local/bin` on PATH to use `vesta` directly. Default installation discovers
+available native providers; `--provider claude`, `codex`, or `all` selects them
+explicitly. An explicitly selected missing provider stops installation.
 
 Before enabling warming, add the required [global instruction rule](#keep-warm-replies-minimal).
 Open a new terminal after installation. To opt in once, use
-`npm run setup -- install --provider all --warm`. To remove the integration, use
-`npm run setup -- uninstall --provider all`, then open a new terminal.
+`vesta install --warm`. Use `vesta update` (or `vesta --update`) to install the
+latest stable private release and refresh owned integrations. Installation also
+migrates earlier npm-owned setup records and preserves warming preferences and
+timers. To remove the integration and CLI link, use `vesta uninstall`, then open
+a new terminal. Immutable version assets remain available to running owners.
 
 See [one-time setup and verified native support](experiments/SETUP.md) for the
 exact flag table, configuration, ownership limits and repeatable verification.
@@ -49,10 +61,9 @@ Claude still adds its native plugin-message envelope around the literal body.
 Session and reservation IDs remain internal metadata. Vesta does not edit or
 validate your global instruction files automatically.
 
-After adding the rule, existing Claude installations need
-`claude plugin update vesta@vesta-local --scope user`, then a Claude restart, to
-load plugin version 0.1.1. The installed Codex shell function reads this checkout
-on every launch; start a new Codex session after updating the checkout.
+After adding the rule, run `vesta update` and restart Claude to load the installed
+plugin. The installed Codex shell function uses the stable current version path;
+start a new Codex session after updating. Existing sessions retain their runtime.
 
 ## Follow-up verification
 
