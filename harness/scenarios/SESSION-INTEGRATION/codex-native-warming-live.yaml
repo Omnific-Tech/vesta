@@ -1,0 +1,10 @@
+schema_version: 1
+id: codex-native-warming-live
+repo: app
+runner: command
+kind: live
+command: [node, --experimental-strip-types, experiments/codex-native-warming-e2e.ts]
+acceptance: [AC-NATIVE-OWNER, AC-NATIVE-QUEUE, AC-RESUME, AC-LIFECYCLE, AC-OWNERSHIP, AC-INSTALL, AC-FLAGS, AC-SETUP-INTEGRITY]
+timeout_ms: 420000
+expect:
+  exit_code: 0

@@ -1,6 +1,30 @@
 # Same-session integration experiment
 
-## Current containment (DISARM-001)
+## Native seamless warming (RESUME-001)
+
+Restore opt-in Codex warming with registered, trusted native lifecycle hooks and
+a native local owner selected through --no-daemon. Keep native model, directory,
+permission and resume behavior; never add --remote or overlay CODEX_HOME. Use
+durable native queue/add through a separate current-native client that never
+resumes a thread or starts a model turn. The owning native session must deliver
+exact VESTA_CACHE_KEEPALIVE and respond K in that same conversation.
+
+Bind per-launch identity, exact current thread/turn, and producer client message
+ID. Actual terminal user input is the real-activity budget source; keepalive hooks
+and completion never extend it. Navigation/composition cancels old eligibility;
+a fresh completed user reply is required after resume or thread switching.
+Unknown metrics/events, untrusted/disabled hooks, ownership conflicts and observer
+failure disable warming while preserving native usability. Never type marker
+keys into the terminal, where unsolicited native modals can misinterpret them.
+Post-native-queue-dispatch retraction remains unguaranteed. Preserve default
+input>100000, idle20min and four-hour budget, plus existing Claude behavior.
+
+Real source and packaged E2E must demonstrate nonce/K/resume/nonce/K/nonce,
+native permissions/cwd, cancellation and owned cleanup. Installation is additive,
+reversible and ownership safe. Production does not bypass native hook trust;
+personal installation and public release are outside this implementation scope.
+
+## Containment baseline (DISARM-001)
 
 The developer selected temporarily suspending Codex warming to restore native
 launch, resume and permission behavior. Codex autoload must invoke the recorded

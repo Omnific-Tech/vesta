@@ -6,6 +6,14 @@ repositories:
     path: .
 verification_inputs:
   - repo: app
+    path: experiments/codex-native-warming-e2e.ts
+  - repo: app
+    path: experiments/codex-native-acceptance.ts
+  - repo: app
+    path: experiments/codex-embedded-owner-probe.ts
+  - repo: app
+    path: experiments/native-socket-probe.ts
+  - repo: app
     path: experiments/codex-disarm-e2e.ts
   - repo: app
     path: experiments/codex-hooks-probe.ts
