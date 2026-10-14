@@ -42,7 +42,9 @@ function handle(selected: 'claude' | 'codex') {
   const options = settings.pluginConfigs?.[pluginId]?.options ?? {};
   if (selected === 'codex' && installed && state && (!shellText.includes(state.block) || state.shellFile !== shellFile)) throw new Error('Vesta shell ownership changed; refusing to adopt edited content');
   const result: any = { operation, provider: selected, configDir, pluginId: selected === 'claude' ? pluginId : undefined, installed,
-    warmEnabled: selected === 'claude' ? options.warm === true : codexConfig.warm === true,
+    warmEnabled: selected === 'claude' ? options.warm === true : false,
+    ...(selected === 'codex' ? { warmConfigured: codexConfig.warm === true, warmingSuspended: true,
+      warmingSuspendedReason: 'Codex warming is suspended to preserve native resume and permission behavior.' } : {}),
     idleMs: selected === 'claude' ? options.idle_ms ?? 3000000 : codexConfig.idleMs ?? 1200000,
     budgetMs: selected === 'claude' ? options.budget_ms ?? 14400000 : codexConfig.budgetMs ?? 14400000, threshold: 100000 };
   if (operation === 'status') return result;
@@ -89,7 +91,7 @@ function handle(selected: 'claude' | 'codex') {
     } else if (args.includes('--warm') && !codexConfig.warm) {
       const changed = { ...codexConfig, warm: true }; save(configPath, changed); save(statePath, { ...state, createdConfig: { ...state.createdConfig, warm: true } });
     }
-    result.installed = true; result.warmEnabled ||= args.includes('--warm'); result.activate = 'Open a new terminal, or source ' + quote(shellFile);
+    result.installed = true; result.warmConfigured ||= args.includes('--warm'); result.activate = 'Open a new terminal, or source ' + quote(shellFile);
   } else if (state) {
     const current = existsSync(state.shellFile) ? readFileSync(state.shellFile, 'utf8') : '';
     if (current.includes(start)) {

@@ -179,7 +179,10 @@ export function status(args: string[], root: string) {
     const options = p.provider === 'claude' ? settings.pluginConfigs?.[pluginId]?.options ?? {} : settings;
     const shell = p.provider === 'codex' && existsSync(p.shellFile) ? readFileSync(p.shellFile, 'utf8') : '';
     return { ...p, available: !!executable(p.provider), owned: !!state, installed: p.provider === 'claude' ? installedClaude(p) : !!state?.block && shell.includes(state.block),
-      warmEnabled: options.warm === true, idleMs: options.idle_ms ?? options.idleMs ?? (p.provider === 'claude' ? 3000000 : 1200000), budgetMs: options.budget_ms ?? options.budgetMs ?? 14400000 };
+      warmEnabled: p.provider === 'claude' && options.warm === true,
+      ...(p.provider === 'codex' ? { warmConfigured: options.warm === true, warmingSuspended: true,
+        warmingSuspendedReason: 'Codex warming is suspended to preserve native resume and permission behavior.' } : {}),
+      idleMs: options.idle_ms ?? options.idleMs ?? (p.provider === 'claude' ? 3000000 : 1200000), budgetMs: options.budget_ms ?? options.budgetMs ?? 14400000 };
   });
   return { version, root, installation, integrations };
 }

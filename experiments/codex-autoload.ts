@@ -1,52 +1,7 @@
-// Installed zsh function delegates only verified interactive forms here.
-import { spawn } from 'node:child_process';
-import { accessSync, constants, existsSync, readFileSync, statSync } from 'node:fs';
-import { dirname, isAbsolute, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
+// Codex warming is suspended: preserve native launch/resume and permissions.
+// Retain the reversible adapter and saved preference for a verified integration.
 const split = process.argv.indexOf('--');
 const options = process.argv.slice(2, split); const argv = process.argv.slice(split + 1);
 const native = options[options.indexOf('--native') + 1]!;
-const configPath = options[options.indexOf('--config') + 1]!;
-const takesValue = new Set(['-m', '-C', '-a', '-s']);
-let supported = process.stdin.isTTY && process.stdout.isTTY;
-for (let i = 0; i < argv.length; i++) {
-  const arg = argv[i]!;
-  if (takesValue.has(arg)) { if (!argv[++i] || argv[i]!.startsWith('-')) supported = false; }
-  else if (arg === '--no-alt-screen' || arg === '--yolo') continue;
-  else supported = false; // Positional prompts and all subcommands stay native until proved.
-}
-// Preserve Codex's own parse error instead of starting an owner for this conflict.
-if (argv.includes('--yolo') && argv.includes('-a')) supported = false;
-let config: any;
-if (supported) {
-  try {
-    config = JSON.parse(readFileSync(configPath, 'utf8'));
-    supported = !!config && typeof config === 'object' && !Array.isArray(config) && typeof config.warm === 'boolean'
-      && [config.idleMs, config.budgetMs].every(ms => Number.isSafeInteger(ms) && ms > 0 && ms <= 14400000)
-      && typeof config.statusDir === 'string' && isAbsolute(config.statusDir);
-    if (supported) {
-      let parent = config.statusDir;
-      while (!existsSync(parent)) parent = dirname(parent);
-      if (!statSync(parent).isDirectory()) supported = false;
-      else accessSync(parent, constants.W_OK);
-    }
-  } catch { supported = false; }
-}
-let testOptions: string[] = [];
-if (supported && process.env.VESTA_WATCHER_TEST_OPTIONS) {
-  const parsed = JSON.parse(process.env.VESTA_WATCHER_TEST_OPTIONS);
-  if (!Array.isArray(parsed) || !parsed.every(x => typeof x === 'string') || !parsed.includes('--probe')) throw new Error('VESTA_WATCHER_TEST_OPTIONS requires a JSON string array containing --probe');
-  if (parsed.includes('--') || parsed.includes('--native-command') || parsed.includes('--cwd')) throw new Error('Probe options cannot replace the native command or arguments');
-  testOptions = parsed;
-}
-const here = dirname(fileURLToPath(import.meta.url));
-if (!supported) process.execve(native, [native, ...argv], process.env as Record<string, string>);
-const command = supported ? process.execPath : native;
-const args = supported ? ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', join(here, 'watcher-run.ts'), 'codex', '--native-command', native,
-  ...(testOptions.length ? testOptions : ['--idle-ms', String(config.idleMs), '--budget-ms', String(config.budgetMs),
-    ...(config.warm ? ['--warm'] : []), '--artifacts', join(config.statusDir, process.pid + '-' + Date.now())]), '--', ...argv] : argv;
-const child = spawn(command, args, { stdio: 'inherit', env: process.env });
-for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(signal, () => { try { child.kill(signal); } catch {} });
-child.on('error', () => { process.exitCode = 127; });
-child.on('exit', (code, signal) => { process.exitCode = code ?? (signal === 'SIGINT' ? 130 : signal === 'SIGTERM' ? 143 : 1); });
+// No configuration parsing, added arguments, watcher processes, or artifacts.
+process.execve(native, [native, ...argv], process.env as Record<string, string>);
