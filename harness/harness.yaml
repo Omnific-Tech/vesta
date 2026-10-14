@@ -6,6 +6,12 @@ repositories:
     path: .
 verification_inputs:
   - repo: app
+    path: experiments/codex-disarm-e2e.ts
+  - repo: app
+    path: experiments/codex-hooks-probe.ts
+  - repo: app
+    path: experiments/codex-hooks-probe-handler.mjs
+  - repo: app
     path: experiments/acceptance.ts
   - repo: app
     path: experiments/context-acceptance.ts
