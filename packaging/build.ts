@@ -12,7 +12,8 @@ if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('
 const packageMeta = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const plugin = JSON.parse(readFileSync(join(root, 'experiments/vesta-claude/.claude-plugin/plugin.json'), 'utf8'));
 const catalog = JSON.parse(readFileSync(join(root, '.claude-plugin/marketplace.json'), 'utf8'));
-if (plugin.version !== packageMeta.version || catalog.plugins[0].version !== packageMeta.version) throw new Error('Checked-in version drift');
+const codexPlugin = JSON.parse(readFileSync(join(root, 'experiments/vesta-codex/.codex-plugin/plugin.json'), 'utf8'));
+if (plugin.version !== packageMeta.version || codexPlugin.version !== packageMeta.version || catalog.plugins[0].version !== packageMeta.version) throw new Error('Checked-in version drift');
 const fixture = option('--fixture-version'); const version = fixture ?? packageMeta.version;
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Stable semantic version required');
 const out = resolve(option('--out') ?? join(root, 'dist/vesta')); const receipt = resolve(option('--receipt') ?? join(root, 'dist/build-receipt.json'));
@@ -36,13 +37,13 @@ try {
   copyFileSync(join(root, 'node_modules/node-pty/LICENSE'), join(payload, 'licenses/node-pty.txt'));
   copyFileSync(join(root, 'LICENSE'), join(payload, 'licenses/Vesta.txt'));
   copyFileSync(join(root, 'NOTICE'), join(payload, 'licenses/Vesta-NOTICE.txt'));
-  const files = ['package.json', '.claude-plugin/marketplace.json', 'experiments/setup.ts', 'experiments/codex-autoload.ts', 'experiments/watcher-run.ts', 'experiments/watcher-policy.ts'];
-  for (const directory of ['experiments/vesta-claude', 'experiments/watcher-claude']) for (const entry of readdirSync(join(root, directory), { recursive: true, withFileTypes: true }).filter(entry => entry.isFile() && !entry.parentPath.includes('/types'))) files.push(join(directory, join(entry.parentPath, entry.name).slice(join(root, directory).length + 1)));
+  const files = ['package.json', '.claude-plugin/marketplace.json', 'experiments/setup.ts', 'experiments/codex-autoload.ts', 'experiments/codex-native-owner.ts', 'experiments/codex-native-state.ts', 'experiments/codex-native-ipc.ts', 'experiments/codex-native-setup.ts', 'experiments/watcher-run.ts', 'experiments/watcher-policy.ts'];
+  for (const directory of ['experiments/vesta-claude', 'experiments/vesta-codex', 'experiments/watcher-claude']) for (const entry of readdirSync(join(root, directory), { recursive: true, withFileTypes: true }).filter(entry => entry.isFile() && !entry.parentPath.includes('/types'))) files.push(join(directory, join(entry.parentPath, entry.name).slice(join(root, directory).length + 1)));
   for (const file of ['package.json', 'LICENSE', ...readdirSync(join(root, 'node_modules/node-pty/lib')).filter(file => file.endsWith('.js') && !file.endsWith('.test.js')).map(file => 'lib/' + file), 'prebuilds/darwin-arm64/pty.node', 'prebuilds/darwin-arm64/spawn-helper']) files.push('node_modules/node-pty/' + file);
   for (const file of files) { const target = join(payload, 'app', file); mkdirSync(dirname(target), { recursive: true }); copyFileSync(join(root, file), target); }
   chmodSync(join(payload, 'app/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper'), 0o755);
-  packageMeta.version = version; plugin.version = version; catalog.plugins[0].version = version;
-  for (const [file, value] of [['package.json', packageMeta], ['experiments/vesta-claude/.claude-plugin/plugin.json', plugin], ['.claude-plugin/marketplace.json', catalog]] as const) writeFileSync(join(payload, 'app', file), JSON.stringify(value, null, 2) + '\n');
+  packageMeta.version = version; plugin.version = version; codexPlugin.version = version; catalog.plugins[0].version = version;
+  for (const [file, value] of [['package.json', packageMeta], ['experiments/vesta-claude/.claude-plugin/plugin.json', plugin], ['experiments/vesta-codex/.codex-plugin/plugin.json', codexPlugin], ['.claude-plugin/marketplace.json', catalog]] as const) writeFileSync(join(payload, 'app', file), JSON.stringify(value, null, 2) + '\n');
   const assets = readdirSync(payload, { recursive: true, withFileTypes: true }).filter(entry => entry.isFile()).map(entry => { const file = join(entry.parentPath, entry.name); return { path: file.slice(payload.length + 1), sha256: hash(file) }; });
   const manifest = { schema: 1, version, platform: 'darwin-arm64', assets }; writeFileSync(join(payload, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   const payloadFile = join(root, 'cli/payload.tar.gz'); command('/usr/bin/tar', ['-czf', payloadFile, '-C', payload, ...readdirSync(payload)]);

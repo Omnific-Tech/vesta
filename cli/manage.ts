@@ -3,6 +3,7 @@ import { accessSync, constants, cpSync, existsSync, lstatSync, mkdirSync, mkdtem
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { directory, prepareVersion, readJson, saveJson, sha256, version } from './assets.ts';
+import { codexHookReadiness } from '../experiments/codex-native-ipc.ts';
 
 export type Provider = { provider: 'claude' | 'codex'; configDir: string; shellFile: string };
 export const pluginId = 'vesta@vesta-local';
@@ -172,18 +173,22 @@ function preserveClaudeCaches(root: string, selected: Provider[]) {
   } catch (error) { rmSync(directory, { recursive: true, force: true }); throw error; }
   return { retain: () => { for (const cache of caches) if (!existsSync(cache.path)) cpSync(cache.backup, cache.path, { recursive: true }); }, cleanup: () => rmSync(directory, { recursive: true, force: true }) };
 }
-export function status(args: string[], root: string) {
+export async function status(args: string[], root: string) {
   const installation = readJson(join(root, 'installation.json'));
-  const integrations = providers(args, root, 'status').map(p => {
+  const integrations = [];
+  for (const p of providers(args, root, 'status')) {
     const state = readJson(stateFile(p)); const settings = readJson(join(p.configDir, p.provider === 'claude' ? 'settings.json' : 'vesta-codex.json'), {});
     const options = p.provider === 'claude' ? settings.pluginConfigs?.[pluginId]?.options ?? {} : settings;
     const shell = p.provider === 'codex' && existsSync(p.shellFile) ? readFileSync(p.shellFile, 'utf8') : '';
-    return { ...p, available: !!executable(p.provider), owned: !!state, installed: p.provider === 'claude' ? installedClaude(p) : !!state?.block && shell.includes(state.block),
-      warmEnabled: p.provider === 'claude' && options.warm === true,
-      ...(p.provider === 'codex' ? { warmConfigured: options.warm === true, warmingSuspended: true,
-        warmingSuspendedReason: 'Codex warming is suspended to preserve native resume and permission behavior.' } : {}),
-      idleMs: options.idle_ms ?? options.idleMs ?? (p.provider === 'claude' ? 3000000 : 1200000), budgetMs: options.budget_ms ?? options.budgetMs ?? 14400000 };
-  });
+    const ready = p.provider === 'codex' && options.warm && state?.nativePluginId
+      ? await codexHookReadiness(state.native, process.cwd(), state.nativeHookCommand)
+      : { ready: false, reason: 'Codex warming needs registered native hooks and native /hooks trust review.' };
+    integrations.push({ ...p, available: !!executable(p.provider), owned: !!state, installed: p.provider === 'claude' ? installedClaude(p) : !!state?.block && shell.includes(state.block),
+      warmEnabled: p.provider === 'claude' ? options.warm === true : options.warm === true && ready.ready,
+      ...(p.provider === 'codex' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !ready.ready,
+        warmingSuspendedReason: ready.ready ? '' : ready.reason, nativePluginId: state?.nativePluginId } : {}),
+      idleMs: options.idle_ms ?? options.idleMs ?? (p.provider === 'claude' ? 3000000 : 1200000), budgetMs: options.budget_ms ?? options.budgetMs ?? 14400000 });
+  }
   return { version, root, installation, integrations };
 }
 export function install(args: string[], root: string) {

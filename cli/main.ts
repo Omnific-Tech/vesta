@@ -9,7 +9,7 @@ try {
   if (operation === '--version') console.log('vesta ' + version);
   else if (operation === 'status') {
     const root = resolve(process.env.VESTA_HOME ?? join(homedir(), '.local/share/vesta'));
-    console.log(JSON.stringify(status(args, root)));
+    console.log(JSON.stringify(await status(args, root)));
   } else if (operation === 'install' || operation === 'uninstall' || operation === 'update') {
     if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('Only macOS arm64 is supported');
     const root = installRoot(); console.log(JSON.stringify(operation === 'install' ? install(args, root) : operation === 'uninstall' ? uninstall(args, root) : update(args, root)));
