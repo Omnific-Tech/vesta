@@ -5,6 +5,7 @@ export async function nativeRequest(native: string, method: 'hooks/list' | 'thre
   const child = spawn(native, ['app-server', '--stdio'], { env: process.env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
   let buffer = ''; let failure: Error | undefined; const replies: any[] = [];
   child.on('error', error => { failure = error; });
+  child.stdin!.on('error', error => { failure = error; }); child.stdout!.on('error', error => { failure = error; });
   child.stderr!.resume();
   child.stdout!.on('data', chunk => {
     buffer += String(chunk);
@@ -37,6 +38,8 @@ export async function nativeRequest(native: string, method: 'hooks/list' | 'thre
     const deadline = Date.now() + 500;
     while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) await new Promise(done => setTimeout(done, 25));
     if (child.pid && child.exitCode === null && child.signalCode === null) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
+    const killedUntil = Date.now() + 1000;
+    while (child.exitCode === null && child.signalCode === null && Date.now() < killedUntil) await new Promise(done => setTimeout(done, 25));
   }
 }
 export async function codexHookReadiness(native: string, cwd: string) {
