@@ -11,7 +11,9 @@ import { NativeLease, nativeTurn } from './codex-native-state.ts';
 
 const split = process.argv.indexOf('--'); const options = process.argv.slice(2, split); const originalArgv = process.argv.slice(split + 1);
 const value = (flag: string) => { const index = options.indexOf(flag); return index < 0 ? undefined : options[index + 1]; };
-const native = value('--native')!; const config = JSON.parse(readFileSync(value('--config')!, 'utf8'));
+const native = value('--native')!;
+const passthrough = () => process.execve(native, [native, ...originalArgv], process.env as Record<string, string>);
+const config = (() => { try { return JSON.parse(readFileSync(value('--config')!, 'utf8')); } catch { passthrough(); } })();
 const probe = options.includes('--probe'); const capture = probe && options.includes('--capture-native');
 if (!probe && options.some(arg => ['--probe-threshold', '--idle-ms', '--budget-ms', '--max-warms', '--capture-native'].includes(arg))) throw new Error('native probe overrides require --probe');
 const settings = { idleMs: probe && value('--idle-ms') ? Number(value('--idle-ms')) : config.idleMs,
@@ -21,9 +23,10 @@ const maxWarms = probe && value('--max-warms') ? Number(value('--max-warms')) : 
 if (!(maxWarms === Infinity || Number.isSafeInteger(maxWarms) && maxWarms >= 0 && maxWarms <= 3)) throw new Error('invalid native probe warm limit');
 let watcher = new Watcher('codex', settings, probe ? 'probe' : 'normal');
 const ownerId = randomUUID(); const home = resolve(process.env.CODEX_HOME ?? join(homedir(), '.codex'));
-const artifacts = resolve(value('--artifacts') ?? join(config.statusDir, process.pid + '-' + ownerId)); mkdirSync(artifacts, { recursive: true, mode: 0o700 });
-const channel = join(artifacts, '.native-events.jsonl'); writeFileSync(channel, '', { mode: 0o600 });
-const lease = new NativeLease(home, ownerId);
+const artifacts = resolve(value('--artifacts') ?? join(config.statusDir, process.pid + '-' + ownerId)); const channel = join(artifacts, '.native-events.jsonl');
+let lease: NativeLease;
+try { mkdirSync(artifacts, { recursive: true, mode: 0o700 }); writeFileSync(channel, '', { mode: 0o600 }); lease = new NativeLease(home, ownerId); }
+catch { passthrough(); }
 let inputSerial = 0; let submittedSerial = -1; let userAt: number | null = null; let submitArm: { serial: number; at: number; consumed: boolean } | undefined;
 let clean = false; let activeSession = ''; let activeTurn = ''; let epoch = 0; let warms = 0; let stopped = false; let observerFailed = false;
 let fileOffset = 0; let partial = '';
@@ -35,10 +38,15 @@ type Pending = { sessionId: string; clientId: string; reservationId: string; dis
 const pending = new Map<string, Pending>(); const warmTurns = new Map<string, Pending>();
 const trace = (kind: string, extra: any = {}) => {
   const row = { at: Date.now(), kind, ownerId, inputSerial, submittedSerial, clean, activeSession, activeTurn, ...extra };
-  if (capture) appendFileSync(join(artifacts, 'codex-native-trace.jsonl'), JSON.stringify(row) + '\n');
-  else writeFileSync(join(artifacts, 'codex-native-status.json'), JSON.stringify({ ownerId, sessionId: activeSession, warming: !observerFailed && !stopped, kind, state: watcher.state }));
+  try {
+    if (capture) appendFileSync(join(artifacts, 'codex-native-trace.jsonl'), JSON.stringify(row) + '\n');
+    else writeFileSync(join(artifacts, 'codex-native-status.json'), JSON.stringify({ ownerId, sessionId: activeSession, warming: !observerFailed && !stopped, kind, state: watcher.state }));
+  } catch { observerFailed = true; clean = false; }
 };
-const event = (row: any) => { const result = watcher.event({ at: Date.now(), ...row }); trace('policy', { row: result }); return result; };
+const event = (row: any) => {
+  try { const result = watcher.event({ at: Date.now(), ...row }); trace('policy', { row: result }); return result; }
+  catch { observerFailed = true; clean = false; return { action: 'skip', state: watcher.state }; }
+};
 const explicitResume = originalArgv.includes('resume') ? originalArgv.find(arg => /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(arg)) : undefined;
 if (explicitResume && !lease.acquire(explicitResume)) {
   trace('lease-conflict');
@@ -162,4 +170,4 @@ terminal.onExit(exit => { void (async () => {
   if (process.stdin.isTTY) process.stdin.setRawMode(!!originalRaw); process.stdin.pause(); abort.abort(); await Promise.allSettled([...writers]); lease.close(); rmSync(channel, { force: true });
   writeFileSync(join(artifacts, 'codex-native-runtime.json'), JSON.stringify({ managed: true, ownerId, originalArgv, nativeArgv, nativePid: terminal.pid,
     warmEnabled: !observerFailed, mode: probe ? 'probe' : 'normal', defaults: watcher.defaults, warms, cleanup: [{ pid: terminal.pid, owned: true, exited: true }, ...writerCleanup] }, null, 2)); process.exitCode = exit.exitCode;
-})().catch(() => { process.exitCode = exit.exitCode || 1; }); });
+})().catch(() => { process.exitCode = exit.exitCode; }); });
