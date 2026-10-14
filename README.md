@@ -1,11 +1,21 @@
 # Vesta
 
-Opt-in keepalive for idle Claude Code and Codex sessions.
+Opt-in keepalive for idle Claude Code sessions.
 
 Vesta watches an open session and submits `VESTA_CACHE_KEEPALIVE` when its idle
-timer expires. Continue using ordinary `claude` and `codex` commands after setup.
+timer expires. Continue using ordinary `claude` commands after setup.
 Cache retention and net usage savings are **unverified**. Each keepalive is a
 real model turn and consumes usage.
+
+**Current checkout:** Codex warming is temporarily suspended to preserve native
+launch, permissions, and resume behavior. Ordinary `codex` commands run unchanged;
+stored warming preferences are retained. Source-checkout integrations pick up this
+change on their next launch. Exit an already wrapped Codex session and relaunch
+to recover native resume behavior. Claude warming continues.
+
+The published v0.2.1 downloads below retain the earlier Codex wrapper. This
+containment change has not been released; downloading that version does not apply
+it. Safe warming across resumed Codex conversations remains deferred.
 
 ## Requirements
 
@@ -63,6 +73,8 @@ privileges.
 Installation discovers the available providers. Use `--provider claude` or
 `--provider codex` to select one explicitly. Omit `--warm` to install without
 enabling warming on a new installation; refreshes preserve existing preferences.
+In this checkout, `--warm` enables Claude warming and records the Codex preference
+without activating Codex warming.
 
 Open a new terminal and start new Claude/Codex sessions after installation.
 Put `~/.local/bin` on your PATH to use `vesta` directly:
@@ -77,7 +89,7 @@ Add that line to your shell configuration if the directory is not already on PAT
 
 | Command | Purpose |
 | --- | --- |
-| `vesta install --warm` | Install or refresh integrations and enable warming |
+| `vesta install --warm` | Install or refresh integrations and configure warming |
 | `vesta status` | Inspect installation and provider setup |
 | `vesta update` | Download the latest stable release and refresh owned integrations |
 | `vesta uninstall` | Remove managed integrations and the CLI link |
@@ -95,9 +107,10 @@ preserved unless you explicitly enable them with `--warm`.
 
 ## How it works
 
-Claude Code loads a native Vesta plugin. Codex uses a managed zsh launch function
-and an owned app-server connection for supported interactive launches. Each
-watcher belongs to its open session; Vesta does not reopen ended conversations.
+Claude Code loads a native Vesta plugin. Its watcher belongs to the open session;
+Vesta does not reopen ended conversations. This checkout retains Codex's reversible
+managed zsh function, which executes the recorded native command directly.
+It adds no remote endpoint or watcher processes.
 
 Warming starts only after a fresh model reply reports more than 100,000 input
 tokens in the current context. Cached input counts once. Output tokens and
@@ -108,24 +121,23 @@ compacting a session requires a fresh reply before warming can resume.
 | --- | --- |
 | Input threshold | Strictly greater than 100,000 tokens |
 | Claude idle interval | 50 minutes |
-| Codex idle interval | 20 minutes |
+| Codex saved idle interval (warming suspended) | 20 minutes |
 | Maximum time since real user activity | 4 hours |
 
 Busy, stale and ended sessions are skipped. Keepalives do not extend the real
 user activity budget. User activity can cancel a pending ping before dispatch;
 once submitted to a native queue, retraction is not guaranteed.
 
-Supported Codex launches include bare `codex`, `--yolo`, and verified model,
-directory, approval, sandbox and alternate-screen options. Combining `--yolo`
-with an explicit approval policy preserves Codex's native error. Utilities,
-resume/fork, profiles, worktrees, positional prompts, remote connections and
-unverified flags run native Codex without warming. See the
-[setup reference](experiments/SETUP.md) for the exact supported forms and settings.
+All Codex forms run the native command without warming, including `--yolo`, CLI
+resume, `/resume`, model/directory/permission options, and utilities. Native
+argument conflicts retain their error and exit behavior. Status reports Codex
+`warmEnabled: false`, the retained `warmConfigured` preference, and
+`warmingSuspended` with its reason. See the [setup reference](experiments/SETUP.md).
 
 ## Troubleshooting
 
 If `vesta` is not found, use `~/.local/bin/vesta` and check your PATH. If no ping
-appears, inspect `vesta status`, open a new supported session, and send a normal
+appears in Claude, inspect `vesta status`, open a new session, and send a normal
 message. The next reply must meet the input threshold before the idle timer can
 produce a keepalive. Claude's `vesta-status` command also reports watcher state.
 
