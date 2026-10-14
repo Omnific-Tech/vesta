@@ -1,21 +1,23 @@
 # Vesta
 
-Opt-in keepalive for idle Claude Code sessions.
+Opt-in keepalive for idle Claude Code and Codex sessions.
 
 Vesta watches an open session and submits `VESTA_CACHE_KEEPALIVE` when its idle
-timer expires. Continue using ordinary `claude` commands after setup.
+timer expires. Continue using ordinary `claude` and `codex` commands after setup.
 Cache retention and net usage savings are **unverified**. Each keepalive is a
 real model turn and consumes usage.
 
-**Current checkout:** Codex warming is temporarily suspended to preserve native
-launch, permissions, and resume behavior. Ordinary `codex` commands run unchanged;
-stored warming preferences are retained. Source-checkout integrations pick up this
-change on their next launch. Exit an already wrapped Codex session and relaunch
-to recover native resume behavior. Claude warming continues.
+**Current checkout:** Codex warming uses a native local owner and registered
+lifecycle hooks. Install with `--warm`, then review and trust only Vesta's entries
+in native `/hooks`. Until those hooks are ready, ordinary `codex` calls remain
+native and saved warming preferences stay inactive. Existing source installs need
+this registration step before warming resumes. Exit an older wrapped Codex session
+and relaunch; running sessions retain their existing integration. Claude is unchanged.
 
 The published v0.2.1 downloads below retain the earlier Codex wrapper. This
-containment change has not been released; downloading that version does not apply
-it. Safe warming across resumed Codex conversations remains deferred.
+native owner change has not been released; downloading that version does not
+apply it. The current source and development build support CLI resume and `/resume`
+with a fresh completed reply before warming.
 
 ## Requirements
 
@@ -73,8 +75,12 @@ privileges.
 Installation discovers the available providers. Use `--provider claude` or
 `--provider codex` to select one explicitly. Omit `--warm` to install without
 enabling warming on a new installation; refreshes preserve existing preferences.
-In this checkout, `--warm` enables Claude warming and records the Codex preference
-without activating Codex warming.
+In this checkout, `--warm` enables Claude warming and registers Codex's native
+hooks. Codex warming becomes ready after native hook trust review. Source setup:
+
+```sh
+node --experimental-strip-types experiments/setup.ts install --provider codex --warm
+```
 
 Open a new terminal and start new Claude/Codex sessions after installation.
 Put `~/.local/bin` on your PATH to use `vesta` directly:
@@ -108,9 +114,12 @@ preserved unless you explicitly enable them with `--warm`.
 ## How it works
 
 Claude Code loads a native Vesta plugin. Its watcher belongs to the open session;
-Vesta does not reopen ended conversations. This checkout retains Codex's reversible
-managed zsh function, which executes the recorded native command directly.
-It adds no remote endpoint or watcher processes.
+Vesta does not reopen ended conversations. Codex's reversible zsh function uses
+the recorded native executable. When warming is configured and trusted hooks are
+ready, it adds `--no-daemon` and observes that local owner's native lifecycle.
+It preserves model, directory and permission arguments and adds no remote endpoint.
+Ordinary shared-daemon agent listing and remote attachment do not manage these
+local owners.
 
 Warming starts only after a fresh model reply reports more than 100,000 input
 tokens in the current context. Cached input counts once. Output tokens and
@@ -121,25 +130,31 @@ compacting a session requires a fresh reply before warming can resume.
 | --- | --- |
 | Input threshold | Strictly greater than 100,000 tokens |
 | Claude idle interval | 50 minutes |
-| Codex saved idle interval (warming suspended) | 20 minutes |
+| Codex idle interval | 20 minutes |
 | Maximum time since real user activity | 4 hours |
 
 Busy, stale and ended sessions are skipped. Keepalives do not extend the real
 user activity budget. User activity can cancel a pending ping before dispatch;
 once submitted to a native queue, retraction is not guaranteed.
 
-All Codex forms run the native command without warming, including `--yolo`, CLI
-resume, `/resume`, model/directory/permission options, and utilities. Native
-argument conflicts retain their error and exit behavior. Status reports Codex
-`warmEnabled: false`, the retained `warmConfigured` preference, and
-`warmingSuspended` with its reason. See the [setup reference](experiments/SETUP.md).
+Codex warming supports bare interactive launches, `--yolo`, the short model,
+directory, approval and sandbox flags, and CLI resume by UUID, `--last`, or picker.
+`/new` and `/resume` cancel previous eligibility; the next real reply must provide
+fresh input usage. Keepalives enter the exact thread's native durable queue and
+receive `K` in that conversation. Vesta never types marker keys into the terminal.
+Utilities, noninteractive calls and unverified options remain native pass-through.
+Status separates `warmConfigured` from effective `warmEnabled` and reports why
+warming is suspended. See the [setup reference](experiments/SETUP.md).
 
 ## Troubleshooting
 
 If `vesta` is not found, use `~/.local/bin/vesta` and check your PATH. If no ping
-appears in Claude, inspect `vesta status`, open a new session, and send a normal
+appears, inspect `vesta status`, open a new supported session, and send a normal
 message. The next reply must meet the input threshold before the idle timer can
 produce a keepalive. Claude's `vesta-status` command also reports watcher state.
+For Codex, review Vesta's native `/hooks` entries if status reports missing trust.
+Conflicting managed owners of the same saved thread skip warming. Unmanaged
+simultaneous writers or external queue producers for that same thread are unsupported.
 
 Keepalives and replies remain in the conversation. Models may add text or use
 tools despite the reply rule. Cache savings, Claude subagent isolation, broader

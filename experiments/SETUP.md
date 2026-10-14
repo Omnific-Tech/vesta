@@ -1,10 +1,10 @@
 # One-time native CLI setup
 
-Current checkout containment suspends Codex warming and restores native Codex
-launch/resume semantics. Claude warming is unchanged. Published v0.2.1 binaries
-still contain the previous Codex wrapper; no new release accompanies this change.
-An integration pointing at this source checkout uses containment on its next
-invocation. Exit an already wrapped Codex session and relaunch for native resume.
+Current checkout Codex warming uses native local ownership, registered hooks and
+the native durable queue. Claude is unchanged. Published v0.2.1 binaries retain
+the previous remote wrapper; no new release accompanies this change. Existing
+source integrations preserve native pass-through until installed native hooks are
+registered and reviewed. Exit an older wrapped session and relaunch after setup.
 
 Use the standalone macOS arm64 release, existing subscription logins, and installed
 native Claude/Codex executables. Vesta embeds pinned Node 22.17.1 and native PTY
@@ -39,34 +39,41 @@ Codex adds one owned `codex` function block to `~/.zshrc`. Open a new terminal, 
 run `source ~/.zshrc` once to activate it in the current terminal. It preserves the
 existing PATH executable, including an existing cmux wrapper; it does not replace
 a binary. This integration targets macOS zsh and embedded Node 22.17.1 with native
-`process.execve`; other shells/platforms have not been verified. All calls execute
-the recorded native command with original arguments and environment. The adapter
-does not read watcher configuration, start an app-server or observer, add
-`--remote`, or create session artifacts. Native Codex selects its own transport,
-permissions, and resumed conversation.
+`process.execve`; other shells/platforms have not been verified. Warming off,
+unsupported arguments, missing registration or untrusted hooks execute the native
+command directly. Ready warming uses that native TUI with original arguments plus
+`--no-daemon`. Its trusted hooks inherit invocation-local ownership metadata;
+terminal input cancels old eligibility immediately. Permissions, model selection,
+native history and resume remain native. No `--remote` or CODEX_HOME overlay is
+added. Local owners are outside ordinary shared-daemon agent listing and remote
+attachment.
 
 | Native Codex form | Behavior |
 | --- | --- |
-| Bare interactive launch, `--yolo`, model/directory/approval/sandbox and alternate-screen flags | Existing native command unchanged; Codex warming suspended |
+| Bare interactive launch, `--yolo`, `-m`, `-C`, `-a`, `-s`, `--no-alt-screen` | Ready opt-in warming uses native local ownership; original option values remain native |
 | `--yolo` combined with `-a` | Existing native command rejects the conflicting approval flag, with unchanged error/exit behavior |
 | `exec`, `review`, utilities, or non-TTY stdin/stdout | Existing native command, unchanged argv/stdin/stdout/stderr/cwd/exit; no warming |
-| CLI resume UUID/`--last`/picker, `/resume`, `/new`, prompts, profiles, worktrees, explicit remote, `--no-daemon`, config overrides, and unknown flags | Existing native behavior; no Vesta warming |
+| CLI resume UUID/`--last`/picker, `/resume`, `/new` | Native selection and permissions; a fresh real reply is required before warming |
+| Positional prompts, profiles, worktrees, explicit remote, explicit `--no-daemon`, config overrides, long value aliases and unknown flags | Existing native command directly; no warming |
 
 Native pass-through does not add a Vesta banner to JSON or utility output. An
 installed shell function reads its runtime path on each launch. Source-checkout
-installs therefore pick up containment on their next invocation; an existing
-running session keeps its current owner until it exits.
+installs therefore pick up code changes on their next invocation; an existing
+running session keeps its current owner until it exits. Registration and trust
+remain separate explicit setup steps.
 
 Warming is off by default. First add the required global marker rule in
 [reply rule](../README.md#1-add-the-reply-rule), then opt in
 by repeating the explicit installation with
 `--warm`. Claude can also configure `warm` through its native
 `claude plugin configure vesta@vesta-local` flow. Codex configuration is in
-`~/.config/vesta/vesta-codex.json`. Its `warm` preference remains stored, including
-when installing with `--warm`, but is inactive. Source setup and a binary built
-from this checkout report `warmEnabled: false`, `warmConfigured` separately,
-`warmingSuspended: true`, and `warmingSuspendedReason`. Status is read-only.
-Ordinary Codex launches create no Vesta metadata status directory.
+`~/.config/vesta/vesta-codex.json`; native Codex registration uses CODEX_HOME or
+`~/.codex`. Installation preserves unrelated hooks and requires review of only
+Vesta's native `/hooks` entries; it never bypasses global hook trust. Status reports
+`warmConfigured` separately from effective `warmEnabled`, plus
+`warmingSuspendedReason` when native hooks are unavailable, disabled or untrusted.
+Native registration/asset ownership is recorded independently of shell ownership.
+Retained runtime/hook assets keep running owners valid through native cache removal.
 
 Defaults remain Claude 50 minutes idle, Codex 20 minutes idle, and four hours
 since actual user activity. Only fresh native last-response input strictly above
@@ -78,7 +85,19 @@ dispatch is not guaranteed. The submitted body is exactly
 its native plugin-message envelope. The required global instruction requests
 only uppercase `K` and no tools, questions or other work; it does not guarantee
 tool restraint in an unrestricted session. Cache
-retention and net usage savings remain unproven.
+retention and net usage savings remain unproven. Codex submits through a transient
+current-native stdio client that only initializes and adds a durable queued
+message; it never resumes or starts the conversation. Native local queue polling
+delivers it, typically within ten seconds. The exact client message ID binds the
+warm turn to its physical owner. Pre-write cancellation checks run again after
+client initialization. A draft entered after queue commitment stays a draft and
+prevents future eligibility until another real submitted reply.
+
+Known managed owners of the same thread skip warming through metadata leases.
+Unknown/stale ownership, incomplete rollout measurements and observer failures
+skip safely while the native TUI remains usable. Unmanaged concurrent same-thread
+writers and unrelated external queue producers are unsupported. A leftover unknown
+claim file also skips warming; Vesta does not steal it from another process.
 
 The installer never edits global instruction files. The old rule matching a ping
 "asking for exactly K" does not cover the marker-only body. After updating that
@@ -96,7 +115,8 @@ vesta uninstall
 Uninstall removes owned native plugin/marketplace entries and the exact owned zsh
 block. It preserves unrelated configuration and later shell edits. An edited
 managed block produces an ownership conflict instead of silently removing it.
-Externally edited Codex configuration is retained. Open a new terminal after
+Externally edited Codex configuration is retained. Native hook trust preferences
+and immutable Vesta Codex assets remain for running owners. Open a new terminal after
 uninstall; an already sourced shell function falls back to the native command.
 Removing all providers removes the CLI link and current activation. Removing
 one selected provider retains other integrations and their activation.
@@ -118,10 +138,12 @@ node --experimental-strip-types experiments/setup-forwarding-e2e.ts
 node --experimental-strip-types experiments/setup-live.ts claude
 node --experimental-strip-types experiments/setup-live.ts claude --marker
 node --experimental-strip-types experiments/setup-tty-forwarding-e2e.ts
-node --experimental-strip-types experiments/codex-disarm-e2e.ts
+node --experimental-strip-types experiments/codex-native-warming-e2e.ts
+node --experimental-strip-types experiments/codex-native-warming-e2e.ts --cli-resume
+node --experimental-strip-types experiments/codex-native-warming-e2e.ts --packaged
 node --experimental-strip-types packaging/release-e2e.ts
 node --experimental-strip-types packaging/public-e2e.ts
-telos verify DISARM-001
+telos verify-all RESUME-001
 ```
 
 Each run retains exact native transcripts/protocol rows, metadata, command and
@@ -130,11 +152,11 @@ artifact directory. The installed Claude fixture uses the normal native
 `--ax-screen-reader` UI flag to capture complete text instead of partial fullscreen
 VT repaint fragments. Its final repeatable proof targets that native renderer;
 it uses the installed plugin registry and no separate Claude launcher or plugin
-directory flag. Earlier Codex warming fixtures and the explicit experimental
-`watcher-run.ts codex` launcher are retained as research, not the ordinary installed
-integration or current containment verification. The optional
-`codex-hooks-probe.ts` investigates native registered-hook ownership in an isolated
-home; it has not established safe warming across resumed conversations.
+directory flag. Earlier remote Codex fixtures and `watcher-run.ts codex` remain
+historical research. Current native source and packaged E2E require actual timed
+nonce/K/resume/K/nonce responses, native queue client IDs, post-dispatch draft
+protection, managed-owner collision skipping, dry latest/picker/cross-directory
+resume identities, sibling-server liveness and personal-file integrity.
 Probe timings/thresholds do not change installation defaults.
 The installed Claude marker proof retains the strict production threshold with
 genuine native input above 100,000 tokens and a configured ten-second idle
