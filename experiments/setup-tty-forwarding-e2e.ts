@@ -1,4 +1,4 @@
-// Native PTY E2E: unsupported interactive calls must reach the existing executable unchanged.
+// Native PTY E2E: containment forwards every Codex launch unchanged.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -18,7 +18,7 @@ const native = join(bin, 'codex'); copyFileSync(join(here, 'setup-native-fixture
 const shellFile = join(fixture, 'zshrc'); writeFileSync(shellFile, '# isolated existing user shell\n');
 const configDir = join(fixture, 'vesta-config');
 const env: Record<string, string> = { ...process.env as Record<string, string>, PATH: bin + ':' + process.env.PATH, TERM: 'xterm-256color', VESTA_FIXTURE_EXIT: '37',
-  // Unsupported calls must not parse probe configuration or create a managed owner.
+  // Contained calls must not parse probe configuration or create a managed owner.
   VESTA_WATCHER_TEST_OPTIONS: 'invalid JSON must be ignored for native pass-through' };
 const input = 'native stdin "quotes" $() `literal`\n';
 const commands: any[] = []; const cases: string[] = []; const nativeConflicts: string[] = []; const cleanup: any[] = [];
@@ -46,6 +46,11 @@ async function run(name: string, command: string, argv: string[]) {
 try {
   setup('install');
   for (const [name, argv] of [
+    ['interactive-bare', []], ['interactive-yolo', ['--yolo']],
+    ['interactive-model', ['-m', 'native-model']], ['interactive-cwd', ['-C', fixture]],
+    ['interactive-approval', ['-a', 'never']], ['interactive-sandbox', ['-s', 'read-only']],
+    ['interactive-combined', ['-m', 'native-model', '-C', fixture, '-a', 'on-request', '-s', 'workspace-write', '--no-alt-screen']],
+    ['interactive-yolo-sandbox', ['--yolo', '-s', 'read-only', '--no-alt-screen']],
     ['exec-json', ['exec', '--json', 'literal prompt']], ['review', ['review', '--uncommitted']],
     ['help', ['--help']], ['version', ['--version']], ['profile', ['-p', 'custom']],
     ['resume', ['resume', '--last']], ['fork', ['fork', '--last']], ['worktree', ['--worktree']],
@@ -68,7 +73,7 @@ try {
     assert.equal(actual, baseline, name + ' merged PTY output/echo/stderr unchanged');
     const match = actual.match(/\{"argv":.*\}/); assert.ok(match, 'native fixture raw JSON'); const observed = JSON.parse(match[0]);
     assert.deepEqual(observed.argv, argv); assert.equal(observed.cwd, fixture); assert.equal(observed.stdin, Buffer.from(input).toString('base64'));
-    assert.ok(!existsSync(join(configDir, 'sessions')), 'unsupported interactive call creates no watcher artifacts');
+    assert.ok(!existsSync(join(configDir, 'sessions')), 'contained interactive call creates no watcher artifacts');
     cases.push(name);
   }
   setup('uninstall');
@@ -105,6 +110,6 @@ finally {
   rmSync(fixture, { recursive: true, force: true });
 }
 if (failure) throw new Error(`${failure}; evidence: ${artifacts}`);
-assert.equal(cases.length, 25); assert.ok(cleanup.every(child => child.exited));
+assert.equal(cases.length, 33); assert.ok(cleanup.every(child => child.exited));
 assert.equal(nativeConflicts.length, 2);
 console.log(JSON.stringify({ artifacts, cases }));

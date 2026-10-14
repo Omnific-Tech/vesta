@@ -1,5 +1,16 @@
 # Same-session integration experiment
 
+## Current containment (DISARM-001)
+
+The developer selected temporarily suspending Codex warming to restore native
+launch, resume and permission behavior. Codex autoload must invoke the recorded
+native command unchanged, even when the stored warming preference is enabled.
+Status must distinguish that preference from effective suspended warming.
+Claude warming remains enabled according to its existing configuration. Existing
+wrapped Codex terminals require restart; do not alter their live processes.
+Seamless warming through native resumed conversations remains deferred under
+RESUME-001 until exact active-owner attachment and detachment are demonstrated.
+
 The developer authorized TypeScript experiments before choosing Vesta's product
 architecture. The original `../init_spec.md` is preserved as an initial proposal;
 its Go daemon, global installation and second-process resume approach are not the

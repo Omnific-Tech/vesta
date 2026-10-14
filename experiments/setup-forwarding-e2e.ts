@@ -36,6 +36,7 @@ try {
   setup('install'); const firstShell = readFileSync(shellFile, 'utf8'); setup('install');
   assert.equal(readFileSync(shellFile, 'utf8'), firstShell, 'managed block installed once');
   for (const [name, argv] of [
+    ['non-tty-bare', []], ['non-tty-yolo-bare', ['--yolo']],
     ['exec-json', ['exec', '--json', '-C', 'dir with spaces', 'prompt with $() `literal`']],
     ['review', ['review', '--uncommitted']], ['utility-help', ['--help']], ['utility-version', ['--version']],
     ['resume', ['resume', '--last']], ['fork', ['fork', '--last']], ['profile', ['-p', 'custom']],
@@ -54,6 +55,7 @@ try {
     assert.deepEqual(actual.stderr, baseline.stderr, name + ' stderr/no banner');
     const observed = JSON.parse(actual.stdout!.toString());
     assert.deepEqual(observed.argv, argv); assert.equal(observed.stdin, input.toString('base64')); assert.equal(observed.cwd, fixture);
+    assert.ok(!existsSync(join(fixture, 'vesta-config/sessions')), 'contained call creates no watcher artifacts');
     cases.push(name);
   }
   writeFileSync(shellFile, readFileSync(shellFile, 'utf8') + '# user edit after setup\n');
@@ -66,5 +68,5 @@ finally {
   rmSync(fixture, { recursive: true, force: true });
 }
 if (failure) throw new Error(`${failure}; evidence: ${artifacts}`);
-assert.equal(cases.length, 16);
+assert.equal(cases.length, 18);
 console.log(JSON.stringify({ artifacts, cases }));
