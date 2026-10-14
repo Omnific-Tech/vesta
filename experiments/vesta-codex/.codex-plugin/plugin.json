@@ -1,0 +1,6 @@
+{
+  "name": "vesta",
+  "version": "0.2.1",
+  "description": "Bounded native local-owner cache warming",
+  "hooks": "./hooks/hooks.json"
+}

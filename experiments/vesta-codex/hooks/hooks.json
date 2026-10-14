@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [],
+    "SessionEnd": [],
+    "UserPromptSubmit": [],
+    "Stop": [],
+    "Interrupt": [],
+    "PostCompact": []
+  }
+}
