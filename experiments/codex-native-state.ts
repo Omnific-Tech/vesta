@@ -10,20 +10,31 @@ export class NativeLease {
   alive(row: any) { return Number.isSafeInteger(row?.pid) && row.pid > 0 && typeof row.birth === 'string' && row.birth.length > 0 && birth(row.pid) === row.birth; }
   acquire(threadId: string) {
     if (!uuid.test(threadId)) return false;
-    const path = join(this.directory, threadId + '.json');
+    const path = join(this.directory, threadId + '.json'); const claim = join(this.directory, threadId + '.claim');
+    const peer = () => { writeFileSync(join(this.directory, threadId + '.' + this.owner.ownerId + '.peer'), JSON.stringify({ ...this.owner, threadId }), { mode: 0o600 }); return false; };
+    let claimFd: number | undefined;
     try {
+      if (existsSync(path)) { const row = JSON.parse(readFileSync(path, 'utf8')); if (row.ownerId === this.owner.ownerId && row.pid === process.pid) return true; }
+      try { claimFd = openSync(claim, 'wx', 0o600); writeFileSync(claimFd, JSON.stringify(this.owner)); }
+      catch { return peer(); } // A crashed/unknown claim stays fail-closed rather than stealing another holder.
       if (existsSync(path)) {
         const row = JSON.parse(readFileSync(path, 'utf8'));
         if (row.ownerId === this.owner.ownerId && row.pid === process.pid) return true;
         if (this.alive(row)) {
-          writeFileSync(join(this.directory, threadId + '.' + this.owner.ownerId + '.peer'), JSON.stringify({ ...this.owner, threadId }), { mode: 0o600 }); return false;
+          return peer();
         }
         if (!row.ownerId || !row.birth || !Number.isSafeInteger(row.pid)) return false;
         rmSync(path);
       }
       const fd = openSync(path, 'wx', 0o600); try { writeFileSync(fd, JSON.stringify({ ...this.owner, threadId })); } finally { closeSync(fd); }
       this.held.add(threadId); return true;
-    } catch { return false; }
+    } catch { try { return peer(); } catch { return false; } }
+    finally {
+      if (claimFd !== undefined) {
+        closeSync(claimFd);
+        try { const row = JSON.parse(readFileSync(claim, 'utf8')); if (row.ownerId === this.owner.ownerId && row.pid === process.pid) rmSync(claim); } catch {}
+      }
+    }
   }
   conflict(threadId: string) {
     try {

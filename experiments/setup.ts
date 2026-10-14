@@ -4,6 +4,8 @@ import { accessSync, constants, existsSync, mkdirSync, readFileSync, unlinkSync,
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { codexHookReadiness } from './codex-native-ipc.ts';
+import { codexRegistration, installNativeCodex, uninstallNativeCodex } from './codex-native-setup.ts';
 
 const args = process.argv.slice(2); const operation = args[0];
 const value = (flag: string) => { const i = args.indexOf(flag); if (i < 0) return undefined; if (!args[i + 1] || args[i + 1]!.startsWith('--')) throw new Error('Missing value: ' + flag); return args[i + 1]!; };
@@ -30,7 +32,7 @@ const removeBlock = (text: string) => {
   const to = text.indexOf(end, from); if (to < 0 || text.indexOf(start, from + start.length) >= 0) throw new Error('Conflicting/incomplete Vesta shell block; repair it before setup');
   return text.slice(0, from) + text.slice(to + end.length + (text[to + end.length] === '\n' ? 1 : 0));
 };
-function handle(selected: 'claude' | 'codex') {
+async function handle(selected: 'claude' | 'codex') {
   const configDir = value('--config-dir') ?? (selected === 'claude' ? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude') : join(homedir(), '.config/vesta'));
   const statePath = join(configDir, '.vesta-setup-' + selected + '.json'); const state = read(statePath, null);
   const settingsPath = join(configDir, 'settings.json'); const settings = selected === 'claude' ? read(settingsPath) : {};
@@ -40,11 +42,14 @@ function handle(selected: 'claude' | 'codex') {
   const installed = selected === 'claude' ? !!registry : shellText.includes(start);
   const configPath = join(configDir, 'vesta-codex.json'); const codexConfig = selected === 'codex' ? read(configPath) : {};
   const options = settings.pluginConfigs?.[pluginId]?.options ?? {};
+  const readiness = selected === 'codex' && state?.nativePluginId && codexConfig.warm
+    ? await codexHookReadiness(state.native, process.cwd(), state.nativeHookCommand)
+    : { ready: false, reason: 'Codex warming needs the registered native Vesta hooks and native /hooks trust review.' };
   if (selected === 'codex' && installed && state && (!shellText.includes(state.block) || state.shellFile !== shellFile)) throw new Error('Vesta shell ownership changed; refusing to adopt edited content');
   const result: any = { operation, provider: selected, configDir, pluginId: selected === 'claude' ? pluginId : undefined, installed,
-    warmEnabled: selected === 'claude' ? options.warm === true : false,
-    ...(selected === 'codex' ? { warmConfigured: codexConfig.warm === true, warmingSuspended: true,
-      warmingSuspendedReason: 'Codex warming is suspended to preserve native resume and permission behavior.' } : {}),
+    warmEnabled: selected === 'claude' ? options.warm === true : codexConfig.warm === true && readiness.ready,
+    ...(selected === 'codex' ? { warmConfigured: codexConfig.warm === true, warmingSuspended: codexConfig.warm === true && !readiness.ready,
+      warmingSuspendedReason: readiness.ready ? '' : readiness.reason, nativePluginId: state?.nativePluginId } : {}),
     idleMs: selected === 'claude' ? options.idle_ms ?? 3000000 : codexConfig.idleMs ?? 1200000,
     budgetMs: selected === 'claude' ? options.budget_ms ?? 14400000 : codexConfig.budgetMs ?? 14400000, threshold: 100000 };
   if (operation === 'status') return result;
@@ -77,6 +82,7 @@ function handle(selected: 'claude' | 'codex') {
     }
   } else if (operation === 'install') {
     if (installed && !state) throw new Error('Existing Vesta shell block is not owned by this setup');
+    if (codexConfig.warm || args.includes('--warm')) codexRegistration(state?.native ?? executable('codex'), state);
     if (!installed) {
       const native = executable('codex'); const addition = block(native, configPath);
       if (shellText && !shellText.endsWith('\n')) throw new Error('Shell file must end with a newline before installing the managed block');
@@ -92,7 +98,16 @@ function handle(selected: 'claude' | 'codex') {
       const changed = { ...codexConfig, warm: true }; save(configPath, changed); save(statePath, { ...state, createdConfig: { ...state.createdConfig, warm: true } });
     }
     result.installed = true; result.warmConfigured ||= args.includes('--warm'); result.activate = 'Open a new terminal, or source ' + quote(shellFile);
+    const current = read(statePath);
+    if (read(configPath).warm) {
+      const registration = installNativeCodex(current.native, configDir, managedNode, current);
+      save(statePath, { ...current, ...registration }); result.nativePluginId = registration.nativePluginId;
+      const ready = await codexHookReadiness(current.native, process.cwd(), registration.nativeHookCommand);
+      result.warmEnabled = ready.ready; result.warmingSuspended = !ready.ready; result.warmingSuspendedReason = ready.reason;
+      result.activate += '; review and trust only the Vesta entries in native /hooks';
+    }
   } else if (state) {
+    uninstallNativeCodex(state.native, state);
     const current = existsSync(state.shellFile) ? readFileSync(state.shellFile, 'utf8') : '';
     if (current.includes(start)) {
       if (!current.includes(state.block)) throw new Error('Vesta block changed after setup; refusing to remove edited shell content');
@@ -105,5 +120,6 @@ function handle(selected: 'claude' | 'codex') {
   }
   return result;
 }
-const output = (provider === 'all' ? ['claude', 'codex'] : [provider]).map(p => handle(p as 'claude' | 'codex'));
+const output = [];
+for (const selected of provider === 'all' ? ['claude', 'codex'] : [provider]) output.push(await handle(selected as 'claude' | 'codex'));
 console.log(args.includes('--json') ? JSON.stringify(provider === 'all' ? output : output[0]) : output.map(r => JSON.stringify(r, null, 2)).join('\n'));
