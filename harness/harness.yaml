@@ -6,6 +6,10 @@ repositories:
     path: .
 verification_inputs:
   - repo: app
+    path: experiments/codex-native-setup-fault-e2e.ts
+  - repo: app
+    path: experiments/codex-native-fault-fixture.mjs
+  - repo: app
     path: experiments/codex-native-warming-e2e.ts
   - repo: app
     path: experiments/codex-native-acceptance.ts

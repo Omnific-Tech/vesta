@@ -17,5 +17,5 @@
     { "id": "AC-PACKAGED", "description": "Development standalone binary installs and runs equivalent native warming/resume in isolated home without requiring an external Node runtime; source/native/plugin identities and raw evidence are retained." },
     { "id": "AC-SETUP-INTEGRITY", "description": "Bounded real E2E preserves raw hook/queue/rollout/transcript proof, actual model-turn counts, personal-file hashes and owned cleanup. Native quota/auth failures remain honest blocked/failed verification, never replaced with claimed success." }
   ],
-  "verification": ["codex-native-warming-live", "codex-native-cli-resume-live", "codex-native-packaged-live", "native-forwarding", "interactive-forwarding", "native-setup", "watcher-lifecycle"]
+  "verification": ["codex-native-warming-live", "codex-native-cli-resume-live", "codex-native-packaged-live", "codex-native-registration-faults", "native-forwarding", "interactive-forwarding", "native-setup", "watcher-lifecycle"]
 }

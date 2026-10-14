@@ -81,3 +81,14 @@ source switching, native CLI resume and development-packaged warming with actual
 timer/queue/K/nonce proof. Commit final source before fresh Telos verify-all;
 independent review binds that frozen tested state. Completion requires successful
 submit. No publication or personal installation is included.
+
+## Registration failure contract amendment
+
+Actual no-model native CLI fault injection reproduced a failed plugin/add leaving
+an unrecorded marketplace behind. Before repairing compensation, add executable
+contracts for fresh failure/retry, replacement failure restoring exact prior
+owned catalog/plugin, edited recorded-shell rejection before native removals,
+and untrusted/globally disabled hook readiness. Compensate only owned native
+registration operations; never overwrite a whole shared native configuration.
+Report failed compensation explicitly. Standalone activation rollback must also
+restore successful native registration changes if a later owned activation fails.
