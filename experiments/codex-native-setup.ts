@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { codexPluginId } from './codex-native-ipc.ts';
+import { codexPluginId, nativeRequest } from './codex-native-ipc.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const home = () => resolve(process.env.CODEX_HOME ?? join(homedir(), '.codex'));
@@ -25,7 +25,30 @@ export function codexRegistration(native: string, state: any) {
   if (marketplace && (!state?.nativeMarketplaceOwned || marketplace.marketplaceSource?.source !== state.nativeMarketplaceRoot)) throw new Error('Foreign native Codex Vesta marketplace ownership');
   return { nativeHome, plugin, marketplace };
 }
-export function installNativeCodex(native: string, configDir: string, node: string, state: any) {
+const registry = (native: string, nativeHome: string) => ({ nativeHome,
+  plugin: call(native, ['plugin', 'list', '--json'], nativeHome).installed.find((row: any) => row.pluginId === codexPluginId),
+  marketplace: call(native, ['plugin', 'marketplace', 'list', '--json'], nativeHome).marketplaces.find((row: any) => row.name === 'vesta-local') });
+function validateCatalog(path: string) {
+  const catalog = json(join(path, '.agents/plugins/marketplace.json'));
+  if (catalog.name !== 'vesta-local' || catalog.plugins?.length !== 1 || catalog.plugins[0].name !== 'vesta' || catalog.plugins[0].source !== './plugin') throw new Error('Owned native catalog changed; refusing removal');
+}
+export async function restoreNativeCodex(native: string, currentState: any, previous: any) {
+  const nativeHome = currentState.nativeCodexHome; const roots = new Set([currentState.nativeMarketplaceRoot, previous?.marketplace?.marketplaceSource?.source].filter(Boolean));
+  const current = registry(native, nativeHome);
+  if (current.plugin && ![...roots].some(root => current.plugin.source?.path === join(root, 'plugin'))) throw new Error('Native plugin ownership changed during compensation');
+  if (current.marketplace && !roots.has(current.marketplace.marketplaceSource?.source)) throw new Error('Native marketplace ownership changed during compensation');
+  for (const root of roots) validateCatalog(root);
+  const targetRoot = previous?.marketplace?.marketplaceSource?.source;
+  const changeCatalog = current.marketplace?.marketplaceSource?.source !== targetRoot;
+  if (current.plugin && (changeCatalog || !previous?.plugin)) { call(native, ['plugin', 'remove', codexPluginId, '--json'], nativeHome); current.plugin = undefined; }
+  if (current.marketplace && changeCatalog) { call(native, ['plugin', 'marketplace', 'remove', 'vesta-local', '--json'], nativeHome); current.marketplace = undefined; }
+  if (targetRoot && !current.marketplace) call(native, ['plugin', 'marketplace', 'add', targetRoot, '--json'], nativeHome);
+  if (previous?.plugin && !current.plugin) call(native, ['plugin', 'add', codexPluginId, '--json'], nativeHome);
+  if (previous?.plugin?.enabled === false) await nativeRequest(native, 'config/value/write', { keyPath: 'plugins.' + codexPluginId + '.enabled', value: false, mergeStrategy: 'replace', filePath: join(nativeHome, 'config.toml') }, undefined, { env: { ...process.env as Record<string, string>, CODEX_HOME: nativeHome } });
+  const restored = registry(native, nativeHome);
+  if (JSON.stringify(restored.plugin) !== JSON.stringify(previous?.plugin) || JSON.stringify(restored.marketplace) !== JSON.stringify(previous?.marketplace)) throw new Error('Native registration compensation did not restore prior state');
+}
+export async function installNativeCodex(native: string, configDir: string, node: string, state: any) {
   const previous = codexRegistration(native, state);
   const version = json(join(here, '../package.json')).version;
   const handler = readFileSync(join(here, 'vesta-codex/handler.mjs'));
@@ -43,19 +66,33 @@ export function installNativeCodex(native: string, configDir: string, node: stri
     if (!existsSync(file)) { mkdirSync(dirname(file), { recursive: true, mode: 0o700 }); writeFileSync(file, bytes, { mode: 0o600 }); }
   }
   const catalogFile = join(catalog, '.agents/plugins/marketplace.json'); mkdirSync(dirname(catalogFile), { recursive: true, mode: 0o700 });
-  writeFileSync(catalogFile, JSON.stringify({ name: 'vesta-local', plugins: [{ name: 'vesta', source: './plugin', version }] }, null, 2) + '\n');
-  if (previous.marketplace && previous.marketplace.marketplaceSource.source !== catalog) {
-    if (previous.plugin) call(native, ['plugin', 'remove', codexPluginId, '--json'], previous.nativeHome);
-    call(native, ['plugin', 'marketplace', 'remove', 'vesta-local', '--json'], previous.nativeHome);
-    previous.marketplace = undefined; previous.plugin = undefined;
+  const catalogBytes = JSON.stringify({ name: 'vesta-local', plugins: [{ name: 'vesta', source: './plugin', version }] }, null, 2) + '\n';
+  if (existsSync(catalogFile) && readFileSync(catalogFile, 'utf8') !== catalogBytes) throw new Error('Retained native catalog integrity conflict');
+  if (!existsSync(catalogFile)) writeFileSync(catalogFile, catalogBytes);
+  const registration = { nativePluginId: codexPluginId, nativeCodexHome: previous.nativeHome, nativeMarketplaceRoot: catalog, nativeMarketplaceOwned: true, nativeHookCommand: command };
+  let removed = false; let addedCatalog = false; let addedPlugin = false;
+  try {
+    if (previous.marketplace && previous.marketplace.marketplaceSource.source !== catalog) {
+      validateCatalog(previous.marketplace.marketplaceSource.source);
+      if (previous.plugin) { call(native, ['plugin', 'remove', codexPluginId, '--json'], previous.nativeHome); removed = true; }
+      call(native, ['plugin', 'marketplace', 'remove', 'vesta-local', '--json'], previous.nativeHome); removed = true;
+    }
+    if (!previous.marketplace || removed) { call(native, ['plugin', 'marketplace', 'add', catalog, '--json'], previous.nativeHome); addedCatalog = true; }
+    if (!previous.plugin || removed) { call(native, ['plugin', 'add', codexPluginId, '--json'], previous.nativeHome); addedPlugin = true; }
+    if (previous.plugin?.enabled === false && addedPlugin) await nativeRequest(native, 'config/value/write', { keyPath: 'plugins.' + codexPluginId + '.enabled', value: false, mergeStrategy: 'replace', filePath: join(previous.nativeHome, 'config.toml') });
+    return registration;
+  } catch (error) {
+    if (removed || addedCatalog || addedPlugin) {
+      try { await restoreNativeCodex(native, registration, previous); }
+      catch (compensation) { throw new Error(String(error) + '; native registration compensation failed: ' + String(compensation)); }
+    }
+    throw new Error(String(error) + '; prior native registrations restored');
   }
-  if (!previous.marketplace) call(native, ['plugin', 'marketplace', 'add', catalog, '--json'], previous.nativeHome);
-  if (!previous.plugin) call(native, ['plugin', 'add', codexPluginId, '--json'], previous.nativeHome);
-  return { nativePluginId: codexPluginId, nativeCodexHome: previous.nativeHome, nativeMarketplaceRoot: catalog, nativeMarketplaceOwned: true, nativeHookCommand: command };
 }
 export function uninstallNativeCodex(native: string, state: any) {
   if (state?.nativePluginId !== codexPluginId) return;
   const current = codexRegistration(native, state);
+  if (current.marketplace) validateCatalog(current.marketplace.marketplaceSource.source);
   if (current.plugin) call(native, ['plugin', 'remove', codexPluginId, '--json'], current.nativeHome);
   if (current.marketplace) call(native, ['plugin', 'marketplace', 'remove', 'vesta-local', '--json'], current.nativeHome);
   // Native trust/preferences and immutable assets remain; only owned registrations are removed.

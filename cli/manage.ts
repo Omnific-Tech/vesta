@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { directory, prepareVersion, readJson, saveJson, sha256, version } from './assets.ts';
 import { codexHookReadiness } from '../experiments/codex-native-ipc.ts';
+import { codexRegistration, restoreNativeCodex } from '../experiments/codex-native-setup.ts';
 
 export type Provider = { provider: 'claude' | 'codex'; configDir: string; shellFile: string };
 export const pluginId = 'vesta@vesta-local';
@@ -40,7 +41,7 @@ export function providers(args: string[], root: string, operation: string): Prov
     return { provider: name, configDir, shellFile };
   });
 }
-export function preflight(selected: Provider[], operation: string) {
+export function preflight(selected: Provider[], operation: string, warm = false) {
   for (const p of selected) {
     const state = readJson(stateFile(p));
     // Parse every selected configuration before any provider can be changed.
@@ -57,6 +58,7 @@ export function preflight(selected: Provider[], operation: string) {
       const shell = existsSync(p.shellFile) ? readFileSync(p.shellFile, 'utf8') : '';
       if (shell.includes(start) && (!state || state.shellFile !== p.shellFile || !shell.includes(state.block))) throw new Error('Codex shell ownership conflict');
       if (existsSync(join(p.configDir, 'vesta-codex.json')) && !state) throw new Error('Foreign Codex configuration ownership');
+      if (state?.nativePluginId || warm || readJson(join(p.configDir, 'vesta-codex.json'), {}).warm === true) codexRegistration(state?.native ?? executable('codex')!, state);
     }
   }
 }
@@ -64,7 +66,7 @@ function present(path: string) { try { lstatSync(path); return true; } catch (er
 function ownedLink(path: string, expected?: string) {
   if (present(path) && (!expected || !lstatSync(path).isSymbolicLink() || readlinkSync(path) !== expected || !existsSync(path))) throw new Error('Foreign or dangling Vesta link ownership: ' + path);
 }
-export function withLock<T>(root: string, operation: () => T): T {
+export async function withLock<T>(root: string, operation: () => T | Promise<T>): Promise<T> {
   directory(root); const lock = join(root, '.operation.lock'); let fd: number | undefined;
   try {
     try { fd = openSync(lock, 'wx', 0o600); }
@@ -74,7 +76,7 @@ export function withLock<T>(root: string, operation: () => T): T {
       catch (error: any) { if (error.code !== 'ESRCH') throw error; }
       unlinkSync(lock); fd = openSync(lock, 'wx', 0o600);
     }
-    writeFileSync(fd!, JSON.stringify({ pid: process.pid, version })); return operation();
+    writeFileSync(fd!, JSON.stringify({ pid: process.pid, version })); return await operation();
   } finally { if (fd !== undefined) { closeSync(fd); unlinkSync(lock); } }
 }
 function link(path: string, target?: string) {
@@ -117,14 +119,21 @@ function setup(assets: string, p: Provider, operation: string, warm: boolean, ro
     VESTA_MARKETPLACE_ROOT: join(root, 'marketplace'), VESTA_STABLE_NODE: join(root, 'current/runtime/bin/node'), VESTA_STABLE_ENTRYPOINT: join(root, 'current/app/experiments/codex-autoload.ts') }, encoding: 'utf8', timeout: 60000 });
   if (result.status !== 0) throw new Error(result.stderr || result.error?.message || 'Native setup failed');
 }
-type SavedFile = { path: string; bytes: Buffer | null; shellState?: string };
+type SavedFile = { path: string; bytes: Buffer | null; shellState?: string; nativeCodex?: any };
 function snapshot(root: string, selected: Provider[]): SavedFile[] {
   const paths = [join(root, 'installation.json'), join(root, 'marketplace/.claude-plugin/marketplace.json')];
   for (const p of selected) paths.push(stateFile(p), ...(p.provider === 'claude' ? ['settings.json', 'plugins/known_marketplaces.json', 'plugins/installed_plugins.json'].map(file => join(p.configDir, file)) : [p.shellFile, join(p.configDir, 'vesta-codex.json')]));
-  return [...new Set(paths)].map(path => ({ path, bytes: existsSync(path) ? readFileSync(path) : null, shellState: selected.find(p => p.provider === 'codex' && p.shellFile === path) ? stateFile(selected.find(p => p.provider === 'codex' && p.shellFile === path)!) : undefined }));
+  return [...new Set(paths)].map(path => {
+    const codex = selected.find(p => p.provider === 'codex' && stateFile(p) === path); const state = codex ? readJson(path) : undefined;
+    return { path, bytes: existsSync(path) ? readFileSync(path) : null, nativeCodex: state?.nativePluginId ? codexRegistration(state.native, state) : undefined,
+      shellState: selected.find(p => p.provider === 'codex' && p.shellFile === path) ? stateFile(selected.find(p => p.provider === 'codex' && p.shellFile === path)!) : undefined };
+  });
 }
-function restore(saved: SavedFile[]) {
+async function restore(saved: SavedFile[]) {
   const currentBlocks = new Map(saved.filter(file => file.shellState).map(file => [file.path, readJson(file.shellState!)?.block]));
+  for (const file of saved.filter(file => file.path.endsWith('/.vesta-setup-codex.json'))) {
+    const current = readJson(file.path); if (current?.nativePluginId) await restoreNativeCodex(current.native, current, file.nativeCodex);
+  }
   for (const file of saved) {
     if (file.shellState) {
       const before = file.bytes?.toString() ?? ''; const current = existsSync(file.path) ? readFileSync(file.path, 'utf8') : '';
@@ -191,9 +200,9 @@ export async function status(args: string[], root: string) {
   }
   return { version, root, installation, integrations };
 }
-export function install(args: string[], root: string) {
-  return withLock(root, () => {
-    const selected = providers(args, root, 'install'); preflight(selected, 'install');
+export async function install(args: string[], root: string) {
+  return withLock(root, async () => {
+    const selected = providers(args, root, 'install'); preflight(selected, 'install', args.includes('--warm'));
     const previous = readJson(join(root, 'installation.json')); if (previous && compare(version, previous.version) < 0) throw new Error('Refusing to downgrade an installed newer version');
     const assets = prepareVersion(root); const cliLink = previous?.binLink ?? join(absolute(process.env.VESTA_BIN_DIR ?? join(homedir(), '.local/bin')), 'vesta');
     ownedLink(cliLink, previous ? join(root, 'current/bin/vesta') : undefined);
@@ -238,16 +247,16 @@ export function install(args: string[], root: string) {
       let rollbackError: unknown;
       try {
         caches.retain();
-        restore(saved.filter(file => file.path.includes('/marketplace/')));
+        await restore(saved.filter(file => file.path.includes('/marketplace/')));
         if (claudeChanged) for (const p of selected.filter(p => p.provider === 'claude')) native(executable('claude')!, ['plugin', 'update', pluginId, '--scope', 'user', '--json'], p);
       } catch (rollback) { rollbackError = rollback; }
-      try { restore(saved); link(join(root, 'current'), oldCurrent); if (!previous && existsSync(cliLink)) link(cliLink); } catch (rollback) { rollbackError = rollback; }
+      try { await restore(saved); link(join(root, 'current'), oldCurrent); if (!previous && existsSync(cliLink)) link(cliLink); } catch (rollback) { rollbackError = rollback; }
       throw new Error(String(error) + (rollbackError ? '; rollback/compensation failed: ' + String(rollbackError) : '; prior integrations and activation restored'));
     } finally { caches.cleanup(); }
   });
 }
-export function uninstall(args: string[], root: string) {
-  return withLock(root, () => {
+export async function uninstall(args: string[], root: string) {
+  return withLock(root, async () => {
     const previous = readJson(join(root, 'installation.json')); const selected = providers(args, root, 'uninstall'); preflight(selected, 'uninstall');
     if (previous?.binLink) ownedLink(previous.binLink, join(root, 'current/bin/vesta'));
     ownedLink(join(root, 'current'), previous ? 'versions/' + previous.version : undefined);
@@ -257,7 +266,7 @@ export function uninstall(args: string[], root: string) {
     try { for (const p of selected) if (existsSync(stateFile(p))) setup(assets, p, 'uninstall', false, root); }
     catch (error) {
       let rollbackError: unknown;
-      try { caches.retain(); restore(saved); } catch (rollback) { rollbackError = rollback; }
+      try { caches.retain(); await restore(saved); } catch (rollback) { rollbackError = rollback; }
       throw new Error(String(error) + (rollbackError ? '; rollback/compensation failed: ' + String(rollbackError) : '; prior integrations and activation restored'));
     }
     finally { try { caches.retain(); } finally { caches.cleanup(); } }

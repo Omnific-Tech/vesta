@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codexHookReadiness } from './codex-native-ipc.ts';
-import { codexRegistration, installNativeCodex, uninstallNativeCodex } from './codex-native-setup.ts';
+import { installNativeCodex, uninstallNativeCodex } from './codex-native-setup.ts';
 
 const args = process.argv.slice(2); const operation = args[0];
 const value = (flag: string) => { const i = args.indexOf(flag); if (i < 0) return undefined; if (!args[i + 1] || args[i + 1]!.startsWith('--')) throw new Error('Missing value: ' + flag); return args[i + 1]!; };
@@ -42,6 +42,11 @@ async function handle(selected: 'claude' | 'codex') {
   const installed = selected === 'claude' ? !!registry : shellText.includes(start);
   const configPath = join(configDir, 'vesta-codex.json'); const codexConfig = selected === 'codex' ? read(configPath) : {};
   const options = settings.pluginConfigs?.[pluginId]?.options ?? {};
+  if (selected === 'codex' && state) {
+    if (state.shellFile !== shellFile) throw new Error('Owned shell path cannot be overridden');
+    const recorded = existsSync(state.shellFile) ? readFileSync(state.shellFile, 'utf8') : '';
+    if (recorded.includes(start) && !recorded.includes(state.block)) throw new Error('Vesta block changed after setup; refusing native registration changes');
+  }
   const readiness = selected === 'codex' && state?.nativePluginId && codexConfig.warm
     ? await codexHookReadiness(state.native, process.cwd(), state.nativeHookCommand)
     : { ready: false, reason: 'Codex warming needs the registered native Vesta hooks and native /hooks trust review.' };
@@ -82,7 +87,9 @@ async function handle(selected: 'claude' | 'codex') {
     }
   } else if (operation === 'install') {
     if (installed && !state) throw new Error('Existing Vesta shell block is not owned by this setup');
-    if (codexConfig.warm || args.includes('--warm')) codexRegistration(state?.native ?? executable('codex'), state);
+    if (!installed && shellText && !shellText.endsWith('\n')) throw new Error('Shell file must end with a newline before installing the managed block');
+    if (!installed && existsSync(configPath) && !state) throw new Error('Existing Vesta Codex configuration is not owned by this setup');
+    const registration = codexConfig.warm === true || args.includes('--warm') ? await installNativeCodex(state?.native ?? executable('codex'), configDir, managedNode, state) : undefined;
     if (!installed) {
       const native = executable('codex'); const addition = block(native, configPath);
       if (shellText && !shellText.endsWith('\n')) throw new Error('Shell file must end with a newline before installing the managed block');
@@ -93,14 +100,14 @@ async function handle(selected: 'claude' | 'codex') {
     } else if (args.includes('--refresh')) {
       const addition = block(state.native, configPath);
       if (addition !== state.block) { writeFileSync(shellFile, shellText.replace(state.block, addition)); save(statePath, { ...state, block: addition }); }
-      if (args.includes('--warm') && !codexConfig.warm) { const changed = { ...codexConfig, warm: true }; save(configPath, changed); const current = read(statePath); save(statePath, { ...current, createdConfig: { ...current.createdConfig, warm: true } }); }
-    } else if (args.includes('--warm') && !codexConfig.warm) {
+      if (args.includes('--warm') && codexConfig.warm !== true) { const changed = { ...codexConfig, warm: true }; save(configPath, changed); const current = read(statePath); save(statePath, { ...current, createdConfig: { ...current.createdConfig, warm: true } }); }
+    } else if (args.includes('--warm') && codexConfig.warm !== true) {
       const changed = { ...codexConfig, warm: true }; save(configPath, changed); save(statePath, { ...state, createdConfig: { ...state.createdConfig, warm: true } });
     }
     result.installed = true; result.warmConfigured ||= args.includes('--warm'); result.activate = 'Open a new terminal, or source ' + quote(shellFile);
     const current = read(statePath);
-    if (read(configPath).warm) {
-      const registration = installNativeCodex(current.native, configDir, managedNode, current);
+    if (read(configPath).warm === true) {
+      if (!registration) throw new Error('Native warming registration is unavailable');
       save(statePath, { ...current, ...registration }); result.nativePluginId = registration.nativePluginId;
       const ready = await codexHookReadiness(current.native, process.cwd(), registration.nativeHookCommand);
       result.warmEnabled = ready.ready; result.warmingSuspended = !ready.ready; result.warmingSuspendedReason = ready.reason;

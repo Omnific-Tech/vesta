@@ -12,7 +12,7 @@ try {
     console.log(JSON.stringify(await status(args, root)));
   } else if (operation === 'install' || operation === 'uninstall' || operation === 'update') {
     if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('Only macOS arm64 is supported');
-    const root = installRoot(); console.log(JSON.stringify(operation === 'install' ? install(args, root) : operation === 'uninstall' ? uninstall(args, root) : update(args, root)));
+    const root = installRoot(); console.log(JSON.stringify(await (operation === 'install' ? install(args, root) : operation === 'uninstall' ? uninstall(args, root) : update(args, root))));
   } else if (operation === '--help' || !operation) console.log('vesta install [--warm] | status | update | --update | uninstall | --version');
   else throw new Error('Unknown command; run vesta --help');
 } catch (error) { console.error('vesta: ' + (error instanceof Error ? error.message : String(error))); process.exitCode = 1; }

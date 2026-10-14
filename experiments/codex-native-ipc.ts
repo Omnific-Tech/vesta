@@ -1,9 +1,9 @@
 // Current-native stdio client. These calls never load or start a conversation.
 import { spawn } from 'node:child_process';
 export const codexPluginId = 'vesta@vesta-local';
-export async function nativeRequest(native: string, method: 'hooks/list' | 'thread/queue/add', params: any, capture?: (direction: string, row: any) => void,
-  lifecycle: { signal?: AbortSignal; authorize?: () => boolean; spawned?: (pid: number) => void; cleaned?: (row: { pid: number; owned: boolean; exited: boolean }) => void } = {}) {
-  const child = spawn(native, ['app-server', '--stdio'], { env: process.env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+export async function nativeRequest(native: string, method: 'hooks/list' | 'thread/queue/add' | 'config/value/write', params: any, capture?: (direction: string, row: any) => void,
+  lifecycle: { env?: Record<string, string>; signal?: AbortSignal; authorize?: () => boolean; spawned?: (pid: number) => void; cleaned?: (row: { pid: number; owned: boolean; exited: boolean }) => void } = {}) {
+  const child = spawn(native, ['app-server', '--stdio'], { env: lifecycle.env ?? process.env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
   let buffer = ''; let failure: Error | undefined; const replies: any[] = [];
   if (child.pid) lifecycle.spawned?.(child.pid);
   const abort = () => { failure = new Error('native request cancelled'); failure.name = 'AbortError'; child.stdin!.end(); };
