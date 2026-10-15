@@ -42,3 +42,13 @@ one late native failure are controlled; successful registrations remain native.
 - ISOLATION: personal configuration/auth/shell hashes remain unchanged; no native
   rollouts/model turns are created. Raw command streams, native registries,
   settings snapshots, build receipts and final summary remain repeatable evidence.
+
+`native-registry-e2e.ts` repeats actual compiled setup/repair through the installed
+npm Node launcher without substituting its private Rust executable. Twelve async
+Node controls and twelve packaged repairs must return complete valid native JSON
+without retries, empty-output fallback, timeout increases or orphan operation
+locks. A command still running after two seconds records only its owned process
+tree; timeout/nonzero/invalid JSON remains a failure. The existing packaged live
+contract has reproduced both empty successful stdout and 30-second synchronous
+`plugin list --json` timeouts before any model turn. Closed stdin alone did not
+resolve this transport defect. Personal hashes and zero model turns are asserted.
