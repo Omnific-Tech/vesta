@@ -18,7 +18,8 @@ the executable acceptance oracle must reject:
 - Addition/removal of a plugin entry, or any changed Vesta entry.
 - Any non-Vesta entry change except values of its existing `usageCount` and
   `lastUsedAt` fields. Their field presence must remain identical.
-- A fixture HOME outside its disposable root, configuration outside that HOME,
+- A fixture HOME different from the existing personal authentication HOME,
+  configuration outside the disposable fixture root,
   a profile path outside its configuration, or a native plugin list containing
   anything except the installed `vesta@vesta-local` plugin.
 - Missing raw native plugin-list evidence or fixture profile digest.
@@ -29,5 +30,17 @@ values or counter values are persisted. The fixture's own profile digest and
 whether it contains Vesta usage are recorded, but native usage flushing is not
 an acceptance requirement. Every native response, model, threshold, source,
 ownership and cleanup assertion remains required. The fixture keeps the native
-default keychain namespace while isolating HOME and configuration; it does not
-change personal login or trust settings.
+default keychain namespace and personal authentication HOME while isolating
+configuration, profile and plugin registry; it does not change personal login or
+trust settings.
+
+The subsequent isolated-HOME attempt failed native Claude authentication. A
+metadata-only keychain record lookup (without requesting credential values)
+succeeded under personal HOME and returned item-not-found under an isolated HOME.
+macOS's default keychain search list depends on HOME. The installed native
+resolver invokes `security` with that default search list; preserving the default
+service namespace alone does not preserve access. No supported independent
+keychain-search-path override was found. The corrected contract requires the
+existing authentication HOME and retains every configuration-isolation and
+personal-integrity assertion above. No credentials are copied or exported, and
+no auth shim, symlink, login or personal-state restoration is used.

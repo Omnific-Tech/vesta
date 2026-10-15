@@ -85,8 +85,8 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
       if (a.isVesta) assert.equal(b.sha256, a.sha256, 'personal Vesta entry remains byte-for-byte equivalent');
     }
     const fixture = proof.fixture;
-    assert.equal(resolve(fixture.home), resolve(fixture.root), 'HOME is the disposable fixture root');
-    assert.ok(resolve(fixture.configDir).startsWith(resolve(fixture.home) + '/'));
+    assert.equal(resolve(fixture.home), dirname(resolve(proof.path)), 'HOME preserves the existing native authentication context');
+    assert.ok(resolve(fixture.configDir).startsWith(resolve(fixture.root) + '/'));
     assert.equal(resolve(fixture.configDir), resolve(e.configDir));
     assert.equal(resolve(fixture.profilePath), join(resolve(fixture.configDir), '.claude.json'));
     assert.ok(!resolve(proof.path).startsWith(resolve(fixture.root) + '/'));
