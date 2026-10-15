@@ -51,3 +51,10 @@ no/foreign ownership, native trust gates, late rollback, same-version catchup an
 newer update sequencing. Preserve existing distribution safety E2E and actual
 packaged native warming/resume proof. Commit final source before verify-all,
 independently attest frozen proof, then submit. No publication follows this task.
+
+The native registry transport check was added before the transport repair after
+actual full verification reproduced a packaged npm-launcher registry timeout.
+Keep the original 30-second product bound and recorded executable, capture full
+stream closure and clean up only owned subprocess groups. Underlying upstream
+cause remains unproven; require repeated real compiled metadata proof and the
+actual same-conversation packaged model proof on final frozen source.

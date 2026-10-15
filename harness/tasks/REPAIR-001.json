@@ -25,5 +25,5 @@
     { "id": "AC-OWNERSHIP", "description": "Conflicting or unknown live owners skip warming; only owned processes are cleaned up." },
     { "id": "AC-SETUP-INTEGRITY", "description": "Repeatable real E2E retains raw command/registry/rollout/hash evidence, personal-file integrity and owned cleanup. Metadata repair/update tests make zero model calls." }
   ],
-  "verification": ["standalone-repair", "standalone-install-update", "standalone-public-safety", "codex-native-packaged-live", "codex-native-registration-faults", "native-setup"]
+  "verification": ["native-registry-transport", "standalone-repair", "standalone-install-update", "standalone-public-safety", "codex-native-packaged-live", "codex-native-registration-faults", "native-setup"]
 }

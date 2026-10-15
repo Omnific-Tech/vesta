@@ -41,3 +41,18 @@
 
 Required executable cases live in packaging/repair-e2e.ts and existing locked
 distribution E2E. All evidence is runner-created under ignored harness/runs.
+
+## Native launcher transport regression
+
+Real packaged-live verification reproduced empty successful stdout and a later
+30-second `plugin list --json` timeout before any model turn through the recorded
+npm Node launcher. Closed child stdin did not resolve the recurring defect.
+The current failure is retained in run
+2026-10-15T06-41-21.331Z-6a37cc1cf8f2829d187e6d79097662a0. Direct native-binary
+metadata cases passed, so do not hide failure by substituting the private binary,
+retrying, increasing timeouts or accepting empty output. Upstream causality is
+unproven. Before changing transport, packaging/native-registry-e2e.ts adds repeated
+actual compiled setup/repair behind the same synchronous Node relay plus async
+Node controls, bounded capture, owned-process sampling, preserved recorded native,
+zero model turns and personal hashes. This additional required check strengthens
+the existing installation/repair acceptance; product scope is unchanged.
