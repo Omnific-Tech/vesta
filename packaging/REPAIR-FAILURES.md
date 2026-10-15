@@ -27,6 +27,8 @@ one late native failure are controlled; successful registrations remain native.
 - REPAIR-READINESS: untrusted hooks and globally disabled hooks/plugins stay
   disabled. Repair reports effective readiness and Claude restart accurately;
   it never authorizes hashes or flips native feature gates.
+  A disabled owned Claude plugin also remains disabled and reports inactive
+  warming with an actionable reason, even when its saved warm option is true.
 - REPAIR-COMPENSATION: a real late Claude native update failure after Codex repair
   must compensate earlier owned changes and report failure; it cannot claim
   success or overwrite unrelated user settings.

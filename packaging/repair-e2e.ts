@@ -99,6 +99,15 @@ try {
     const repaired = success(ctx, 'repair-disabled-' + gate, ['repair', '--provider', 'codex', '--json']); assert.ok(readFileSync(nativeConfig, 'utf8').includes(gate + ' = false')); assert.equal(repaired.integrations.find((row: any) => row.provider === 'codex').warmEnabled, false);
     assert.equal(success(ctx, 'status-disabled-' + gate, ['status', '--json']).integrations.find((row: any) => row.provider === 'codex').warmEnabled, false); writeFileSync(nativeConfig, config);
   } cases.push('REPAIR-READINESS');
+  const claudeSettingsFile = join(ctx.config, 'settings.json'); const claudeSettings = readFileSync(claudeSettingsFile, 'utf8');
+  const disabledClaude = JSON.parse(claudeSettings); disabledClaude.enabledPlugins ??= {}; disabledClaude.enabledPlugins['vesta@vesta-local'] = false;
+  writeFileSync(claudeSettingsFile, JSON.stringify(disabledClaude));
+  const claudeRepair = success(ctx, 'repair-disabled-claude', ['repair', '--provider', 'claude', '--json']);
+  assert.equal(json(claudeSettingsFile).enabledPlugins['vesta@vesta-local'], false, 'native Claude disable is preserved');
+  const claudeReadiness = claudeRepair.integrations.find((row: any) => row.provider === 'claude');
+  assert.equal(claudeReadiness.warmEnabled, false, 'disabled Claude plugin cannot report active warming');
+  assert.ok(claudeReadiness.warmingSuspendedReason, 'disabled Claude reason is actionable');
+  writeFileSync(claudeSettingsFile, claudeSettings); cases.push('REPAIR-CLAUDE-READINESS');
   damage(ctx); release(ctx, false); success(ctx, 'same-version-update', ['update', '--json']); restored(ctx); assertPreferences(ctx, true); assert.equal(readlinkSync(join(ctx.installation, 'current')), 'versions/' + releaseVersion); cases.push('UPDATE-SAME');
   release(ctx, true); success(ctx, 'newer-update-lock', ['update', '--json']); restored(ctx); assertPreferences(ctx, true); assert.equal(readlinkSync(join(ctx.installation, 'current')), 'versions/' + nextReleaseVersion); assert.ok(existsSync(join(ctx.installation, 'versions', releaseVersion, 'runtime/bin/node'))); assert.ok(!existsSync(join(ctx.installation, '.operation.lock'))); assert.ok(!readdirSync(ctx.installation).some(name => name.startsWith('.download-'))); cases.push('UPDATE-LOCK');
   const empty = context('unowned'); const emptyBefore = snapshot(empty, 'unowned-before'); assert.notEqual(run(empty, 'repair-unowned', ['repair']).status, 0); assert.deepEqual(snapshot(empty, 'unowned-after'), emptyBefore); cases.push('REPAIR-NO-OWNERSHIP');
