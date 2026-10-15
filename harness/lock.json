@@ -1,17 +1,19 @@
 {
   "schema_version": 1,
-  "generation": "80566624593b6c4fb5e9fe799f0f22be",
+  "generation": "b9db2ec598a045d3f02718397a5d4605",
   "repositories": {
-    "app": "32d78bee0ecff08e4fa01d4c6092bf87cc4f8a73"
+    "app": "79a13d995646b334d9e4c94a7f4be73c749f8b86"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
     "app:experiments/codex-disarm-e2e.ts": "abb19bccb9a2c532800463ba44a7b97dbdef789b31aa224d01e41f6940b5c3bf",
     "app:experiments/codex-embedded-owner-probe.ts": "45a27be2ff9eabd77894465cb4d469f23a6ff93f54a2db622caaa55006e7efea",
     "app:experiments/codex-hooks-probe-handler.mjs": "fcfd02ab577cb03799b9d7c4fb0fd88dc55b72b6f246dba8f43800875b70d788",
-    "app:experiments/codex-hooks-probe.ts": "1fc575444b7dfe0d952bf007e004ac4550d7457dd85e519836eca2eaa2ccf4be",
-    "app:experiments/codex-native-acceptance.ts": "7cd695e7eeb054036b568076bf1f9e02ee576861b251fba86a4bee08ecd26c95",
+    "app:experiments/codex-hooks-probe.ts": "6d5243b029a8846e807319b0daa953608ac11c6a183f4756fb80b174c91fd32d",
+    "app:experiments/codex-native-acceptance.ts": "bf1b95183b85e29c4c7ee31edd5d9502c92bd86dac257e1489298751c2ea3de4",
     "app:experiments/codex-native-fault-fixture.mjs": "ea03d0495b8f5ec10545792a10af77ee06cd7fa2f45d8c6a4e586ebac4af648c",
+    "app:experiments/codex-native-input-e2e.ts": "3787d8ebe86691d0d37375cef1c8c8239ab724af55162acf4b2ec4a5f9ee491b",
+    "app:experiments/codex-native-input-fixture.mjs": "0914fac066077d88801ff42e834d212b428a54ddf9dcef6334c9a49f00938e1d",
     "app:experiments/codex-native-residency-probe.ts": "a792c6621ead5e69a7883cfa8389197fc04aadf89108f13a07d0378927d2c14b",
     "app:experiments/codex-native-setup-fault-e2e.ts": "0d356dbdce1543b9533ab819b3f2f7512e1f297f9a07f2e0d36b04d2f069296b",
     "app:experiments/codex-native-warming-e2e.ts": "0f41c53c2fe52e462743288ecfc0e85316ca3f44e75ec175ac06cb7bbf0ff4a3",
@@ -33,12 +35,15 @@
     "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/history/RELEASE-001.json": "b33bc2bbaf8387c4a223b765ba9549a5e16177cf284153404cdc8ce84870a45a",
     "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/plan.md": "ec28752a070d8359acaf2ae127f535b41a8153d2169005dc1d1c6e76a140c5ca",
     "app:harness/artifacts/DISTRIBUTION/changes/REPAIR-001/failures.md": "72f8ab866013134f2da89e35d837024b4d8801d428fbca7f5f41c36b77716022",
+    "app:harness/artifacts/DISTRIBUTION/changes/REPAIR-001/history/REPAIR-001.json": "90c6fc9941144d060345f9f69b0db949aad7d7e8e5c9b97064582f4cb9916b04",
+    "app:harness/artifacts/DISTRIBUTION/changes/REPAIR-001/history/review.json": "95304a193372bde96a810b654964941ac72206661972bf56846348803bcf49f3",
     "app:harness/artifacts/DISTRIBUTION/changes/REPAIR-001/plan.md": "81a5addeca23dc0b51397766885d9245d8aa6149cf83c5659c12d5a5a726610a",
     "app:harness/artifacts/DISTRIBUTION/spec.md": "dee5b94eb801671b420d4aa8c6403e5e83b6bdc7bf12bc49f75a918fd4374422",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DISARM-001/history/DISARM-001.json": "748f0b62b375c763bb5e782e0aea2c908330ca5ee1859cee8c55cee457bc1763",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DISARM-001/plan.md": "dbf8064e9a4ae74265026b3624b4535a1790dd9de67f9afcc9d55db0be643e54",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/history/DOCS-001.json": "354e3ecc3e4121726afe1db876f4cddc865b12e6ce4e9ffc0709001496c9e46c",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/plan.md": "6e045b2a98a7c240bee81a5ca46ef4fc1c87f5e0ea828c1181ef70e5a85419ed",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/IDLE-001/plan.md": "06e09ca338ab4e109a0f8a7639fbd133c362cea0184ab3ee9fd055cfe243fe5d",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/MARKER-001/history/MARKER-001.json": "9d71b0c2f437dcf291d2ce8005309354d5a133a160a662fa527ca38234646bf9",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/MARKER-001/plan.md": "2cd404e33ec22703bf1d305f6e931d9cbb62ebe6782403d0f53373f98354291e",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/failures.md": "3e646558afcb76fcb226c99fa08df765f3d18f1c6e39b04c5fbe39838d8afe6f",
@@ -59,10 +64,10 @@
     "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/plan.md": "7402a5d1760f9b08a22b2bcf3864251a1dd2f1838dc4a4bf7b95e27d158e93a5",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/YOLO-001/history/YOLO-001.json": "010b83090df58650964cdaafcfba14aa90f4ee3d84b950556a59645c4c627ee0",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/YOLO-001/plan.md": "95b77c74b7e71fdec880ca25ac6e03b8b7574d6328870efe8d6c2af7da21763a",
-    "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "ca715cd9c8150d9feb0bd770921ca56d0af7f1a9b1676d35e96d25971ca465b4",
+    "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "6d2c0935a4763117f9384e3c2e3d680a38c936337c6d7e723763deda28d452da",
     "app:harness/artifacts/features.md": "957e3fa32435f43672088810dcc5585da6979b5aa4ce42bc081aafd96f0306f7",
     "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
-    "app:harness/harness.yaml": "db9ae68865780384e432441613ceb308d7ed5d52ba036d114cd9f49b99cdab27",
+    "app:harness/harness.yaml": "d538958d3cb912f050d49462b41df136891067cb47bb8b6fc52a301edf81fcbd",
     "app:harness/scenarios/DISTRIBUTION/native-registry-transport.yaml": "8139883f50ed3b7b55ef7dec974aa89632dbe3f90ea9f4081e9d7c7d9290702f",
     "app:harness/scenarios/DISTRIBUTION/standalone-install-update.yaml": "a33f123260ca6689d6a38370260da08f3ba6e7a2bf7a5f3baf01af3dc6d76cf8",
     "app:harness/scenarios/DISTRIBUTION/standalone-native.yaml": "33b813c69e55107648de9cdbb3bd17c398b9e32479670dfa7dc3b173cb67d814",
@@ -77,6 +82,7 @@
     "app:harness/scenarios/SESSION-INTEGRATION/codex-disarm.yaml": "34820a041db3079ed3fbd70dbc0daaa351a3b84b58ba9b374f72bc49e8abd037",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-integrated-live.yaml": "f32de7946697b1e5b9a38dbd6747c4bd75af3d8b08fd07a35d2f0028f67099ac",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-native-cli-resume-live.yaml": "be46e9a7f822c8c35d8f070853d541d6fd539e5af6e6ab3cd5adce4ee086bd1b",
+    "app:harness/scenarios/SESSION-INTEGRATION/codex-native-input.yaml": "a4d2afe16f3c2b9d24c79e2dd3611763a7cfb06afdf2832d7b78d96c6c7c9516",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-native-packaged-live.yaml": "99d583e75a95164ff7da5ebe312c1ff331246cc826b337aff085530e3e9fcf53",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-native-registration-faults.yaml": "3ea2330831be1b31fe2a50d79aceecb61e3bfdec919f30bede2012d2d73276d2",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-native-warming-live.yaml": "ed9bd308edbfbec7e67cf7d84a84b19c0d5c3608f6689243bba97d1551dc7f97",
@@ -90,7 +96,7 @@
     "app:harness/scenarios/SESSION-INTEGRATION/native-forwarding.yaml": "25bdbf096986b46aabadbf4597e461b97e46278efdfa8061b5d04fb62f6a7bf8",
     "app:harness/scenarios/SESSION-INTEGRATION/native-setup.yaml": "11e8d3c08bc08b50e0402812b5a7316f4ccd11b5da8b82ad07a7bfe7dcb33a4b",
     "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "b6e067c4ad01ef3df114acc154c21b2673fdda353c8f4632f12f6efccad422ac",
-    "app:harness/tasks/REPAIR-001.json": "90c6fc9941144d060345f9f69b0db949aad7d7e8e5c9b97064582f4cb9916b04",
+    "app:harness/tasks/IDLE-001.json": "d230dad3b5b659f3da037a8dc257e24fc097466e4f6f15853e6d85515623bd6d",
     "app:packaging/curl-fixture.zsh": "96d51db92ae35d21b9265139fae3e4fbed7c8b95460e77aad5c9baa47c7d4f58",
     "app:packaging/e2e-common.ts": "fd2b413d0b0c655e751d4d827d60e93c9e03784ce947fa8e6dcaabaf77d45226",
     "app:packaging/gh-fixture.zsh": "60f31eb9f81c8e3ae8f24dc78d0555fc2630a121f2f96b0d4ba2f03cff20126f",
@@ -104,7 +110,7 @@
     "app:packaging/repair-e2e.ts": "3918bf96ac3548da874853bb8d78718fe1516a0beb1b2813c210d26866ce0235"
   },
   "modes": {
-    "REPAIR-001": "strict"
+    "IDLE-001": "strict"
   },
   "amendments": [
     {
@@ -425,6 +431,16 @@
       },
       "repositories": {
         "app": "32d78bee0ecff08e4fa01d4c6092bf87cc4f8a73"
+      }
+    },
+    {
+      "reason": "Fix confirmed passive terminal invalidation after submitted repair work with pre-code owner PTY and real native contracts",
+      "prior_generation": "80566624593b6c4fb5e9fe799f0f22be",
+      "prior_repositories": {
+        "app": "32d78bee0ecff08e4fa01d4c6092bf87cc4f8a73"
+      },
+      "repositories": {
+        "app": "79a13d995646b334d9e4c94a7f4be73c749f8b86"
       }
     }
   ]
