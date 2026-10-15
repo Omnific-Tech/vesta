@@ -54,3 +54,17 @@ timeout/nonzero/invalid JSON remains a failure. The existing packaged live
 contract has reproduced both empty successful stdout and 30-second synchronous
 `plugin list --json` timeouts before any model turn. Closed stdin alone did not
 resolve this transport defect. Personal hashes and zero model turns are asserted.
+
+Authenticated-fixture investigation identified the actual missing condition:
+default native plugin listing fetches configured **and remote** marketplaces.
+A direct async Node call with an authenticated isolated CODEX_HOME also waited
+16.7 seconds on two native TLS connections and returned remote connector rows
+despite having no local registrations. The same authenticated home with official
+`--marketplace vesta-local` returned valid empty JSON in 46 ms. Registry ownership
+queries must scope to Vesta's marketplace and retain authentication unchanged;
+they must not depend on unrelated remote catalog availability. The stress fixture
+therefore includes the same read-only authentication symlink as packaged live
+proof. Native controls use the official scoped listing, and actual packaged
+setup/repair must complete with the original bounds. The earlier unauthenticated
+stress passes did not cover this condition; asynchronous draining alone did not
+fix the authenticated live failure.

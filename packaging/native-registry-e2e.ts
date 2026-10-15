@@ -2,7 +2,7 @@
 // Authored before replacing the failing synchronous registry transport.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { buildRelocated, executable, hash, releaseVersion, sealEvidence } from './e2e-common.ts';
@@ -15,6 +15,8 @@ const built = buildRelocated(artifacts, releaseVersion);
 const native = executable('codex'); assert.match(readFileSync(native, 'utf8').slice(0, 100), /^#!.*node/, 'exercise installed npm Node launcher, not private Rust executable');
 const home = join(artifacts, 'home'); const config = join(home, 'vesta'); const codex = join(home, '.codex'); const shell = join(home, 'zshrc'); const owned = join(artifacts, 'owned');
 mkdirSync(codex, { recursive: true }); writeFileSync(shell, '# retained shell setting\n'); writeFileSync(join(codex, 'config.toml'), '[features]\nhooks = true\nplugins = true\n');
+assert.ok(existsSync(join(homedir(), '.codex/auth.json')), 'authenticated native fixture required to cover remote listing regression');
+symlinkSync(join(homedir(), '.codex/auth.json'), join(codex, 'auth.json'));
 const env = { ...process.env as Record<string, string>, HOME: home, CODEX_HOME: codex, VESTA_HOME: owned, VESTA_BIN_DIR: join(artifacts, 'bin') };
 const commands: any[] = []; let failure = '';
 const relayProgram = 'const {spawnSync}=require("node:child_process"); const r=spawnSync(process.argv[1],process.argv.slice(2),{encoding:"utf8",timeout:40000}); process.stdout.write(r.stdout??""); process.stderr.write(r.stderr??""); if(r.error)process.stderr.write(r.error.message); process.exitCode=r.status??1;';
@@ -43,7 +45,7 @@ async function run(command: string, argv: string[], label: string) {
 }
 try {
   // Node async control and compiled management calls use the same unmodified npm launcher.
-  for (let index = 0; index < 12; index++) await run(native, ['plugin', 'list', '--json'], 'control-' + index);
+  for (let index = 0; index < 12; index++) await run(native, ['plugin', 'list', '--marketplace', 'vesta-local', '--json'], 'control-' + index);
   const setup = ['setup', '--provider', 'codex', '--config-dir', config, '--shell-file', shell, '--warm', '--json'];
   await run(built.binary, setup, 'setup');
   const stateFile = join(config, '.vesta-setup-codex.json'); const state = JSON.parse(readFileSync(stateFile, 'utf8'));
@@ -52,7 +54,7 @@ try {
     const result = await run(built.binary, ['repair', '--provider', 'codex', '--json'], 'repair-' + index);
     assert.deepEqual(result.repaired, ['codex']); assert.equal(result.integrations[0].warmConfigured, true); assert.equal(result.integrations[0].warmEnabled, false, 'fixture never bypasses hook trust');
     assert.equal(JSON.parse(readFileSync(stateFile, 'utf8')).native, state.native, 'repair cannot replace launcher with Rust-private path');
-    const listing = await run(native, ['plugin', 'list', '--json'], 'registry-' + index); assert.equal(listing.installed.filter((row: any) => row.pluginId === 'vesta@vesta-local').length, 1);
+    const listing = await run(native, ['plugin', 'list', '--marketplace', 'vesta-local', '--json'], 'registry-' + index); assert.equal(listing.installed.filter((row: any) => row.pluginId === 'vesta@vesta-local').length, 1);
   }
   assert.equal(existsSync(join(codex, 'sessions')) ? readdirSync(join(codex, 'sessions'), { recursive: true }).filter(file => String(file).endsWith('.jsonl')).length : 0, 0, 'metadata contract makes no model turns');
   assert.ok(!existsSync(join(owned, '.operation.lock')));
