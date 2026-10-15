@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "07e4a85357eac64bb1fe9226a238a566",
+  "generation": "a336d6b5a1dd1eb15157464dd21121ed",
   "repositories": {
-    "app": "6a626e4a66531b27e2550cc0f25fc4f09f5c9d55"
+    "app": "34907bc14e6a8e5c91aa7fe55a637ffe367aad01"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -20,6 +20,7 @@
     "app:experiments/context-acceptance.ts": "79c2305fefd415faf7d02fee8c644be3d8c790d5ef355841cd74b97e294432c2",
     "app:experiments/diagnose-codex-e2e.ts": "4f8dc1d1c67cd1f8b8c6041c2cb2836691837f1b3b594b97d35a9a4f186878c4",
     "app:experiments/diagnose-codex-fixture.mjs": "ff3465c8fbd12cc91fa7097e7046052bef90a541519ee307439c603fa5140724",
+    "app:experiments/docs-check.ts": "c1e8cf4fe126f13a8fe6545c2cf116dbc996531ba44a59292dcc91d6e94bc413",
     "app:experiments/marker-acceptance.ts": "b76c3906ee6ef3b90219088af99b42c87329376e91c47e5986b642bf8ced83b2",
     "app:experiments/native-socket-probe.ts": "c43d9c9fb31a34a861269295051c3560a579363fd598956af343f181c27ec16a",
     "app:experiments/setup-acceptance.ts": "dfc27754f1d5b6642475f3a354b1ab41ea65a1c9406a85f7c17488cdd85d4d58",
@@ -45,6 +46,7 @@
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DISARM-001/plan.md": "dbf8064e9a4ae74265026b3624b4535a1790dd9de67f9afcc9d55db0be643e54",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/history/DOCS-001.json": "354e3ecc3e4121726afe1db876f4cddc865b12e6ce4e9ffc0709001496c9e46c",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/plan.md": "6e045b2a98a7c240bee81a5ca46ef4fc1c87f5e0ea828c1181ef70e5a85419ed",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-002/plan.md": "cad88c0cda1e40f69a8a03c304018d9f3e049438559af4ca2562576033a6999a",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/IDLE-001/history/IDLE-001.json": "d230dad3b5b659f3da037a8dc257e24fc097466e4f6f15853e6d85515623bd6d",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/IDLE-001/history/review.json": "4856c3d09bee56641b69c837721586005c63844b5e3e2aa8a9e165d6fb14b548",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/IDLE-001/plan.md": "06e09ca338ab4e109a0f8a7639fbd133c362cea0184ab3ee9fd055cfe243fe5d",
@@ -66,6 +68,8 @@
     "app:harness/artifacts/SESSION-INTEGRATION/changes/SETUP-001/failures.md": "4f541c33ff9b01e2c43e107714a4bd1c67713d9601d36466bdcf9e522b4b60a6",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/SETUP-001/history/SETUP-001.json": "15c68a42acea6b102f8e931aaf54c0beff2e3789316f40fa8fb4faec0987f517",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/SETUP-001/plan.md": "16e56cb39c63b9a42e377ee22890543a28cd14294b5bb776e223e35c8c6384f6",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/SUBMIT-001/history/SUBMIT-001.json": "5134a1ab6c0db94c5adf3d94e0bc097e6fe9bacefe41fab14d4252efb76ac215",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/SUBMIT-001/history/review.json": "3b1cdd9158ef64aba28cc3e3849631cf6265f135d6b544a034df0d1e25d5fbf4",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/SUBMIT-001/plan.md": "a5ef9c9cf18a35618af2fb0b9c57817bc8e7065c38ae44f0c6d40e691e62c92e",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/failures.md": "46b3fb82b2b4c66783b4d36e907d2b1ebc7c3c5ec439b4b4fa29741955761fd2",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/WATCH-001/history/WATCH-001.json": "a80bde6e1f5b5291044b09241e8adfab592cc8113804ab9de4719bedd3beb378",
@@ -75,7 +79,7 @@
     "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "954b98ef558ef2b80a26a5dc24c290df416a87f2a40dee48a3f48efa8c06a2bf",
     "app:harness/artifacts/features.md": "957e3fa32435f43672088810dcc5585da6979b5aa4ce42bc081aafd96f0306f7",
     "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
-    "app:harness/harness.yaml": "cbbcd694d4f48cab4b6ab3d67d4a5122c92d8de5cf041e13e234c1a0114eca98",
+    "app:harness/harness.yaml": "55fd2bd99538e8b153107fd2dbacf6b67bfda35830561bb76ce496730d481cbf",
     "app:harness/scenarios/DISTRIBUTION/native-registry-transport.yaml": "8139883f50ed3b7b55ef7dec974aa89632dbe3f90ea9f4081e9d7c7d9290702f",
     "app:harness/scenarios/DISTRIBUTION/standalone-install-update.yaml": "a33f123260ca6689d6a38370260da08f3ba6e7a2bf7a5f3baf01af3dc6d76cf8",
     "app:harness/scenarios/DISTRIBUTION/standalone-native.yaml": "33b813c69e55107648de9cdbb3bd17c398b9e32479670dfa7dc3b173cb67d814",
@@ -104,8 +108,9 @@
     "app:harness/scenarios/SESSION-INTEGRATION/marker-readme-rule.yaml": "f9808b13aff552a784c0337778edaf8694f4043f068deec00bc2c1bc13b22dae",
     "app:harness/scenarios/SESSION-INTEGRATION/native-forwarding.yaml": "25bdbf096986b46aabadbf4597e461b97e46278efdfa8061b5d04fb62f6a7bf8",
     "app:harness/scenarios/SESSION-INTEGRATION/native-setup.yaml": "11e8d3c08bc08b50e0402812b5a7316f4ccd11b5da8b82ad07a7bfe7dcb33a4b",
+    "app:harness/scenarios/SESSION-INTEGRATION/provider-docs.yaml": "33867dc64c5fb82fc0b2739ef56943ad026c83ac80b4a92bbf043988a5b77a02",
     "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "b6e067c4ad01ef3df114acc154c21b2673fdda353c8f4632f12f6efccad422ac",
-    "app:harness/tasks/SUBMIT-001.json": "5134a1ab6c0db94c5adf3d94e0bc097e6fe9bacefe41fab14d4252efb76ac215",
+    "app:harness/tasks/DOCS-002.json": "54dedb16a7b2a8249faa46e10fe65b1fdcc0b6c87a33342f70d528b030c90ba5",
     "app:packaging/curl-fixture.zsh": "96d51db92ae35d21b9265139fae3e4fbed7c8b95460e77aad5c9baa47c7d4f58",
     "app:packaging/e2e-common.ts": "fd2b413d0b0c655e751d4d827d60e93c9e03784ce947fa8e6dcaabaf77d45226",
     "app:packaging/gh-fixture.zsh": "60f31eb9f81c8e3ae8f24dc78d0555fc2630a121f2f96b0d4ba2f03cff20126f",
@@ -119,7 +124,7 @@
     "app:packaging/repair-e2e.ts": "3918bf96ac3548da874853bb8d78718fe1516a0beb1b2813c210d26866ce0235"
   },
   "modes": {
-    "SUBMIT-001": "strict"
+    "DOCS-002": "quick"
   },
   "amendments": [
     {
@@ -490,6 +495,16 @@
       },
       "repositories": {
         "app": "6a626e4a66531b27e2550cc0f25fc4f09f5c9d55"
+      }
+    },
+    {
+      "reason": "Document verified provider behavior and push accumulated source fixes after submitted warming correction",
+      "prior_generation": "07e4a85357eac64bb1fe9226a238a566",
+      "prior_repositories": {
+        "app": "6a626e4a66531b27e2550cc0f25fc4f09f5c9d55"
+      },
+      "repositories": {
+        "app": "34907bc14e6a8e5c91aa7fe55a637ffe367aad01"
       }
     }
   ]
