@@ -31,7 +31,7 @@ export function verifyNativeResumeEvidence(e: NativeResumeEvidence, directory: s
   assert.ok(e.commands.length > 0);
   for (const command of e.commands) raw(command.rawFile);
   const install = e.commands[e.installation.commandIndex]!;
-  assert.ok(install.argv.some(arg => arg.endsWith('/setup.ts') || arg.endsWith('/vesta') || arg.endsWith('/vesta-development')), 'actual shipped installer');
+  assert.ok(install.argv.some(arg => arg.endsWith('/setup.ts') || arg.endsWith('/vesta') || arg.endsWith('/vesta-development') || arg.endsWith('/vesta-darwin-arm64')), 'actual shipped installer');
   assert.ok(install.argv.includes('install') && install.argv.includes('--warm'));
   assert.equal(e.installation.pluginId, 'vesta@vesta-local'); assert.equal(e.installation.configWarm, true);
   assert.equal(e.installation.unrelatedHookObserved, true, 'existing native guard remains active');

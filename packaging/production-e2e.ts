@@ -35,13 +35,23 @@ writeFileSync(join(artifacts, 'SHA256SUMS'), hash(binary) + '  vesta-darwin-arm6
 writeFileSync(join(artifacts, 'source-identity.json'), JSON.stringify({ sourceHead: build.sourceHead, version: releaseVersion, binarySha256: build.binarySha256, oracleFiles: ['packaging/production-e2e.ts', 'packaging/release-acceptance.ts', 'experiments/codex-native-acceptance.ts', 'experiments/setup-live-acceptance.ts'].map(path => ({ path, sha256: hash(join(root, path)) })) }, null, 2) + '\n');
 try {
   const codex = join(artifacts, 'codex');
+  assert.equal(hash(binary), build.binarySha256, 'exact candidate before Codex proof');
   run('codex', executable('node'), [...nodeFlags, join(root, 'experiments/codex-native-warming-e2e.ts'), '--packaged', '--artifacts', codex], 240000, true);
+  assert.equal(hash(binary), build.binarySha256, 'exact candidate after Codex proof');
   const codexSummary = join(codex, 'native/shipped-summary.json');
-  verifyNativeResumeEvidence(JSON.parse(readFileSync(codexSummary, 'utf8')), dirname(codexSummary));
+  const codexEvidence = JSON.parse(readFileSync(codexSummary, 'utf8'));
+  assert.equal(codexEvidence.commands[codexEvidence.installation.commandIndex].argv[0], binary, 'Codex installed the exact production candidate');
+  verifyNativeResumeEvidence(codexEvidence, dirname(codexSummary));
   const claude = join(artifacts, 'claude');
+  assert.equal(hash(binary), build.binarySha256, 'exact candidate before Claude proof');
   run('claude', executable('node'), [...nodeFlags, join(root, 'experiments/setup-live.ts'), 'claude', claude, '--marker'], 270000, true);
+  assert.equal(hash(binary), build.binarySha256, 'exact candidate after Claude proof');
   const claudeSummary = join(claude, 'summary.json');
-  verifySetupLiveEvidence(JSON.parse(readFileSync(claudeSummary, 'utf8')), dirname(claudeSummary));
+  const claudeEvidence = JSON.parse(readFileSync(claudeSummary, 'utf8'));
+  const claudeInstalls = claudeEvidence.commands.filter((command: { role: string; argv: string[] }) => command.role === 'setup' && command.argv.includes('install'));
+  assert.ok(claudeInstalls.length > 0, 'Claude candidate installation recorded');
+  for (const command of claudeInstalls) assert.equal(command.argv[0], binary, 'Claude installed the exact production candidate');
+  verifySetupLiveEvidence(claudeEvidence, dirname(claudeSummary));
   verifyBuildReceipt(receipt, binary);
   assert.ok(Date.now() - startedAt <= 600000, 'bounded production verification');
   writeFileSync(join(artifacts, 'production-summary.json'), JSON.stringify({ schema: 1, kind: 'production-native-candidate', startedAt, endedAt: Date.now(), sourceHead: build.sourceHead, binary, receipt, binarySha256: hash(binary), codexSummary, claudeSummary, commands }, null, 2) + '\n');
