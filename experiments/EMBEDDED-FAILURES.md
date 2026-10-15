@@ -39,6 +39,20 @@ PTY; no `--remote`, CODEX_HOME overlay, permission rewriting, or trust bypass.
 - Cleanup or signals affect sibling/shared process: owned PTY exit and watcher
   timer shutdown must preserve fixture shared-server liveness. Personal hashes
   unchanged and artifacts retain original events/transcripts/commands/source IDs.
+- A foreground switch does not imply backend unload: the residency probe creates
+  real A and B replies with automatic warming disabled, then writes one native
+  queued marker to abandoned A. Raw hooks identify whether the same process still
+  consumes A while its active eligibility remains B. Retain leases until native
+  SessionEnd or owner exit, rather than releasing them merely on foreground rebind.
+- Cold picker/latest selection has unknown thread identity: register a global
+  invocation metadata ambiguity marker before loading the native backend. Other
+  producers must suspend dispatch while it exists, including their final
+  pre-native-write check. Native navigation/input revokes known identity until
+  exact native submitted-thread lease/peer binding or invocation exit.
+- Unsolicited quota modals can mislead automated test navigation: isolated homes
+  set the pinned native `[notice] hide_rate_limit_model_nudge = true`, preserving
+  the selected gpt-6.1-sol model. Production settings and real quota errors remain
+  untouched. The inconclusive residency run remains evidence, not a passing claim.
 
 This prototype can establish an approach, not declare shared-daemon integration
 supported. Final scope and user transport choice must be locked before restoring

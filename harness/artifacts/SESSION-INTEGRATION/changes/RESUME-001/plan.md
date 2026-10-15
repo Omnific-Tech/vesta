@@ -92,3 +92,21 @@ and untrusted/globally disabled hook readiness. Compensate only owned native
 registration operations; never overwrite a whole shared native configuration.
 Report failed compensation explicitly. Standalone activation rollback must also
 restore successful native registration changes if a later owned activation fails.
+
+## Ownership ambiguity amendment
+
+Conservatively retain leases for all locally resident thread identities until
+native SessionEnd or owner exit. A foreground switch does not prove backend
+unload. A cold picker/latest invocation or navigation has unknown thread identity;
+register that ambiguity before backend launch/input and block other producers,
+including their immediate pre-queue-write check, until exact native binding or
+owner exit. Known conflicting invocations remain observed local owners with
+warming disabled. Gate pending work by current thread/epoch so stale committed
+messages do not block a different fresh conversation forever.
+
+The existing live source/CLI/packaged oracle additionally opens an unknown native
+picker and checks original producer suspension without extra model turns. The
+optional residency probe is investigative; its last attempt was inconclusive
+because an unsolicited native quota modal intercepted test navigation. Isolated
+fixtures set pinned native notice.hide_rate_limit_model_nudge to preserve their
+selected model; no personal configuration or production model choice changes.

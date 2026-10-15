@@ -113,6 +113,7 @@ export function verifyNativeResumeEvidence(e: NativeResumeEvidence, directory: s
   assert.match(raw(e.collision.rawFile), /lease-conflict/);
   const primary = dispatched[0]!.ownerId;
   assert.ok(trace.some(row => row.kind === 'lease-conflict' && row.ownerId === primary && row.clean === true), 'clean original owner independently sees conflict before any keyboard cancellation');
+  assert.ok(trace.some(row => row.kind === 'ownership-ambiguous' && row.ownerId === primary), 'cold native picker suspends other producers before selected thread is known');
   assert.equal(e.collision.queuedAfter, e.collision.queuedBefore, 'conflicting owner produces no native queue message');
   assert.ok(e.installedFiles.some(file => file.sourcePath.endsWith('/handler.mjs')), 'actual native installed handler retained');
   for (const file of e.installedFiles) assert.equal(createHash('sha256').update(raw(file.rawFile)).digest('hex'), file.sha256, 'installed native asset content matches retained fingerprint');

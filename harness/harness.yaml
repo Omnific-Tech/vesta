@@ -6,6 +6,8 @@ repositories:
     path: .
 verification_inputs:
   - repo: app
+    path: experiments/codex-native-residency-probe.ts
+  - repo: app
     path: experiments/codex-native-setup-fault-e2e.ts
   - repo: app
     path: experiments/codex-native-fault-fixture.mjs

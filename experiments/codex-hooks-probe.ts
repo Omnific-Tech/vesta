@@ -11,11 +11,13 @@ import { globalInstructions, noncePrompt } from './marker-acceptance.ts';
 import { nativeSocketProbe } from './native-socket-probe.ts';
 import type { NativeResumeEvidence } from './codex-native-acceptance.ts';
 import { stripVTControlCharacters } from 'node:util';
+import { nativeRequest } from './codex-native-ipc.ts';
 
 const flag = process.argv.indexOf('--artifacts');
 const embedded = process.argv.includes('--embedded'); const cliResume = process.argv.includes('--cli-resume');
 const shipped = process.argv.includes('--shipped');
 const packaged = shipped && !!process.env.VESTA_E2E_CLI;
+const residency = process.argv.includes('--residency');
 const caseIndex = process.argv.indexOf('--case'); const variant = (caseIndex < 0 ? cliResume ? 'cli-id' : 'slash' : process.argv[caseIndex + 1]!) as NativeResumeEvidence['variant'];
 const artifacts = resolve(flag < 0 ? 'harness/runs/investigations/RESUME-001/probe-' + Date.now() : process.argv[flag + 1]!);
 assert.ok(!existsSync(artifacts) || !readdirSync(artifacts).length, 'fresh artifact directory');
@@ -89,7 +91,7 @@ function launch(argv: string[]) {
   const launchEnv = { ...env };
   if (shipped) {
     command = 'zsh'; argv = ['-f', '-c', 'source "$1"; shift; codex "$@"', 'vesta-native-e2e', shellFile, ...nativeArgv];
-    launchEnv.VESTA_WATCHER_TEST_OPTIONS = JSON.stringify(['--probe', '--capture-native', '--probe-threshold', '0', '--idle-ms', '3000', '--budget-ms', '180000', '--max-warms', '2', '--artifacts', join(artifacts, 'owner-' + terminals.length)]);
+    launchEnv.VESTA_WATCHER_TEST_OPTIONS = JSON.stringify(['--probe', '--capture-native', '--probe-threshold', '0', '--idle-ms', '3000', '--budget-ms', '180000', '--max-warms', residency ? '0' : '2', '--artifacts', join(artifacts, 'owner-' + terminals.length)]);
   } else if (embedded) argv = ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', join(here, 'codex-embedded-owner-probe.ts'), '--native', native, '--events', eventsPath, '--artifacts', artifacts, '--owner', ownerId, '--idle-ms', '1500', '--', ...nativeArgv];
   const terminal = pty.spawn(command, argv, { cwd, env: launchEnv, cols: 120, rows: 35, name: 'xterm-256color' });
   const state = { terminal, exited: false }; terminals.push(state); commands.push({ argv: [command, ...argv], originalArgv: nativeArgv, pid: terminal.pid, rawFile: terminalFile });
@@ -101,7 +103,9 @@ async function type(terminal: pty.IPty, text: string) { terminal.write('\x1b[200
 try {
   if (existsSync(personal[1]!.path)) symlinkSync(personal[1]!.path, join(home, 'auth.json'));
   const model = existsSync(personal[0]!.path) ? readFileSync(personal[0]!.path, 'utf8').match(/^model\s*=\s*"[^"\n]+"/m)?.[0] ?? '' : '';
-  const config = model + '\n[features]\nhooks = true\nplugins = true\n[projects.' + JSON.stringify(cwd) + ']\ntrust_level = "trusted"\n[projects.' + JSON.stringify(otherCwd) + ']\ntrust_level = "trusted"\n';
+  // Pinned native config/src/types.rs Notice.hide_rate_limit_model_nudge.
+  // This isolated fixture preserves the selected model during automated UI navigation.
+  const config = model + '\n[notice]\nhide_rate_limit_model_nudge = true\n[features]\nhooks = true\nplugins = true\n[projects.' + JSON.stringify(cwd) + ']\ntrust_level = "trusted"\n[projects.' + JSON.stringify(otherCwd) + ']\ntrust_level = "trusted"\n';
   writeFileSync(join(home, 'config.toml'), config); writeFileSync(join(home, 'AGENTS.md'), globalInstructions(nonce));
   const marketplace = join(fixture, 'marketplace'); const plugin = join(marketplace, 'probe');
   mkdirSync(join(marketplace, '.agents/plugins'), { recursive: true }); mkdirSync(join(plugin, '.codex-plugin'), { recursive: true });
@@ -162,6 +166,18 @@ try {
   first = (await wait(() => events('SessionStart').find(row => row.input.source === 'startup'), 'fresh registered-plugin startup')).input.session_id;
   assert.ok(rows().some(row => row.sentinel && row.input.session_id === first), 'existing guard hook remains active');
   await wait(() => events('Stop').find(row => row.input.session_id === first && row.input.last_assistant_message?.trim() === nonce), 'first native nonce response'); turnCount++;
+  if (residency) {
+    const before = Date.now(); await sleep(300); await type(terminal, '/new'); await sleep(1200); await type(terminal, noncePrompt);
+    const next = await wait(() => events('Stop').find(row => row.at >= before && row.input.session_id !== first && row.input.last_assistant_message?.trim() === nonce), 'real second native conversation response');
+    second = next.input.session_id; turnCount++;
+    const clientId = randomUUID();
+    await nativeRequest(native, 'thread/queue/add', { threadId: first, clientUserMessageId: clientId, input: [{ type: 'text', text: 'VESTA_CACHE_KEEPALIVE', text_elements: [] }] },
+      (direction, row) => appendFileSync(join(artifacts, 'residency-queue.jsonl'), JSON.stringify({ at: Date.now(), direction, row }) + '\n'), { env });
+    const old = await wait(() => events('Stop').find(row => row.at >= next.at && row.input.session_id === first && row.input.last_assistant_message?.trim() === 'K'), 'abandoned native backend queue consumption', 30000); turnCount++;
+    const trace = readFileSync(join(artifacts, 'owner-0/codex-native-trace.jsonl'), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
+    const observation = trace.findLast(row => row.kind === 'hook' && row.raw?.input?.turn_id === old.input.turn_id && row.raw?.input?.hook_event_name === 'Stop');
+    writeFileSync(join(artifacts, 'residency.json'), JSON.stringify({ first, second, clientId, consumerOwner: old.environmentOwner, producerNativeOwner: next.environmentOwner, activeAtOldCompletion: observation?.activeSession, modelTurns: turnCount }, null, 2));
+  } else {
   if (!embedded) command(['queue', '--thread', first, '--message', 'VESTA_CACHE_KEEPALIVE']);
   await wait(() => events('Stop').find(row => row.input.session_id === first && row.input.last_assistant_message?.trim() === 'K'), 'queue reaches existing native owner'); queueDelivered = true; turnCount++;
   if (embedded) {
@@ -181,6 +197,13 @@ try {
       writeFileSync(join(artifacts, 'collision.txt'), conflictRows.map(row => JSON.stringify(row)).join('\n'));
       collision = { observed: true, rawFile: 'collision.txt', queuedBefore, queuedAfter: traceRows().filter(row => row.kind === 'queue-added').length };
       duplicate.kill('SIGTERM'); await wait(() => terminals[1]!.exited, 'conflicting native owner exits');
+      const unknownIndex = terminals.length;
+      const picker = launch(['resume', '--yolo', '--no-alt-screen']);
+      await wait(() => traceRows().some(row => row.kind === 'ownership-ambiguous' && row.ownerId === primaryOwner), 'primary owner observes unknown native picker before any new turn');
+      const beforeUnknown = traceRows().filter(row => row.kind === 'queue-added').length;
+      await sleep(3400);
+      assert.equal(traceRows().filter(row => row.kind === 'queue-added').length, beforeUnknown, 'unknown picker suspends all native queue producers');
+      picker.kill('SIGTERM'); await wait(() => terminals[unknownIndex]!.exited, 'unknown native picker exits');
     }
     await sleep(300); await type(terminal, '/rename vesta-probe-first'); await sleep(600);
     const beforeResume = Date.now();
@@ -253,6 +276,7 @@ try {
   await type(terminal, noncePrompt); await wait(() => events('Stop').find(row => row.at >= beforeResume && row.input.session_id === first && row.input.last_assistant_message?.trim() === nonce), 'resumed user continuity'); turnCount++;
   assert.ok(server.exitCode === null, 'owner cleanup does not stop shared fixture server early');
   }
+  }
 } catch (error) { failure = String(error); }
 finally {
   observer?.close();
@@ -263,7 +287,7 @@ finally {
   if (existsSync(join(home, 'log/codex-tui.log'))) copyFileSync(join(home, 'log/codex-tui.log'), join(artifacts, 'fixture-tui.log'));
   for (const path of [...new Set(rows().map(row => row.input.transcript_path).filter(Boolean))] as string[]) if (existsSync(path)) copyFileSync(path, join(artifacts, path.split('/').at(-1)!));
   const actualTurns = [...new Set(rows().filter(row => !row.sentinel && row.input.hook_event_name === 'UserPromptSubmit').map(row => row.input.turn_id))].length;
-  if (shipped) {
+  if (shipped && !residency) {
     const ownerRows = terminals.flatMap((_, i) => { const path = join(artifacts, 'owner-' + i, 'codex-native-runtime.json'); return existsSync(path) ? [JSON.parse(readFileSync(path, 'utf8'))] : []; });
     const traces = terminals.flatMap((_, i) => { const path = join(artifacts, 'owner-' + i, 'codex-native-trace.jsonl'); return existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : []; });
     writeFileSync(join(artifacts, 'shipped-trace.jsonl'), traces.map(row => JSON.stringify(row)).join('\n') + '\n');
