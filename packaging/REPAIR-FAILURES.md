@@ -48,7 +48,9 @@ npm Node launcher without substituting its private Rust executable. Twelve async
 Node controls and twelve packaged repairs must return complete valid native JSON
 without retries, empty-output fallback, timeout increases or orphan operation
 locks. A command still running after two seconds records only its owned process
-tree; timeout/nonzero/invalid JSON remains a failure. The existing packaged live
+tree. Packaged commands run behind the same synchronous Node parent as the live
+shipped proof (an async outer observer can still record owned process state). The
+timeout/nonzero/invalid JSON remains a failure. The existing packaged live
 contract has reproduced both empty successful stdout and 30-second synchronous
 `plugin list --json` timeouts before any model turn. Closed stdin alone did not
 resolve this transport defect. Personal hashes and zero model turns are asserted.

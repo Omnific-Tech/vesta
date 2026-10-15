@@ -17,8 +17,11 @@ const home = join(artifacts, 'home'); const config = join(home, 'vesta'); const 
 mkdirSync(codex, { recursive: true }); writeFileSync(shell, '# retained shell setting\n'); writeFileSync(join(codex, 'config.toml'), '[features]\nhooks = true\nplugins = true\n');
 const env = { ...process.env as Record<string, string>, HOME: home, CODEX_HOME: codex, VESTA_HOME: owned, VESTA_BIN_DIR: join(artifacts, 'bin') };
 const commands: any[] = []; let failure = '';
+const relayProgram = 'const {spawnSync}=require("node:child_process"); const r=spawnSync(process.argv[1],process.argv.slice(2),{encoding:"utf8",timeout:40000}); process.stdout.write(r.stdout??""); process.stderr.write(r.stderr??""); if(r.error)process.stderr.write(r.error.message); process.exitCode=r.status??1;';
 async function run(command: string, argv: string[], label: string) {
-  const child = spawn(command, argv, { cwd: home, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  // Match shipped live proof's synchronous Node parent around the compiled CLI.
+  const relay = command === built.binary;
+  const child = spawn(relay ? process.execPath : command, relay ? ['-e', relayProgram, command, ...argv] : argv, { cwd: home, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = ''; let stderr = ''; let error = ''; let timedOut = false;
   child.stdout!.on('data', data => { stdout += data; }); child.stderr!.on('data', data => { stderr += data; }); child.on('error', value => { error = value.message; });
   const samples: any[] = []; const started = Date.now(); let sampled = false;
@@ -35,7 +38,7 @@ async function run(command: string, argv: string[], label: string) {
   const result = await new Promise<{ code: number | null; signal: string | null }>(done => child.on('close', (code, signal) => done({ code, signal })));
   clearInterval(capture); clearTimeout(timer);
   writeFileSync(join(artifacts, label + '.stdout'), stdout); writeFileSync(join(artifacts, label + '.stderr'), stderr);
-  commands.push({ command, argv, pid: child.pid, ...result, error, timedOut, elapsed: Date.now() - started, stdoutFile: label + '.stdout', stderrFile: label + '.stderr', processes: samples });
+  commands.push({ command, argv, synchronousNodeRelay: relay, pid: child.pid, ...result, error, timedOut, elapsed: Date.now() - started, stdoutFile: label + '.stdout', stderrFile: label + '.stderr', processes: samples });
   assert.equal(timedOut, false, label + ': metadata command exceeded original bounded runtime'); assert.equal(error, '', label); assert.equal(result.code, 0, label + ': ' + stderr); return JSON.parse(stdout);
 }
 try {
