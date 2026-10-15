@@ -2,7 +2,7 @@
 
 [All provider guides](README.md) · [Install Vesta](../README.md#install)
 
-In this unreleased checkout, an owned zsh `codex` function loads Vesta's recorded
+In version 0.2.5, an owned zsh `codex` function loads Vesta's recorded
 native executable. When warming is opted in and its six native hooks are ready,
 it starts the native TUI with the original arguments plus `--no-daemon`. The
 session has a local physical owner rather than a shared-daemon attachment.
@@ -14,7 +14,7 @@ the native durable queue, never as marker keystrokes.
 1. Add the [global reply rule](../README.md#1-add-the-reply-rule) to
    `~/.codex/AGENTS.md`, or the applicable instruction file under `CODEX_HOME`.
    Account for `AGENTS.override.md` if your session loads it instead.
-2. From a build containing this checkout, run
+2. From the [v0.2.5 release](releases/v0.2.5.md), run
    `vesta install --provider codex --warm`. A source checkout can use
    `node --experimental-strip-types experiments/setup.ts install --provider codex --warm`.
 3. Review and trust only Vesta's entries in native `/hooks`. The required hooks

@@ -4,10 +4,11 @@ Vesta submits a small keepalive turn into an eligible open coding session. It
 does not reopen ended conversations. Each keepalive consumes model usage;
 cache retention and net savings remain unverified.
 
-These guides describe the **current source checkout, unreleased 0.2.4**. Published
-v0.2.1 downloads use the older Codex wrapper. Updating from that public release
-does not install the native owner described here. Start with the root
-[installation guide](../README.md#install), then read your provider's guide:
+These guides describe **version 0.2.5**, including Codex's native local owner.
+Upgrades from v0.2.1 replace the older wrapper and require native hook trust
+review and new sessions. Start with the root
+[installation guide](../README.md#install) and [release notes](releases/v0.2.5.md),
+then read your provider's guide:
 
 - [Claude Code](claude.md): an in-process native plugin and session watcher.
 - [Codex](codex.md): a managed native local owner, trusted hooks and durable queue.

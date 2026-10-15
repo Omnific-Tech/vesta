@@ -1,13 +1,14 @@
 # One-time native CLI setup
 
-Current checkout Codex warming uses native local ownership, registered hooks and
-the native durable queue. Claude is unchanged. Published v0.2.1 binaries retain
-the previous remote wrapper; no new release accompanies this change. Existing
-source integrations preserve native pass-through until installed native hooks are
-registered and reviewed. Exit an older wrapped session and relaunch after setup.
+Version 0.2.5 Codex warming uses native local ownership, registered hooks and
+the native durable queue. Claude is unchanged. Upgrades from v0.2.1 replace its
+previous remote wrapper. Existing source integrations preserve native pass-through
+until installed native hooks are registered and reviewed. Exit an older wrapped
+session and relaunch from a new terminal after setup. See the
+[v0.2.5 release notes](../docs/releases/v0.2.5.md) for upgrade instructions.
 
-The unreleased 0.2.4 CLI also accepts `setup` as an alias for `install`. To restore
-an existing integration, run the locally built `./dist/vesta repair`, or use
+The v0.2.5 CLI also accepts `setup` as an alias for `install`. To restore
+an existing integration, run `vesta repair`, or use
 `repair --warm` to opt selected owned providers into warming. Plain repair keeps
 each provider's saved warm setting, custom timers and unrelated preferences.
 It restores missing owned registrations and complete missing shell blocks while
@@ -25,8 +26,9 @@ Existing sessions keep their current runtime until you exit and relaunch them.
 
 An unchanged-version update repairs missing owned registrations or shell blocks
 using the installed immutable manager; healthy integrations remain unchanged even
-when native hook trust is pending. Published 0.2.1 downloads do not contain these
-commands or the native owner; no release is published by this change.
+when native hook trust is pending. Older v0.2.1 installations need `vesta update`
+or a fresh v0.2.5 download and `install` before these commands and the native owner
+are available. For v0.2.0, download and install v0.2.5 to replace its older updater.
 
 Use the standalone macOS arm64 release, existing subscription logins, and installed
 native Claude/Codex executables. Vesta embeds pinned Node 22.17.1 and native PTY
