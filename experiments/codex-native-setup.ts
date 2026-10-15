@@ -22,6 +22,7 @@ function call(native: string, argv: string[], nativeHome: string) {
 export function codexRegistration(native: string, state: any) {
   const nativeHome = home();
   if (state?.nativeCodexHome && state.nativeCodexHome !== nativeHome) throw new Error('Owned native Codex home cannot be relocated implicitly');
+  if (!existsSync(nativeHome)) return { nativeHome, plugin: undefined, marketplace: undefined };
   const plugin = call(native, ['plugin', 'list', '--json'], nativeHome).installed.find((row: any) => row.pluginId === codexPluginId);
   const marketplace = call(native, ['plugin', 'marketplace', 'list', '--json'], nativeHome).marketplaces.find((row: any) => row.name === 'vesta-local');
   if (plugin && (state?.nativePluginId !== codexPluginId || plugin.source?.path !== join(state.nativeMarketplaceRoot, 'plugin'))) throw new Error('Foreign native Codex Vesta plugin ownership');
@@ -53,6 +54,7 @@ export async function restoreNativeCodex(native: string, currentState: any, prev
 }
 export async function installNativeCodex(native: string, configDir: string, node: string, state: any) {
   const previous = codexRegistration(native, state);
+  mkdirSync(previous.nativeHome, { recursive: true, mode: 0o700 });
   const effective = await nativeRequest(native, 'config/read', { includeLayers: false }, undefined, { env: { ...process.env as Record<string, string>, CODEX_HOME: previous.nativeHome } });
   if (effective.config.features?.plugins === false || effective.config.features?.hooks === false) return undefined;
   const version = json(join(here, '../package.json')).version;
