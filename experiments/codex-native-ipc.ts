@@ -2,7 +2,7 @@
 import { spawn } from 'node:child_process';
 export const codexPluginId = 'vesta@vesta-local';
 export async function nativeRequest(native: string, method: 'hooks/list' | 'thread/queue/add' | 'config/value/write' | 'config/read', params: any, capture?: (direction: string, row: any) => void,
-  lifecycle: { env?: Record<string, string>; signal?: AbortSignal; authorize?: () => boolean; spawned?: (pid: number) => void; cleaned?: (row: { pid: number; owned: boolean; exited: boolean }) => void } = {}) {
+  lifecycle: { env?: Record<string, string>; signal?: AbortSignal; authorize?: () => boolean | Promise<boolean>; spawned?: (pid: number) => void; cleaned?: (row: { pid: number; owned: boolean; exited: boolean }) => void } = {}) {
   const child = spawn(native, ['app-server', '--stdio'], { env: lifecycle.env ?? process.env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
   let buffer = ''; let failure: Error | undefined; const replies: any[] = [];
   if (child.pid) lifecycle.spawned?.(child.pid);
@@ -32,9 +32,9 @@ export async function nativeRequest(native: string, method: 'hooks/list' | 'thre
     throw new Error('native request timed out');
   };
   try {
-    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'vesta_native', version: '0.2.2' }, capabilities: { experimentalApi: true } } }); await wait(1);
+    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'vesta_native', version: '0.2.3' }, capabilities: { experimentalApi: true } } }); await wait(1);
     send({ method: 'initialized', params: {} });
-    if (lifecycle.signal?.aborted || lifecycle.authorize && !lifecycle.authorize()) { const error = new Error('native request cancelled before write'); error.name = 'AbortError'; throw error; }
+    if (lifecycle.signal?.aborted || lifecycle.authorize && !await lifecycle.authorize()) { const error = new Error('native request cancelled before write'); error.name = 'AbortError'; throw error; }
     send({ id: 2, method, params }); return await wait(2);
   } finally {
     child.stdin!.end();

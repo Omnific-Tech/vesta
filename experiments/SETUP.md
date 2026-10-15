@@ -6,7 +6,7 @@ the previous remote wrapper; no new release accompanies this change. Existing
 source integrations preserve native pass-through until installed native hooks are
 registered and reviewed. Exit an older wrapped session and relaunch after setup.
 
-The unreleased 0.2.2 CLI also accepts `setup` as an alias for `install`. To restore
+The unreleased 0.2.3 CLI also accepts `setup` as an alias for `install`. To restore
 an existing integration, run the locally built `./dist/vesta repair`, or use
 `repair --warm` to opt selected owned providers into warming. Plain repair keeps
 each provider's saved warm setting, custom timers and unrelated preferences.

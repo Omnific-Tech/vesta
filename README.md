@@ -7,12 +7,14 @@ timer expires. Continue using ordinary `claude` and `codex` commands after setup
 Cache retention and net usage savings are **unverified**. Each keepalive is a
 real model turn and consumes usage.
 
-**Current checkout (unreleased 0.2.2):** Codex warming uses a native local owner and registered
+**Current checkout (unreleased 0.2.3):** Codex warming uses a native local owner and registered
 lifecycle hooks. Install with `--warm`, then review and trust only Vesta's entries
 in native `/hooks`. Until those hooks are ready, ordinary `codex` calls remain
 native and saved warming preferences stay inactive. Existing source installs need
 this registration step before warming resumes. Exit an older wrapped Codex session
 and relaunch; running sessions retain their existing integration. Claude is unchanged.
+Version 0.2.3 preserves idle eligibility across passive terminal focus and protocol
+reports. Real typing and navigation still suspend warming to protect drafts.
 
 The published v0.2.1 downloads below retain the earlier Codex wrapper. This
 native owner change has not been released; downloading that version does not

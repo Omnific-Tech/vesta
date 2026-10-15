@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
 import * as pty from 'node-pty';
 import { Watcher } from './watcher-policy.ts';
 import { nativeRequest } from './codex-native-ipc.ts';
 import { NativeLease, nativeTurn } from './codex-native-state.ts';
+import { TerminalInput } from './codex-terminal-input.ts';
 
 const split = process.argv.indexOf('--'); const options = process.argv.slice(2, split); const originalArgv = process.argv.slice(split + 1);
 const value = (flag: string) => { const index = options.indexOf(flag); return index < 0 ? undefined : options[index + 1]; };
@@ -53,23 +53,22 @@ const nativeArgv = ['--no-daemon', ...originalArgv];
 const terminal = pty.spawn(native, nativeArgv, { cwd: process.cwd(), env: { ...process.env as Record<string, string>, TERM: process.env.TERM ?? 'xterm-256color',
   VESTA_CODEX_OWNER_ID: ownerId, VESTA_CODEX_CHANNEL: channel, VESTA_CODEX_CAPTURE: capture ? '1' : '0' }, cols: process.stdout.columns ?? 120, rows: process.stdout.rows ?? 35, name: 'xterm-256color' });
 const originalRaw = process.stdin.isRaw;
-const decoder = new StringDecoder('utf8');
+const decoder = new TerminalInput();
 if (process.stdin.isTTY) process.stdin.setRawMode(true); process.stdin.resume();
-const input = (data: Buffer) => {
-  const text = decoder.write(data);
-  const remaining = text.replace(/\x1b\[[?>]?[0-9;]*[Rc]/g, '').replace(/\x1b\[\?[0-9;]*u/g, '').replace(/\x1b\](?:10|11);rgb:[^\x07\x1b]+(?:\x07|\x1b\\)/g, '');
-  if (remaining) {
+const invalidateInput = (keyboard: boolean, remaining = '') => {
     const at = Date.now(); inputSerial++; clean = false;
     lease.unknown(true);
-    const keyboard = !remaining.startsWith('\x1b') || /^\x1b(?:\[(?:[0-9;]*[ABCDHF~]|[0-9:;]+u|<[0-9;]+[Mm])|[^\[\]])/.test(remaining) || remaining.includes('\x1b[200~');
     event({ type: 'reconnect', at });
     if (keyboard) {
       const enhancedEnter = [...remaining.matchAll(/\x1b\[(\d+)(?::[0-9]*)?(?:;(\d+)(?::[0-9]+)?)?u/g)].some(match => [10, 13, 57414].includes(Number(match[1])) && !((Number(match[2] ?? 1) - 1) & 1));
       userAt = at; if (remaining.includes('\r') || enhancedEnter) submitArm = { serial: inputSerial, at, consumed: false };
       event({ type: 'activity', source: 'user', at }); trace('user-input');
     } else trace('unknown-terminal-input'); // Conservative composition invalidation without inventing user activity.
-  }
-  if (text) terminal.write(text);
+};
+const input = (data: Buffer) => {
+  terminal.write(data);
+  const result = decoder.feed(data, Date.now());
+  if (result.keyboard || result.unknown) invalidateInput(result.keyboard, result.text);
 };
 process.stdin.on('data', input);
 const resize = () => terminal.resize(process.stdout.columns ?? 120, process.stdout.rows ?? 35); process.stdout.on('resize', resize);
@@ -113,6 +112,7 @@ function completed(row: any) {
 let tickBusy = false;
 const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) return; tickBusy = true;
   void (async () => {
+    if (decoder.expire(Date.now())) invalidateInput(false);
     const contents = readFileSync(channel, 'utf8'); if (contents.length < fileOffset) throw new Error('native channel was replaced');
     partial += contents.slice(fileOffset); fileOffset = contents.length;
     while (partial.includes('\n')) {
@@ -144,7 +144,7 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
     }
     if (activeSession && lease.conflict(activeSession)) { trace('lease-conflict'); invalidate(); }
     if (lease.ambiguous()) { trace('ownership-ambiguous'); return; }
-    if (!clean || preparing || candidates.size || pendingStops.size || warms >= maxWarms || [...pending.values()].some(row => !row.consumed && row.sessionId === activeSession && row.epoch === epoch)) return;
+    if (!clean || decoder.pending || preparing || candidates.size || pendingStops.size || warms >= maxWarms || [...pending.values()].some(row => !row.consumed && row.sessionId === activeSession && row.epoch === epoch)) return;
     const reserve = event({ type: 'tick' }); if (reserve.action !== 'reserve') return;
     if (!clean || lease.conflict(activeSession)) return;
     const queued: Pending = { sessionId: activeSession, clientId: randomUUID(), reservationId: reserve.state.reservationId, dispatchInputSerial: inputSerial, epoch, consumed: false };
@@ -152,7 +152,8 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
     const writer = nativeRequest(native, 'thread/queue/add', { threadId: queued.sessionId, clientUserMessageId: queued.clientId, input: [{ type: 'text', text: 'VESTA_CACHE_KEEPALIVE', text_elements: [] }] },
       capture ? (direction, row) => trace('queue-' + direction, { row }) : undefined, {
         signal: abort.signal,
-        authorize: () => {
+        authorize: async () => {
+          while (decoder.pending && !stopped && !observerFailed && clean) await new Promise(done => setTimeout(done, 10));
           if (stopped || observerFailed || !clean || inputSerial !== queued.dispatchInputSerial || activeSession !== queued.sessionId || epoch !== queued.epoch || lease.conflict(activeSession) || lease.ambiguous()) return false;
           const dispatch = event({ type: 'dispatch', reservationId: queued.reservationId }); if (dispatch.action !== 'dispatch') return false;
           pending.set(queued.clientId, queued); warms++; trace('marker-dispatched', { pending: queued }); return true;
