@@ -7,6 +7,10 @@
   "dependencies": [],
   "risk_tags": [],
   "acceptance": [
+    { "id": "AC-RELAY", "description": "Diagnostic relay preserves installed argv/env/cwd and exact bytes without query injection or policy changes." },
+    { "id": "AC-PRIVACY", "description": "Diagnostic audit retains only bounded redacted categories/metadata, never prompts, typed characters or raw keycodes." },
+    { "id": "AC-EVIDENCE", "description": "Diagnostic event ring and filtered owner state retain timestamped private troubleshooting evidence." },
+    { "id": "AC-ISOLATION", "description": "Diagnostic fixture performs no model calls or personal changes and cleans only owned processes." },
     { "id": "AC-SUBMISSION-CLOCK", "description": "Only verified real user prompt submission sets Codex userAt and renews idle/inactivity clocks, using native submission timestamp bound to exact owner/thread/turn/client ID. Keyboard, draft, mouse, focus, terminal reports, warm hooks/completions and unknown submissions cannot renew it." },
     { "id": "AC-READING", "description": "Valid vertical SGR wheel and no-button hover preserve existing completed metric, generation, composition eligibility and submission timestamp during/after replies. They never restore eligibility invalidated by drafts/navigation/errors. Invalid or unsupported mouse forms remain conservative." },
     { "id": "AC-INPUT", "description": "Draft typing/paste, keys and potentially mutating click/drag/navigation or unknown input still block/cancel unsafe dispatch without renewing submission clocks. Pending report parsing/expiry and final authorization retain input precedence and exact Buffer forwarding." },
