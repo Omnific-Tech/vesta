@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "IDLE-001",
+  "mode": "strict",
+  "scope": "Feature SESSION-INTEGRATION, change IDLE-001: fix Codex passive terminal reports invalidating fresh eligible idle state. Preserve real input/navigation cancellation, budgets, queue ownership and byte forwarding. Prepare distinct unreleased 0.2.3 binary for repair; no personal installation or live-process changes.",
+  "implementor_id": "gpt-6.1-sol-medium",
+  "dependencies": [],
+  "risk_tags": [],
+  "acceptance": [
+    { "id": "AC-PASSIVE", "description": "Recognized passive focus notifications and terminal protocol responses, including fragmented and coalesced sequences, preserve completed-turn metrics, real activity timestamp and idle eligibility. Pending protocol bytes block dispatch until classification; malformed/unknown/expired sequences fail closed." },
+    { "id": "AC-INPUT", "description": "Actual keyboard input, escape/navigation, mouse actions and bracketed paste still invalidate composition/old eligibility and cancel pre-dispatch warming. Mixed protocol and real input cannot swallow real activity; raw native input bytes and UTF-8 text are preserved." },
+    { "id": "AC-NATIVE-OWNER", "description": "Native local owner preserves exact model/cwd/permission arguments without remote overrides or CODEX_HOME overlay." },
+    { "id": "AC-NATIVE-QUEUE", "description": "Real source and packaged timed marker/K delivery occurs through the exact live owner queue with nonce continuity after passive terminal events, never by typing marker keys or second conversation writer." },
+    { "id": "AC-RESUME", "description": "CLI and in-session resume retain native identity/cwd and require fresh completed reply, while passive reports do not masquerade as navigation." },
+    { "id": "AC-PACKAGED", "description": "Standalone 0.2.3 embeds the decoder and native assets, has synchronized distinct version identity, supports repair migration and actual packaged native warming." },
+    { "id": "AC-INSTALL", "description": "Repair preserves owned provider settings/native executable/paths/trust boundaries and requires honest relaunch/readiness. No personal installation or publication." },
+    { "id": "AC-OWNERSHIP", "description": "Conflicting/unknown owners, observer errors and untrusted hooks skip warming; owned subprocess cleanup and exact queue attribution remain verified." },
+    { "id": "AC-SETUP-INTEGRITY", "description": "Repeatable E2E retains raw native hook/queue/rollout/terminal evidence with personal hashes unchanged and explicit probe timing. No post-code unit tests." }
+  ],
+  "verification": ["codex-native-warming-live", "codex-native-cli-resume-live", "codex-native-packaged-live", "watcher-lifecycle", "standalone-repair"]
+}

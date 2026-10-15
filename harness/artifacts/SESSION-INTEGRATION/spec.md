@@ -1,5 +1,15 @@
 # Same-session integration experiment
 
+## Passive terminal input (IDLE-001)
+
+Codex passive focus notifications and recognized terminal protocol replies must
+not count as keyboard activity or invalidate fresh completed input measurements,
+including when split across input chunks. Incomplete protocol bytes temporarily
+block dispatch; bounded timeout, malformed and unknown sequences fail closed.
+Actual typing, paste, navigation and mixed keyboard/report input retain user
+precedence. Raw native forwarding and UTF-8 stay unchanged. Verify real timed
+keepalive/K after passive events plus existing composition/cancellation guards.
+
 ## Native seamless warming (RESUME-001)
 
 Restore opt-in Codex warming with registered, trusted native lifecycle hooks and
