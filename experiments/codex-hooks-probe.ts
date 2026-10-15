@@ -112,7 +112,7 @@ async function passiveReports(terminal: pty.IPty, label: string) {
   const startedAt = Date.now();
   const reports = [
     { category: 'focus', chunks: ['\x1b[I\x1b[O'] },
-    { category: 'cursor', chunks: ['\x1b', '[1;', '1R'] },
+    { category: 'cursor', chunks: ['\x1b[1;', '1R'] },
     { category: 'keyboard-mode', chunks: ['\x1b[?', '1u'] },
     { category: 'device-attributes', chunks: ['\x1b[?1;', '2c\x1b[>0;1;0c'] },
     { category: 'color', chunks: ['\x1b]10;rgb:ffff/ffff/ffff\x1b', '\\', '\x1b]11;rgb:0000/0000/0000\x07'] },

@@ -39,6 +39,13 @@ native K, and nonce continuity. Mixed report plus draft still revokes compositio
 These are actual native model calls with explicit probe threshold/timing; they
 do not establish a real cache TTL or savings.
 
+The live native driver fragments cursor reports inside their parameters rather
+than delaying a standalone ESC. A retained failed run showed native Codex treats
+that delayed ESC as an Escape key and puts the suffix in its composer: the next
+native UserMessage became `[1;1R/rename vesta-probe-first`. Exact byte forwarding
+must preserve native behavior, so the driver must respect its Escape interkey
+timing. The isolated PTY contract still tests fragmentation immediately after ESC.
+
 `codex-native-input-e2e.ts <fresh-artifacts>` runs the actual owner in separate
 node-pty terminals against `codex-native-input-fixture.mjs`. The fixture emits
 explicitly synthetic lifecycle/rollout/metric data and a local queue protocol;
