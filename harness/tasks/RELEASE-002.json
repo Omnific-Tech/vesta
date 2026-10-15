@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RELEASE-002",
+  "mode": "strict",
+  "scope": "Feature DISTRIBUTION, change RELEASE-002: produce and verify production0.2.5 with exact-candidate native Claude/Codex E2E, migration/rollback and documentation checks, then publish verified binary/checksums/receipt to GitHub and validate anonymous downloads and isolated install/update/uninstall. User explicitly authorized release. No personal installation, hook approval or running-session changes.",
+  "implementor_id": "gpt-6.1-sol-medium",
+  "dependencies": [],
+  "risk_tags": [],
+  "acceptance": [
+    { "id": "AC-PRODUCTION", "description": "Release binary is a fresh production build from frozen clean committed source, fixture=false/publishable=true, synchronized0.2.5 package/plugin/catalog/client/tag identity with pinned runtime/licenses/hash receipt. Test/development0.2.4 binaries are not published." },
+    { "id": "AC-CANDIDATE-NATIVE", "description": "The exact production candidate, without rebuild/substitution, installs and passes actual native Codex timed nonce/K/resume/K/nonce with reading/submission-clock guards and actual Claude marker nonce/K/nonce with fresh input>100000. Preserve raw receipt/source/queue/hook/process/rollout evidence and personal hashes." },
+    { "id": "AC-PUBLICATION", "description": "After successful verification/review/submit, publish exact verified binary, SHA256SUMS and build receipt with matching source tag and GitHub digest. Preserve older immutable releases, verify anonymous downloaded bytes, then isolate actual install/update/uninstall smoke outside frozen evidence. No automatic issue work." },
+    { "id": "AC-STANDALONE", "description": "Compiled CLI/runtime/native assets work after relocation without external Node/Bun on end-user PATH; old versions remain available for running owners." },
+    { "id": "AC-CLI-INSTALL", "description": "Owned install/update/repair selection and source migration preserve user settings, native executable, recorded paths and unrelated state." },
+    { "id": "AC-UPDATE", "description": "Stable anonymous update validates candidate identity/platform/hash, respects owned provider subsets, current no-op/catchup and operation locks without downgrade." },
+    { "id": "AC-RELEASE", "description": "Version identities and production receipt agree, public assets are immutable verified outputs and release notes explain native hook trust/relaunch and current platform limits." },
+    { "id": "AC-PUBLIC-SAFETY", "description": "Foreign/path conflicts, malformed config, missing providers and invalid transport/candidate forms fail before activation; native registry fault cases remain verified." },
+    { "id": "AC-SETUP", "description": "Setup remains install alias and discovers available providers with opt-in warming." },
+    { "id": "AC-REPAIR", "description": "Repair restores only owned integrations including source records and preserves saved warming unless --warm." },
+    { "id": "AC-PREFERENCES", "description": "Custom timers/options, saved warm state and unrelated hooks/settings survive repair/update." },
+    { "id": "AC-READINESS", "description": "Native hook trust/global disables are never bypassed; readiness and required relaunch are reported honestly." },
+    { "id": "AC-ROLLBACK", "description": "Late provider/update failure compensates prior registry/config/inventory/activation and reports compensation failure explicitly." },
+    { "id": "AC-INSTALL", "description": "Codex native registration/refresh/removal is reversible, ownership-safe and additive with unrelated hooks." },
+    { "id": "AC-OWNERSHIP", "description": "Exact owner/thread/turn/client attribution, conflicting-owner fail-closed behavior and owned process cleanup remain verified." },
+    { "id": "AC-PROVIDER-DOCS", "description": "Root provider guides describe actual separate Claude/Codex architecture and current activity semantics." },
+    { "id": "AC-DOC-LINKS", "description": "Updated download/version/release-note links are consistent and local links/anchors resolve with retained hash receipt." },
+    { "id": "AC-DOC-LIMITS", "description": "Document release upgrade/trust/relaunch, current macOSarm64/zsh scope, actual model usage and unverified cache retention/savings; no private identifiers or unsupported pause/config claims." },
+    { "id": "AC-SETUP-INTEGRITY", "description": "Repeatable E2E preserves raw runner-produced evidence, personal config/auth/shell hashes and owned cleanup; native auth/quota/network errors fail honestly. No post-code unit tests." }
+  ],
+  "verification": ["production-candidate", "standalone-install-update", "standalone-public-safety", "standalone-repair", "codex-native-registration-faults", "provider-docs"]
+}

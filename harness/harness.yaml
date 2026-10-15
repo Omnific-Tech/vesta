@@ -6,6 +6,10 @@ repositories:
     path: .
 verification_inputs:
   - repo: app
+    path: packaging/production-e2e.ts
+  - repo: app
+    path: packaging/download-smoke.ts
+  - repo: app
     path: experiments/docs-check.ts
   - repo: app
     path: experiments/diagnose-codex-e2e.ts

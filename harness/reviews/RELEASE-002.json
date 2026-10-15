@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "task_id": "RELEASE-002",
+  "reviewer_id": "codex-root-reviewer",
+  "fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+  "baseline_generation": "pending",
+  "decision": "rejected",
+  "findings": [],
+  "notes": "Pending production candidate from frozen source, fresh full verification and independent review before authorized publication."
+}

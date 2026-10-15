@@ -1,5 +1,11 @@
 # Standalone distribution
 
+The authorized RELEASE-002 production version is0.2.5, distinct from local
+fixture/development0.2.4 builds. Publish only the exact production artifact from
+fresh native Claude/Codex candidate proof and successful verification/review/
+submit, then verify anonymous assets and isolate public install/update/uninstall.
+No personal installation or running-owner changes accompany publication.
+
 The developer approved a standalone macOS arm64 CLI rather than end-user npm
 commands, plus versioned GitHub releases and explicit self-update. The repository
 becomes public under Apache License 2.0. First released version was v0.2.0;
