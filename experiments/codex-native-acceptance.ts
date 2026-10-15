@@ -21,6 +21,7 @@ export type NativeResumeEvidence = {
   collision: { observed: boolean; rawFile: string; queuedBefore: number; queuedAfter: number };
   installedFiles: { sourcePath: string; sha256: string; rawFile: string }[];
   passiveWindows: { label: string; ownerId: string; turnId: string; startedAt: number; endedAt: number; categories: string[]; before: any; after: any }[];
+  readingTurns: { label: string; ownerId: string; turnId: string; startedAt: number; endedAt: number; before: any; after: any }[];
 };
 export function verifyNativeResumeEvidence(e: NativeResumeEvidence, directory: string) {
   assert.equal(e.schema, 1); assert.equal(e.kind, 'native-installed-resume-warming');
@@ -55,9 +56,18 @@ export function verifyNativeResumeEvidence(e: NativeResumeEvidence, directory: s
   assert.ok(owned.length >= 10, 'raw native submitted/completed hooks');
   const dispatched = trace.filter(row => row.kind === 'marker-dispatched');
   assert.equal(dispatched.length, 2, 'exactly initial and resumed automatic keepalives');
+  assert.deepEqual(e.readingTurns.map(row => row.label), ['initial', 'resumed']);
+  for (const window of e.readingTurns) {
+    assert.equal(window.before.busy, true); assert.equal(window.after.busy, false);
+    assert.equal(window.after.generation, window.before.generation, 'reading during a reply preserves generation');
+    assert.equal(window.after.userAt, window.before.userAt, 'reading during a reply preserves submission timestamp');
+    assert.ok(window.after.tokens > 0, 'reading during a reply retains eventual native metric');
+    const between = trace.filter(row => row.ownerId === window.ownerId && row.at >= window.startedAt && row.at <= window.endedAt);
+    assert.ok(!between.some(row => ['user-input', 'unknown-terminal-input'].includes(row.kind)), 'reading during a reply does not invalidate input');
+  }
   assert.deepEqual(e.passiveWindows.map(row => row.label), ['initial', 'resumed']);
   for (const window of e.passiveWindows) {
-    assert.deepEqual(window.categories, ['focus', 'cursor', 'keyboard-mode', 'device-attributes', 'color']);
+    assert.deepEqual(window.categories, ['focus', 'cursor', 'keyboard-mode', 'device-attributes', 'color', 'wheel', 'hover']);
     assert.deepEqual(window.after, window.before, 'passive reports preserve completed eligibility');
     assert.equal(window.before.busy, false); assert.ok(window.before.tokens > 0);
     const between = trace.filter(row => row.ownerId === window.ownerId && row.at >= window.startedAt && row.at <= window.endedAt);
@@ -88,9 +98,7 @@ export function verifyNativeResumeEvidence(e: NativeResumeEvidence, directory: s
     const endIndex = trace.findIndex((row, index) => index > hookIndex && row.kind === 'response-complete' && row.activeTurn === item.turn_id);
     assert.ok(hookIndex >= 0 && endIndex > hookIndex, 'native warm hook and completion retained');
     const warmEvents = trace.slice(hookIndex, endIndex + 1);
-    for (const row of warmEvents.filter(row => row.kind === 'policy' && row.row?.type === 'activity')) {
-      assert.ok(trace.some(input => input.kind === 'user-input' && input.ownerId === row.ownerId && input.inputSerial === row.inputSerial), 'warm hook never invents real user activity');
-    }
+    assert.equal(warmEvents.filter(row => row.kind === 'policy' && row.row?.type === 'activity').length, 0, 'warm turns and concurrent drafts cannot renew submission budget');
     const start = warmEvents.find(row => row.kind === 'policy' && row.row?.type === 'turn-start');
     const previousPolicy = trace.slice(0, hookIndex).findLast(row => row.ownerId === dispatch.ownerId && row.kind === 'policy');
     assert.equal(start?.row.state.userAt, previousPolicy?.row.state.userAt, 'queued keepalive does not renew real activity budget');
@@ -100,6 +108,15 @@ export function verifyNativeResumeEvidence(e: NativeResumeEvidence, directory: s
   const writerRequests = trace.filter(row => row.kind === 'queue-request').map(row => row.row.method);
   assert.deepEqual(writerRequests, ['initialize', 'initialized', 'thread/queue/add', 'initialize', 'initialized', 'thread/queue/add'], 'transient writers never resume, start, or override conversations');
   assert.ok(trace.some(row => row.kind === 'user-input'), 'native user activity observed');
+  const activities = trace.filter(row => row.kind === 'policy' && row.row?.type === 'activity');
+  assert.equal(activities.length, 3, 'only the three verified user submissions renew the clock');
+  for (const activity of activities) {
+    const start = trace.find(row => row.ownerId === activity.ownerId && row.kind === 'policy' && row.row?.type === 'turn-start' && row.inputSerial === activity.inputSerial && row.at >= activity.at);
+    assert.ok(start, 'submission activity binds an actual turn');
+    const hook = trace.find(row => row.ownerId === activity.ownerId && row.kind === 'hook' && row.raw?.input?.hook_event_name === 'UserPromptSubmit' && row.raw?.input?.turn_id === start.activeTurn);
+    assert.ok(hook, 'submission activity has exact native hook');
+    assert.equal(activity.row.state.userAt, hook.raw.at, 'submission clock uses native hook timestamp');
+  }
   assert.ok(owned.filter(row => row.input.hook_event_name === 'UserPromptSubmit').every(row => row.input.permission_mode === 'bypassPermissions'), 'native yolo permissions preserved');
   assert.ok(owned.filter(row => row.input.hook_event_name === 'Stop').every(row => row.input.model === 'gpt-6.1-sol'), 'native model remains selected');
   assert.equal(stops[0]!.input.cwd, e.initialCwd); assert.equal(stops.at(-1)!.input.cwd, e.expectedFinalCwd);

@@ -33,7 +33,9 @@ if (process.argv.includes('app-server')) {
         { type: 'turn_context', payload: { turn_id: turn } },
         { type: 'event_msg', payload: { type: 'item_completed', thread_id: session, turn_id: turn, item: { type: 'UserMessage', client_id: 'fixture-user' } } },
       ].map(row => JSON.stringify(row)).join('\n') + '\n');
-      hook('UserPromptSubmit');
+      // Keep native submission time distinguishable from the earlier keyboard
+      // receipt; only the verified native submission may renew user inactivity.
+      setTimeout(() => hook('UserPromptSubmit'), 80);
       setTimeout(() => {
         const timestamp = new Date().toISOString();
         for (const row of [

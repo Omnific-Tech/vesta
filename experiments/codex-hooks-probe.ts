@@ -37,6 +37,7 @@ const commands: any[] = []; const children: ReturnType<typeof spawn>[] = []; con
 let installationIndex = -1;
 const installedFiles: NativeResumeEvidence['installedFiles'] = [];
 const passiveWindows: NativeResumeEvidence['passiveWindows'] = [];
+const readingTurns: NativeResumeEvidence['readingTurns'] = [];
 let siblingBefore: any; let siblingAfter: any;
 const dryTransitions: NativeResumeEvidence['dryTransitions'] = [];
 let collision: NativeResumeEvidence['collision'] = { observed: false, rawFile: 'collision.txt', queuedBefore: 0, queuedAfter: 0 };
@@ -105,6 +106,20 @@ const traceRows = () => {
   const paths = shipped ? terminals.map((_, i) => join(artifacts, 'owner-' + i, 'codex-native-trace.jsonl')) : [join(artifacts, 'embedded-trace.jsonl')];
   return paths.flatMap(path => existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : []);
 };
+async function readDuringTurn(terminal: pty.IPty, label: string, since: number) {
+  if (!shipped || residency) return;
+  const start = await wait(() => traceRows().findLast(row => row.at >= since && row.kind === 'policy' && row.row.type === 'turn-start' && row.row.state.busy), label + ' active submitted turn');
+  assert.ok(!traceRows().some(row => row.ownerId === start.ownerId && row.activeTurn === start.activeTurn && row.kind === 'response-complete'), label + ' reading starts before completion');
+  const startedAt = Date.now();
+  terminal.write('\x1b[<64;10;10M\x1b[<35;11;10M');
+  const completion = await wait(() => traceRows().findLast(row => row.ownerId === start.ownerId && row.activeTurn === start.activeTurn && row.kind === 'response-complete'), label + ' exact reading turn completes');
+  const after = traceRows().findLast(row => row.ownerId === start.ownerId && row.kind === 'policy' && row.row.type === 'turn-complete' && row.activeTurn === start.activeTurn)!.row.state;
+  assert.equal(completion.clean, true, label + ' reading keeps completed owner clean');
+  assert.equal(after.generation, start.row.state.generation, label + ' reading preserves active generation');
+  assert.equal(after.userAt, start.row.state.userAt, label + ' reading preserves submission clock');
+  assert.ok(after.tokens > 0, label + ' reading retains eventual native metric');
+  readingTurns.push({ label, ownerId: start.ownerId, turnId: start.activeTurn, startedAt, endedAt: completion.at, before: start.row.state, after });
+}
 async function passiveReports(terminal: pty.IPty, label: string, stop: any) {
   if (!shipped) return;
   const { before, policy } = await wait(() => {
@@ -121,6 +136,8 @@ async function passiveReports(terminal: pty.IPty, label: string, stop: any) {
     { category: 'keyboard-mode', chunks: ['\x1b[?', '1u'] },
     { category: 'device-attributes', chunks: ['\x1b[?1;', '2c\x1b[>0;1;0c'] },
     { category: 'color', chunks: ['\x1b]10;rgb:ffff/ffff/ffff\x1b', '\\', '\x1b]11;rgb:0000/0000/0000\x07'] },
+    { category: 'wheel', chunks: ['\x1b[<64;10;', '10M\x1b[<65;10;10M'] },
+    { category: 'hover', chunks: ['\x1b[<35;11;10M'] },
   ];
   for (const report of reports) for (const chunk of report.chunks) { terminal.write(chunk); await sleep(30); }
   await sleep(100);
@@ -194,6 +211,7 @@ try {
   await sleep(1500); await type(terminal, noncePrompt);
   first = (await wait(() => events('SessionStart').find(row => row.input.source === 'startup'), 'fresh registered-plugin startup')).input.session_id;
   assert.ok(rows().some(row => row.sentinel && row.input.session_id === first), 'existing guard hook remains active');
+  await readDuringTurn(terminal, 'initial', startedAt);
   const initialStop = await wait(() => events('Stop').find(row => row.input.session_id === first && row.input.last_assistant_message?.trim() === nonce), 'first native nonce response'); turnCount++;
   if (!residency) await passiveReports(terminal, 'initial', initialStop);
   if (residency) {
@@ -246,6 +264,7 @@ try {
       await type(terminal, '/resume'); await sleep(1000); terminal.write('vesta-probe-first'); await sleep(700); terminal.write('\r'); await sleep(1000);
     }
     await type(terminal, noncePrompt);
+    await readDuringTurn(terminal, 'resumed', beforeResume);
     const resumedStop = await wait(() => events('Stop').find(row => row.at >= beforeResume && row.input.session_id === first && row.input.last_assistant_message?.trim() === nonce), 'fresh resumed native nonce response'); turnCount++;
     await passiveReports(terminal, 'resumed', resumedStop);
     if (variant === 'cancel-race' || shipped) {
@@ -326,7 +345,7 @@ finally {
       hooksFile: 'hooks.jsonl', traceFile: 'shipped-trace.jsonl', rolloutFiles: readdirSync(artifacts).filter(file => file.startsWith('rollout-')),
       nonce, sessionId: first, initialCwd: cwd, expectedFinalCwd: variant === 'cross-cwd' ? otherCwd : cwd,
       siblingServer: { pid: siblingBefore?.pid ?? 0, before: siblingBefore?.alive ?? false, afterOwnerExit: siblingAfter?.alive ?? false, beforeFile: 'sibling-before.json', afterFile: 'sibling-after.json' },
-      personalFiles: personal, dryTransitions, collision, installedFiles, passiveWindows,
+      personalFiles: personal, dryTransitions, collision, installedFiles, passiveWindows, readingTurns,
       sourceFiles: ['setup.ts', 'codex-autoload.ts', 'codex-native-owner.ts', 'vesta-codex/handler.mjs', 'vesta-codex/hooks/hooks.json', 'codex-native-warming-e2e.ts', 'codex-native-acceptance.ts'].filter(file => existsSync(join(here, file))).map(file => ({ path: join(here, file), sha256: hash(join(here, file)) })),
     };
     writeFileSync(join(artifacts, 'shipped-summary.json'), JSON.stringify(evidence, null, 2));

@@ -1,4 +1,4 @@
-// Acceptance contracts authored before IDLE-001 decoder implementation.
+// Acceptance contracts authored before IDLE-001 and SUBMIT-001 implementation.
 // Real owner/PTY, explicitly synthetic native hooks/metrics/queue, no model calls.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -22,6 +22,14 @@ const scenarios = [
   { name: 'during-turn', chunks: ['\x1b[I\x1b[1;', '1R\x1b[O'], passive: true, during: true },
   { name: 'prefix-crosses-idle', chunks: ['\x1b[1;', '1R'], passive: true, boundary: true },
   { name: 'prefix-during-writer', chunks: ['\x1b[1;', '1R'], passive: true, writer: true },
+  { name: 'wheel-up', chunks: ['\x1b[<64;10;10M'], passive: true },
+  { name: 'wheel-down-fragmented', chunks: ['\x1b[<65;10;', '10M'], passive: true },
+  { name: 'wheel-modified', chunks: ['\x1b[<92;10;10M'], passive: true },
+  { name: 'hover', chunks: ['\x1b[<35;10;10M'], passive: true },
+  { name: 'hover-modified-fragmented', chunks: ['\x1b[<63;', '10;10M'], passive: true },
+  { name: 'wheel-hover-during-turn', chunks: ['\x1b[<64;10;10M\x1b[<35;11;10M'], passive: true, during: true },
+  { name: 'wheel-prefix-crosses-idle', chunks: ['\x1b[<64;10;', '10M'], passive: true, boundary: true },
+  { name: 'wheel-prefix-during-writer', chunks: ['\x1b[<64;10;', '10M'], passive: true, writer: true },
   { name: 'draft', chunks: ['VESTA_FIXTURE_DRAFT'], passive: false },
   { name: 'mixed-report-draft', chunks: ['\x1b[IVESTA_FIXTURE_DRAFT\x1b[O'], passive: false },
   { name: 'arrow', chunks: ['\x1b[D'], passive: false },
@@ -31,6 +39,15 @@ const scenarios = [
   { name: 'enhanced-key', chunks: ['\x1b[97;1u'], passive: false },
   { name: 'mouse', chunks: ['\x1b[<0;10;10M'], passive: false },
   { name: 'fragmented-mouse', chunks: ['\x1b[<0;10;', '10M'], passive: false },
+  { name: 'mouse-release', chunks: ['\x1b[<0;10;10m'], passive: false },
+  { name: 'mouse-drag', chunks: ['\x1b[<32;10;10M'], passive: false },
+  { name: 'wheel-draft', chunks: ['\x1b[<64;10;10MVESTA_FIXTURE_DRAFT'], passive: false },
+  { name: 'draft-then-hover', chunks: ['VESTA_FIXTURE_DRAFT', '\x1b[<35;10;10M'], passive: false },
+  { name: 'wheel-expired', chunks: ['\x1b[<64;10;', '10M'], passive: false, expired: true },
+  { name: 'wheel-zero-coordinate', chunks: ['\x1b[<64;0;10M'], passive: false },
+  { name: 'wheel-coordinate-overflow', chunks: ['\x1b[<64;65536;10M'], passive: false },
+  { name: 'wheel-unsafe-number', chunks: ['\x1b[<64;9007199254740992;10M'], passive: false },
+  { name: 'mouse-extra-button', chunks: ['\x1b[<128;10;10M'], passive: false },
   { name: 'paste', chunks: ['\x1b[200~VESTA_FIXTURE_DRAFT\x1b[201~'], passive: false },
   { name: 'unknown-sequence', chunks: ['\x1b[999z'], passive: false },
   { name: 'malformed-sequence', chunks: ['\x1b[1\x01R'], passive: false },
@@ -52,11 +69,21 @@ function verify(directory: string) {
     const actual = readFileSync(join(folder, 'forwarded.bin')).toString('base64');
     assert.equal(actual, result.expectedBytes, result.name + ' forwards original bytes exactly once');
     const finished = trace.find(row => row.kind === 'response-complete'); assert.ok(finished, result.name + ' synthetic response observed');
+    const submitted = trace.find(row => row.kind === 'hook' && row.raw?.input?.hook_event_name === 'UserPromptSubmit');
+    assert.ok(submitted, result.name + ' native submission observed');
+    const userActivities = trace.filter(row => row.kind === 'policy' && row.row.type === 'activity');
+    assert.equal(userActivities.length, 1, result.name + ' only verified submission renews user clock');
+    assert.equal(userActivities[0].row.state.userAt, submitted.raw.at, result.name + ' clock uses native submission timestamp');
+    for (const row of trace.filter(row => row.kind === 'policy' && row.at >= submitted.at && row.row.state.userAt !== null)) {
+      assert.equal(row.row.state.userAt, submitted.raw.at, result.name + ' later input cannot renew submission budget');
+    }
     const completed = trace.findLast(row => row.kind === 'policy' && row.row.type === 'turn-complete')!.row.state;
     if (result.passive) {
       assert.equal(completed.tokens, 209848, 'synthetic metric retained');
       const changes = trace.filter(row => row.at >= result.injectedAt && ['user-input', 'unknown-terminal-input'].includes(row.kind));
       assert.deepEqual(changes, [], result.name + ' no false activity/invalidation');
+      const started = trace.find(row => row.kind === 'policy' && row.row.type === 'turn-start')!.row.state;
+      assert.equal(completed.generation, started.generation, result.name + ' reading preserves turn generation');
       assert.equal(queues.length, 1, result.name + ' eventual exact queue request');
       const dispatch = trace.find(row => row.kind === 'marker-dispatched'); assert.ok(dispatch);
       const state = trace.findLast(row => row.kind === 'policy' && row.row.type === 'dispatch')!.row.state;
