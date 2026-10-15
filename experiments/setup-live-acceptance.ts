@@ -2,13 +2,23 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { parseClaudeStatuses, verifyClaudeAutoload } from './setup-acceptance.ts';
 import { marker, verifyInstruction, claudePluginBody, noncePrompt } from './marker-acceptance.ts';
 import type { InstructionEvidence } from './marker-acceptance.ts';
 
+export type ClaudeProfileSnapshot = {
+  sha256: string; stableSha256: string; pluginUsagePresent: boolean;
+  plugins: { idSha256: string; sha256: string; stableSha256: string; isVesta: boolean;
+    usageCountPresent: boolean; lastUsedAtPresent: boolean }[];
+};
+export type ClaudeProfileIntegrity = {
+  path: string; before: ClaudeProfileSnapshot; after: ClaudeProfileSnapshot;
+  fixture: { root: string; home: string; configDir: string; profilePath: string;
+    profileSha256: string; vestaUsagePresent: boolean; pluginListFile: string };
+};
 export type SetupLiveEvidence = {
   schema: 1; kind: 'native-installed-launch'; provider: 'claude' | 'codex';
   startedAt: number; endedAt: number; configDir: string;
@@ -17,6 +27,7 @@ export type SetupLiveEvidence = {
   sourceFiles: { path: string; sha256: string }[];
   cleanup: { pid: number; owned: boolean; exited: boolean }[];
   rawFiles: string[];
+  claudeProfileIntegrity?: ClaudeProfileIntegrity;
   claudeMarker?: { instruction: InstructionEvidence; rolloutFile: string; statusFile: string; sessionId: string;
     pluginTreeBefore: Record<string, string>; pluginTreeAfter: Record<string, string> };
   claude?: { transcriptFile: string; optInTranscriptFile: string;
@@ -33,7 +44,10 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   assert.equal(e.schema, 1); assert.equal(e.kind, 'native-installed-launch');
   assert.ok(e.endedAt >= e.startedAt && e.endedAt - e.startedAt <= 240000);
   assert.ok(e.personalFiles.length >= 2);
-  for (const file of e.personalFiles) assert.equal(file.after, file.before, `personal mutation: ${file.path}`);
+  for (const file of e.personalFiles) {
+    if (e.provider === 'claude' && file.path === e.claudeProfileIntegrity?.path) continue;
+    assert.equal(file.after, file.before, `personal mutation: ${file.path}`);
+  }
   assert.ok(e.sourceFiles.length >= 3);
   assert.ok(e.sourceFiles.some(file => file.path.endsWith('/setup.ts')));
   assert.ok(e.sourceFiles.some(file => file.path.endsWith('/watcher-policy.ts')));
@@ -48,6 +62,40 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
   const raw = (file: string) => { const path = resolve(directory, file); assert.ok(path.startsWith(resolve(directory) + '/')); return readFileSync(path, 'utf8'); };
   for (const file of e.rawFiles) raw(file);
   const rows = (file: string) => raw(file).split('\n').filter(Boolean).map(line => JSON.parse(line));
+  if (e.provider === 'claude') {
+    const proof = e.claudeProfileIntegrity; assert.ok(proof, 'isolated Claude profile integrity evidence');
+    assert.ok(proof.path.endsWith('/.claude.json'));
+    const personal = e.personalFiles.find(file => file.path === proof.path); assert.ok(personal);
+    assert.equal(proof.before.sha256, personal.before); assert.equal(proof.after.sha256, personal.after);
+    assert.equal(proof.after.stableSha256, proof.before.stableSha256, 'all profile keys outside pluginUsage remain unchanged');
+    assert.equal(proof.after.pluginUsagePresent, proof.before.pluginUsagePresent, 'pluginUsage presence unchanged');
+    const sha = (value: string) => assert.match(value, /^[0-9a-f]{64}$/);
+    for (const snapshot of [proof.before, proof.after]) {
+      sha(snapshot.sha256); sha(snapshot.stableSha256);
+      assert.equal(new Set(snapshot.plugins.map(plugin => plugin.idSha256)).size, snapshot.plugins.length, 'unique hashed plugin identities');
+      for (const plugin of snapshot.plugins) { sha(plugin.idSha256); sha(plugin.sha256); sha(plugin.stableSha256); }
+    }
+    const before = [...proof.before.plugins].sort((a, b) => a.idSha256.localeCompare(b.idSha256));
+    const after = [...proof.after.plugins].sort((a, b) => a.idSha256.localeCompare(b.idSha256));
+    assert.deepEqual(after.map(plugin => plugin.idSha256), before.map(plugin => plugin.idSha256), 'exact personal plugin entry set preserved');
+    for (let index = 0; index < before.length; index++) {
+      const a = before[index]; const b = after[index];
+      assert.equal(b.isVesta, a.isVesta); assert.equal(b.usageCountPresent, a.usageCountPresent); assert.equal(b.lastUsedAtPresent, a.lastUsedAtPresent);
+      assert.equal(b.stableSha256, a.stableSha256, 'only existing non-Vesta usage counter values may change');
+      if (a.isVesta) assert.equal(b.sha256, a.sha256, 'personal Vesta entry remains byte-for-byte equivalent');
+    }
+    const fixture = proof.fixture;
+    assert.equal(resolve(fixture.home), resolve(fixture.root), 'HOME is the disposable fixture root');
+    assert.ok(resolve(fixture.configDir).startsWith(resolve(fixture.home) + '/'));
+    assert.equal(resolve(fixture.configDir), resolve(e.configDir));
+    assert.equal(resolve(fixture.profilePath), join(resolve(fixture.configDir), '.claude.json'));
+    assert.ok(!resolve(proof.path).startsWith(resolve(fixture.root) + '/'));
+    sha(fixture.profileSha256);
+    assert.ok(e.rawFiles.includes(fixture.pluginListFile), 'native fixture registry capture retained');
+    const plugins = JSON.parse(raw(fixture.pluginListFile));
+    assert.deepEqual(plugins.map((plugin: { id: string }) => plugin.id), ['vesta@vesta-local'], 'only Vesta installed in isolated native registry');
+    assert.ok(resolve(plugins[0].installPath).startsWith(resolve(fixture.configDir) + '/'));
+  }
   const owners = e.commands.filter(c => c.role === 'owner');
   assert.ok(owners.length >= 1);
   assert.ok(e.commands.some(c => c.role === 'setup' && c.argv.includes('install')));
