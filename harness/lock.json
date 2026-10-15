@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "11a11e92d308e1dcd93f5f651c4700a6",
+  "generation": "3206c394b7ea0c8bbfbf3dbb0a4cdb0e",
   "repositories": {
-    "app": "d9d81ee28ba2b44a7c46b53a8b1e5af2070160f5"
+    "app": "f64c8fc612f70eb9bd39a9274a5d65798db079f3"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -10,7 +10,7 @@
     "app:experiments/codex-embedded-owner-probe.ts": "45a27be2ff9eabd77894465cb4d469f23a6ff93f54a2db622caaa55006e7efea",
     "app:experiments/codex-hooks-probe-handler.mjs": "fcfd02ab577cb03799b9d7c4fb0fd88dc55b72b6f246dba8f43800875b70d788",
     "app:experiments/codex-hooks-probe.ts": "c9572bbfc6a5758c9dfd9acbb5f722f4fe39e451cdf455498aa787f5de1db5b7",
-    "app:experiments/codex-native-acceptance.ts": "3a881a9a9d75e80c07cd374991d8ede04b0cebc0ffe6f138abce1207c0b706e9",
+    "app:experiments/codex-native-acceptance.ts": "36505165f636707c002fe6507eb1e4dfc431cd2ed8010e833cbe1e90380e88e0",
     "app:experiments/codex-native-fault-fixture.mjs": "ea03d0495b8f5ec10545792a10af77ee06cd7fa2f45d8c6a4e586ebac4af648c",
     "app:experiments/codex-native-input-e2e.ts": "c2ed2a26653e05b6eb791eb99269ee4f5da5767207a42fcfdcf0bbdd93dbe6c2",
     "app:experiments/codex-native-input-fixture.mjs": "4258c47fc74dccc83bbae7b2fbf9df702ad6feb98e073af5e02be53b2e777750",
@@ -120,7 +120,7 @@
     "app:packaging/gh-fixture.zsh": "60f31eb9f81c8e3ae8f24dc78d0555fc2630a121f2f96b0d4ba2f03cff20126f",
     "app:packaging/native-e2e.ts": "0b350e8594aac0766e58cca9b95381fb6e743f015880ad185de62f519f9d3808",
     "app:packaging/native-registry-e2e.ts": "fe5ba613832beb1ba004d2f0911699d9c202f96b556b03abf7d9c342d7e6a438",
-    "app:packaging/production-e2e.ts": "4df699bd804971a5e63f5d1f8cafa34b18205eb9b6f66f5c0d8d1dfce6b93300",
+    "app:packaging/production-e2e.ts": "3c091d4d1c0e713061667c2bb1237c38f86153b51bd570763431520238d07ec1",
     "app:packaging/provider-fault.zsh": "e1eeea943dddf7e07301a622091c50a504a3751ca4057ff6885d4ad6278febfc",
     "app:packaging/public-acceptance.ts": "fb229094869367850161ef74170b4380453116b663f323fc54ca75ab7301f103",
     "app:packaging/public-e2e.ts": "0748b3cf452385c6f7a791d423c8d70a5d87fde5929f35b8972fe5f464f2ec9c",
@@ -520,6 +520,16 @@
       },
       "repositories": {
         "app": "d9d81ee28ba2b44a7c46b53a8b1e5af2070160f5"
+      }
+    },
+    {
+      "reason": "Accept canonical production asset filename while requiring exact installer path and binary hash for both native proofs",
+      "prior_generation": "11a11e92d308e1dcd93f5f651c4700a6",
+      "prior_repositories": {
+        "app": "d9d81ee28ba2b44a7c46b53a8b1e5af2070160f5"
+      },
+      "repositories": {
+        "app": "f64c8fc612f70eb9bd39a9274a5d65798db079f3"
       }
     }
   ]
