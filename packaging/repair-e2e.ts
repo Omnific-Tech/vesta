@@ -13,11 +13,11 @@ const personal = ['.codex/config.toml', '.codex/auth.json', '.codex/hooks/hooks.
 const commands: any[] = []; const cases: string[] = []; let failure = '';
 const built = buildRelocated(artifacts, releaseVersion); const next = join(artifacts, 'candidate'); mkdirSync(next); const candidate = buildRelocated(next, nextReleaseVersion);
 const nativeClaude = executable('claude');
-function context(name: string) {
+function context(name: string, customConfig = false) {
   const directory = join(artifacts, name); mkdirSync(directory); const bin = join(directory, 'bin'); const path = nativeBin(bin);
   copyFileSync(join(root, 'packaging/curl-fixture.zsh'), join(bin, 'curl')); chmodSync(join(bin, 'curl'), 0o755);
   rmSync(join(bin, 'claude')); copyFileSync(join(root, 'packaging/provider-fault.zsh'), join(bin, 'claude')); chmodSync(join(bin, 'claude'), 0o755);
-  const home = join(directory, 'home'); const config = join(home, '.config/vesta'); const codex = join(home, '.codex'); mkdirSync(config, { recursive: true }); mkdirSync(codex);
+  const home = join(directory, 'home'); const config = join(home, customConfig ? 'custom-config' : '.config/vesta'); const codex = join(home, '.codex'); mkdirSync(config, { recursive: true }); mkdirSync(codex);
   const shell = join(home, 'zshrc'); writeFileSync(shell, '# unrelated shell preference\n');
   writeFileSync(join(codex, 'config.toml'), '[features]\nhooks = true\nplugins = true\n');
   writeFileSync(join(codex, 'hooks.json'), JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: 'command', command: '/usr/bin/true', timeout: 1 }] }] } }));
@@ -119,13 +119,19 @@ try {
   const lateBefore = snapshot(late, 'late-before'); late.env.VESTA_FIXTURE_FAULT = 'rollback-after-native-update';
   assert.notEqual(run(late, 'repair-late-failure', ['repair']).status, 0); assert.deepEqual(snapshot(late, 'late-after'), lateBefore); cases.push('REPAIR-COMPENSATION');
   for (const selected of [false, true]) {
-    const source = context('source-' + selected);
+    const source = context('source-' + selected, selected);
     const setup = run(source, 'source-owned-install', ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', join(root, 'experiments/setup.ts'), 'install', '--provider', 'codex', '--config-dir', source.config, '--shell-file', source.shell, '--warm', '--json'], process.execPath);
     assert.equal(setup.status, 0, setup.stderr); assert.ok(!existsSync(join(source.installation, 'installation.json')));
     const file = join(source.config, 'vesta-codex.json'); writeFileSync(file, JSON.stringify({ ...json(file), idleMs: 765432, customPreference: 'source-preserved' }));
     const beforeNative = json(join(source.config, '.vesta-setup-codex.json')).native;
+    if (!selected) {
+      success(source, 'legacy-remove-native-plugin', ['plugin', 'remove', 'vesta@vesta-local', '--json'], join(source.bin, 'codex'));
+      success(source, 'legacy-remove-native-marketplace', ['plugin', 'marketplace', 'remove', 'vesta-local', '--json'], join(source.bin, 'codex'));
+      const statePath = join(source.config, '.vesta-setup-codex.json'); const legacy = json(statePath);
+      for (const field of ['nativePluginId', 'nativeCodexHome', 'nativeMarketplaceRoot', 'nativeMarketplaceOwned', 'nativeHookCommand']) delete legacy[field]; writeFileSync(statePath, JSON.stringify(legacy));
+    }
     const poison = join(source.directory, 'new-path-candidate'); mkdirSync(poison); writeFileSync(join(poison, 'codex'), '#!/bin/zsh\nprint -r -- "Unowned PATH candidate must not run" >&2\nexit 97\n'); chmodSync(join(poison, 'codex'), 0o755); source.env.PATH = poison + ':' + source.env.PATH;
-    const result = success(source, 'repair-source-only', ['repair', ...(selected ? ['--provider', 'codex'] : []), '--json']);
+    const result = success(source, 'repair-source-only', ['repair', ...(selected ? ['--provider', 'codex', '--config-dir', source.config] : []), '--json']);
     assert.deepEqual(result.repaired, ['codex']); assert.deepEqual(json(join(source.installation, 'installation.json')).providers.map((row: any) => row.provider), ['codex']);
     const state = json(join(source.config, '.vesta-setup-codex.json')); assert.equal(state.native, beforeNative); assert.equal(state.shellFile, source.shell);
     assert.ok(state.block.includes(source.installation + '/current/app/experiments/codex-autoload.ts'), 'source ownership migrates to retained packaged entrypoint'); assert.equal(json(file).idleMs, 765432); assert.equal(json(file).customPreference, 'source-preserved'); assert.equal(json(file).warm, true);

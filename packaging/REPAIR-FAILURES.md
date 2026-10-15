@@ -21,7 +21,9 @@ one late native failure are controlled; successful registrations remain native.
 - REPAIR-SOURCE: without a standalone manifest, discover only existing provider
   setup state at standard native/Vesta configuration paths. Default and selected
   source repairs migrate to retained packaged runtime without adopting merely
-  available providers or changing saved native/shell/preferences.
+  available providers or changing saved native/shell/preferences. A legacy source
+  record without native plugin metadata is migrated as owned source state; custom
+  source configuration paths require explicit selection rather than directory scans.
 - REPAIR-READINESS: untrusted hooks and globally disabled hooks/plugins stay
   disabled. Repair reports effective readiness and Claude restart accurately;
   it never authorizes hashes or flips native feature gates.
