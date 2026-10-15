@@ -42,7 +42,8 @@ function inspect() {
 }
 
 const verifying = process.argv[2] === '--verify';
-const receipt = resolve(process.argv[verifying ? 3 : 2] ?? 'harness/runs/docs-check/receipt.json');
+const defaultReceipt = process.env.TELOS_RUN_DIR ? resolve(process.env.TELOS_RUN_DIR, 'artifacts/receipt.json') : 'harness/runs/docs-check/receipt.json';
+const receipt = resolve(process.argv[verifying ? 3 : 2] ?? defaultReceipt);
 const observed = inspect();
 if (verifying) assert.deepEqual(JSON.parse(readFileSync(receipt, 'utf8')), observed, 'stale documentation receipt');
 else { mkdirSync(dirname(receipt), { recursive: true }); writeFileSync(receipt, JSON.stringify(observed, null, 2) + '\n'); }
