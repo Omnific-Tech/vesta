@@ -46,6 +46,13 @@ native UserMessage became `[1;1R/rename vesta-probe-first`. Exact byte forwardin
 must preserve native behavior, so the driver must respect its Escape interkey
 timing. The isolated PTY contract still tests fragmentation immediately after ESC.
 
+Bind each live injection window to the exact nonce Stop's physical owner, session
+and turn, then wait for that owner's clean response-complete and completed policy
+with known tokens. A retained CLI-resume run exposed a 12ms gap between native
+Stop and owner completion: accepting an older owner's clean response captured
+the resumed owner while still busy. Exact completion binding removes this driver
+race while preserving unchanged-metric and eventual timed-K assertions.
+
 `codex-native-input-e2e.ts <fresh-artifacts>` runs the actual owner in separate
 node-pty terminals against `codex-native-input-fixture.mjs`. The fixture emits
 explicitly synthetic lifecycle/rollout/metric data and a local queue protocol;

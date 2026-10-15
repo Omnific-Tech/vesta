@@ -105,10 +105,15 @@ const traceRows = () => {
   const paths = shipped ? terminals.map((_, i) => join(artifacts, 'owner-' + i, 'codex-native-trace.jsonl')) : [join(artifacts, 'embedded-trace.jsonl')];
   return paths.flatMap(path => existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : []);
 };
-async function passiveReports(terminal: pty.IPty, label: string) {
+async function passiveReports(terminal: pty.IPty, label: string, stop: any) {
   if (!shipped) return;
-  const before = await wait(() => traceRows().findLast(row => row.kind === 'response-complete' && row.clean && row.activeSession === first), label + ' owner completed metric');
-  const policy = traceRows().findLast(row => row.kind === 'policy')!.row.state;
+  const { before, policy } = await wait(() => {
+    const trace = traceRows();
+    const before = trace.findLast(row => row.kind === 'response-complete' && row.clean && row.ownerId === stop.environmentOwner && row.activeSession === stop.input.session_id && row.activeTurn === stop.input.turn_id);
+    const policy = trace.findLast(row => row.kind === 'policy' && row.ownerId === stop.environmentOwner)?.row.state;
+    if (!before || !policy || policy.busy || policy.tokens === null || policy.sessionId !== stop.input.session_id || policy.turnId !== stop.input.turn_id) return;
+    return { before, policy };
+  }, label + ' exact owner completed metric');
   const startedAt = Date.now();
   const reports = [
     { category: 'focus', chunks: ['\x1b[I\x1b[O'] },
@@ -119,7 +124,7 @@ async function passiveReports(terminal: pty.IPty, label: string) {
   ];
   for (const report of reports) for (const chunk of report.chunks) { terminal.write(chunk); await sleep(30); }
   await sleep(100);
-  const after = traceRows().findLast(row => row.kind === 'policy')!.row.state;
+  const after = traceRows().findLast(row => row.kind === 'policy' && row.ownerId === before.ownerId)!.row.state;
   assert.deepEqual(after, policy, label + ' passive reports preserve completed eligibility and real activity');
   assert.equal(traceRows().filter(row => row.at >= startedAt && ['user-input', 'unknown-terminal-input'].includes(row.kind)).length, 0, label + ' reports are not keyboard input');
   passiveWindows.push({ label, ownerId: before.ownerId, turnId: before.activeTurn, startedAt, endedAt: Date.now(), categories: reports.map(row => row.category), before: policy, after });
@@ -189,8 +194,8 @@ try {
   await sleep(1500); await type(terminal, noncePrompt);
   first = (await wait(() => events('SessionStart').find(row => row.input.source === 'startup'), 'fresh registered-plugin startup')).input.session_id;
   assert.ok(rows().some(row => row.sentinel && row.input.session_id === first), 'existing guard hook remains active');
-  await wait(() => events('Stop').find(row => row.input.session_id === first && row.input.last_assistant_message?.trim() === nonce), 'first native nonce response'); turnCount++;
-  if (!residency) await passiveReports(terminal, 'initial');
+  const initialStop = await wait(() => events('Stop').find(row => row.input.session_id === first && row.input.last_assistant_message?.trim() === nonce), 'first native nonce response'); turnCount++;
+  if (!residency) await passiveReports(terminal, 'initial', initialStop);
   if (residency) {
     const before = Date.now(); await sleep(300); await type(terminal, '/new'); await sleep(1200); await type(terminal, noncePrompt);
     const next = await wait(() => events('Stop').find(row => row.at >= before && row.input.session_id !== first && row.input.last_assistant_message?.trim() === nonce), 'real second native conversation response');
@@ -241,8 +246,8 @@ try {
       await type(terminal, '/resume'); await sleep(1000); terminal.write('vesta-probe-first'); await sleep(700); terminal.write('\r'); await sleep(1000);
     }
     await type(terminal, noncePrompt);
-    await wait(() => events('Stop').find(row => row.at >= beforeResume && row.input.session_id === first && row.input.last_assistant_message?.trim() === nonce), 'fresh resumed native nonce response'); turnCount++;
-    await passiveReports(terminal, 'resumed');
+    const resumedStop = await wait(() => events('Stop').find(row => row.at >= beforeResume && row.input.session_id === first && row.input.last_assistant_message?.trim() === nonce), 'fresh resumed native nonce response'); turnCount++;
+    await passiveReports(terminal, 'resumed', resumedStop);
     if (variant === 'cancel-race' || shipped) {
       await wait(() => traceRows().filter(row => row.kind === 'queue-added').length === 2, 'second exact queue request committed before typing race');
       terminal.write('\x1b[IVESTA_DRAFT_MUST_SURVIVE\x1b[O');
