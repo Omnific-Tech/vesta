@@ -82,10 +82,8 @@ export async function installNativeCodex(native: string, configDir: string, node
     if (previous.plugin?.enabled === false && addedPlugin) await nativeRequest(native, 'config/value/write', { keyPath: 'plugins.' + codexPluginId + '.enabled', value: false, mergeStrategy: 'replace', filePath: join(previous.nativeHome, 'config.toml') });
     return registration;
   } catch (error) {
-    if (removed || addedCatalog || addedPlugin) {
-      try { await restoreNativeCodex(native, registration, previous); }
-      catch (compensation) { throw new Error(String(error) + '; native registration compensation failed: ' + String(compensation)); }
-    }
+    try { await restoreNativeCodex(native, registration, previous); }
+    catch (compensation) { throw new Error(String(error) + '; native registration compensation failed: ' + String(compensation)); }
     throw new Error(String(error) + '; prior native registrations restored');
   }
 }
