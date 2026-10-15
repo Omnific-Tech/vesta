@@ -132,7 +132,8 @@ function snapshot(root: string, selected: Provider[]): SavedFile[] {
 async function restore(saved: SavedFile[]) {
   const currentBlocks = new Map(saved.filter(file => file.shellState).map(file => [file.path, readJson(file.shellState!)?.block]));
   for (const file of saved.filter(file => file.path.endsWith('/.vesta-setup-codex.json'))) {
-    const current = readJson(file.path); if (current?.nativePluginId) await restoreNativeCodex(current.native, current, file.nativeCodex);
+    const current = readJson(file.path) ?? (file.nativeCodex && file.bytes ? JSON.parse(file.bytes.toString()) : undefined);
+    if (current?.nativePluginId) await restoreNativeCodex(current.native, current, file.nativeCodex);
   }
   for (const file of saved) {
     if (file.shellState) {
