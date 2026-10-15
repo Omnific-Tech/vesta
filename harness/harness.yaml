@@ -6,6 +6,10 @@ repositories:
     path: .
 verification_inputs:
   - repo: app
+    path: experiments/codex-native-input-e2e.ts
+  - repo: app
+    path: experiments/codex-native-input-fixture.mjs
+  - repo: app
     path: packaging/native-registry-e2e.ts
   - repo: app
     path: packaging/repair-e2e.ts

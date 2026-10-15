@@ -26,5 +26,5 @@
     { "id": "AC-OWNERSHIP", "description": "Conflicting/unknown owners, observer errors and untrusted hooks skip warming; owned subprocess cleanup and exact queue attribution remain verified." },
     { "id": "AC-SETUP-INTEGRITY", "description": "Repeatable E2E retains raw native hook/queue/rollout/terminal evidence with personal hashes unchanged and explicit probe timing. No post-code unit tests." }
   ],
-  "verification": ["codex-native-warming-live", "codex-native-cli-resume-live", "codex-native-packaged-live", "watcher-lifecycle", "standalone-repair"]
+  "verification": ["codex-native-input", "codex-native-warming-live", "codex-native-cli-resume-live", "codex-native-packaged-live", "watcher-lifecycle", "standalone-repair"]
 }
