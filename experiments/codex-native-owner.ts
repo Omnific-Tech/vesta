@@ -54,6 +54,7 @@ const terminal = pty.spawn(native, nativeArgv, { cwd: process.cwd(), env: { ...p
   VESTA_CODEX_OWNER_ID: ownerId, VESTA_CODEX_CHANNEL: channel, VESTA_CODEX_CAPTURE: capture ? '1' : '0' }, cols: process.stdout.columns ?? 120, rows: process.stdout.rows ?? 35, name: 'xterm-256color' });
 const originalRaw = process.stdin.isRaw;
 const decoder = new TerminalInput();
+let inputTimer: ReturnType<typeof setTimeout> | undefined;
 if (process.stdin.isTTY) process.stdin.setRawMode(true); process.stdin.resume();
 const invalidateInput = (keyboard: boolean, remaining = '') => {
     const at = Date.now(); inputSerial++; clean = false;
@@ -65,10 +66,16 @@ const invalidateInput = (keyboard: boolean, remaining = '') => {
       event({ type: 'activity', source: 'user', at }); trace('user-input');
     } else trace('unknown-terminal-input'); // Conservative composition invalidation without inventing user activity.
 };
+const expireInput = () => {
+  if (inputTimer) clearTimeout(inputTimer);
+  if (decoder.expire(Date.now())) invalidateInput(false);
+  if (decoder.pending && !stopped) inputTimer = setTimeout(expireInput, Math.max(1, decoder.deadline - Date.now()));
+};
 const input = (data: Buffer) => {
   terminal.write(data);
   const result = decoder.feed(data, Date.now());
   if (result.keyboard || result.unknown) invalidateInput(result.keyboard, result.text);
+  expireInput();
 };
 process.stdin.on('data', input);
 const resize = () => terminal.resize(process.stdout.columns ?? 120, process.stdout.rows ?? 35); process.stdout.on('resize', resize);
@@ -169,7 +176,7 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
   })().catch(() => { observerFailed = true; clean = false; trace('observer-failed'); }).finally(() => { tickBusy = false; });
 }, probe ? 50 : 1000);
 terminal.onExit(exit => { void (async () => {
-  stopped = true; clearInterval(timer); process.stdin.off('data', input); process.stdout.off('resize', resize);
+  stopped = true; clearInterval(timer); if (inputTimer) clearTimeout(inputTimer); process.stdin.off('data', input); process.stdout.off('resize', resize);
   if (process.stdin.isTTY) process.stdin.setRawMode(!!originalRaw); process.stdin.pause(); abort.abort(); await Promise.allSettled([...writers]); lease.close(); rmSync(channel, { force: true });
   writeFileSync(join(artifacts, 'codex-native-runtime.json'), JSON.stringify({ managed: true, ownerId, originalArgv, nativeArgv, nativePid: terminal.pid,
     warmEnabled: !observerFailed, mode: probe ? 'probe' : 'normal', defaults: watcher.defaults, warms, cleanup: [{ pid: terminal.pid, owned: true, exited: true }, ...writerCleanup] }, null, 2)); process.exitCode = exit.exitCode;

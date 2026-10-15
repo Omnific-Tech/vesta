@@ -3,6 +3,7 @@ export class TerminalInput {
   private sequence = '';
   private since = 0;
   get pending() { return this.sequence.length > 0; }
+  get deadline() { return this.since + 250; }
   expire(at: number) {
     if (!this.pending || at - this.since < 250) return false;
     this.sequence = ''; return true;
