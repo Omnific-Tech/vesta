@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { readJson, sha256, version } from './assets.ts';
 import { compare, executable, pluginId, preflight, providers, value, withLock } from './manage.ts';
 import { codexRegistration } from '../experiments/codex-native-setup.ts';
+import { nativeRequest } from '../experiments/codex-native-ipc.ts';
 
 const repository = 'Omnific-Tech/vesta'; const assetName = 'vesta-darwin-arm64';
 function curl(argv: string[]) {
@@ -16,7 +17,7 @@ export async function update(args: string[], root: string) {
   let stage: string | undefined; let candidate: string | undefined;
   let ownedTargets: string[] | undefined;
   try {
-    const result = await withLock(root, () => {
+    const result = await withLock(root, async () => {
       if (!value(args, '--provider') && !existsSync(join(root, 'installation.json'))) throw new Error('Owned installation required for default update; run vesta install first');
       const targets = providers(args, root, 'update');
       if (!targets.length) throw new Error('No owned provider is available to update');
@@ -27,20 +28,24 @@ export async function update(args: string[], root: string) {
       const wanted = release.tag_name.slice(1);
       const installed = JSON.parse(existsSync(join(root, 'installation.json')) ? readFileSync(join(root, 'installation.json'), 'utf8') : '{}').version ?? version;
       if (compare(wanted, installed) <= 0) {
-        const lagging = targets.some(p => {
+        let lagging = false;
+        for (const p of targets) {
           if (p.provider === 'codex') {
             const state = readJson(join(p.configDir, '.vesta-setup-codex.json'));
-            if (!state?.block || !existsSync(p.shellFile) || !readFileSync(p.shellFile, 'utf8').includes(state.block)) return true;
-            if (readJson(join(p.configDir, 'vesta-codex.json'), {}).warm !== true) return false;
-            if (!state.nativePluginId || !state.nativeMarketplaceRoot?.includes('/codex-native-assets/' + installed + '-')) return true;
+            if (!state?.block || !existsSync(p.shellFile) || !readFileSync(p.shellFile, 'utf8').includes(state.block)) { lagging = true; continue; }
+            if (readJson(join(p.configDir, 'vesta-codex.json'), {}).warm !== true) continue;
+            const effective = await nativeRequest(state.native, 'config/read', { includeLayers: false });
+            if (effective.config.features?.plugins === false || effective.config.features?.hooks === false) continue;
+            if (!state.nativePluginId || !state.nativeMarketplaceRoot?.includes('/codex-native-assets/' + installed + '-')) { lagging = true; continue; }
             const registration = codexRegistration(state.native, state);
-            return !registration.plugin || !registration.marketplace;
+            if (!registration.plugin || !registration.marketplace) lagging = true;
+            continue;
           }
           const registered = readJson(join(p.configDir, 'plugins/installed_plugins.json'), {}).plugins?.[pluginId]?.find((row: any) => row.scope === 'user')?.version;
-          if (registered === undefined) return true;
+          if (registered === undefined) { lagging = true; continue; }
           if (typeof registered !== 'string' || !/^\d+\.\d+\.\d+$/.test(registered)) throw new Error('Invalid owned Claude plugin version');
-          return compare(registered, installed) < 0;
-        });
+          if (compare(registered, installed) < 0) lagging = true;
+        }
         if (!lagging) return { version: installed, updated: false };
         if (!/^\d+\.\d+\.\d+$/.test(installed)) throw new Error('Invalid owned installation version');
         const current = join(root, 'current');

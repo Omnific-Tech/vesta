@@ -53,6 +53,8 @@ export async function restoreNativeCodex(native: string, currentState: any, prev
 }
 export async function installNativeCodex(native: string, configDir: string, node: string, state: any) {
   const previous = codexRegistration(native, state);
+  const effective = await nativeRequest(native, 'config/read', { includeLayers: false }, undefined, { env: { ...process.env as Record<string, string>, CODEX_HOME: previous.nativeHome } });
+  if (effective.config.features?.plugins === false || effective.config.features?.hooks === false) return undefined;
   const version = json(join(here, '../package.json')).version;
   const handler = readFileSync(join(here, 'vesta-codex/handler.mjs'));
   const digest = createHash('sha256').update(handler).update(node).update(version).digest('hex').slice(0, 16);

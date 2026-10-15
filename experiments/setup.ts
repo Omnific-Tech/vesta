@@ -113,9 +113,8 @@ async function handle(selected: 'claude' | 'codex') {
     result.installed = true; result.warmConfigured ||= args.includes('--warm'); result.activate = 'Open a new terminal, or source ' + quote(shellFile);
     const current = read(statePath);
     if (read(configPath).warm === true) {
-      if (!registration) throw new Error('Native warming registration is unavailable');
-      save(statePath, { ...current, ...registration }); result.nativePluginId = registration.nativePluginId;
-      const ready = await codexHookReadiness(current.native, process.cwd(), registration.nativeHookCommand);
+      if (registration) { save(statePath, { ...current, ...registration }); result.nativePluginId = registration.nativePluginId; }
+      const ready = registration ? await codexHookReadiness(current.native, process.cwd(), registration.nativeHookCommand) : { ready: false, reason: 'Native Codex hooks or plugins are disabled; enable them in native settings and review Vesta in /hooks before warming.' };
       result.warmEnabled = ready.ready; result.warmingSuspended = !ready.ready; result.warmingSuspendedReason = ready.reason;
       result.activate += '; review and trust only the Vesta entries in native /hooks';
     }
