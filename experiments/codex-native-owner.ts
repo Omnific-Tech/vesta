@@ -62,8 +62,8 @@ const invalidateInput = (keyboard: boolean, remaining = '') => {
     event({ type: 'reconnect', at });
     if (keyboard) {
       const enhancedEnter = [...remaining.matchAll(/\x1b\[(\d+)(?::[0-9]*)?(?:;(\d+)(?::[0-9]+)?)?u/g)].some(match => [10, 13, 57414].includes(Number(match[1])) && !((Number(match[2] ?? 1) - 1) & 1));
-      userAt = at; if (remaining.includes('\r') || enhancedEnter) submitArm = { serial: inputSerial, at, consumed: false };
-      event({ type: 'activity', source: 'user', at }); trace('user-input');
+      if (remaining.includes('\r') || enhancedEnter) submitArm = { serial: inputSerial, at, consumed: false };
+      trace('user-input');
     } else trace('unknown-terminal-input'); // Conservative composition invalidation without inventing user activity.
 };
 const expireInput = () => {
@@ -84,6 +84,7 @@ terminal.onData(data => { if (capture) appendFileSync(join(artifacts, 'codex-nat
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(signal, () => { stopped = true; terminal.kill(signal); });
 function invalidate() { clean = false; event({ type: 'reconnect' }); }
 function submitted(candidate: { input: any; at: number; serial: number }, clientId: string) {
+  if (typeof clientId !== 'string' || !clientId) { trace('unknown-submission'); return; }
   const row = candidate.input; const queued = pending.get(clientId);
   if (queued) {
     if (queued.consumed || queued.sessionId !== row.session_id) return;
@@ -91,15 +92,17 @@ function submitted(candidate: { input: any; at: number; serial: number }, client
     if (row.session_id !== activeSession || queued.epoch !== epoch) return; // A committed old turn cannot move current ownership back.
     submittedSerial = queued.dispatchInputSerial;
   } else {
-    if (!submitArm || submitArm.consumed || submitArm.serial !== candidate.serial || candidate.at < submitArm.at) { trace('unknown-submission'); return; }
+    if (!submitArm || submitArm.consumed || submitArm.serial !== candidate.serial || !Number.isSafeInteger(candidate.at) || candidate.at < submitArm.at || candidate.at > Date.now()) { trace('unknown-submission'); return; }
     submitArm.consumed = true;
     const acquired = lease.acquire(row.session_id); lease.unknown(false);
     if (!acquired) { trace('lease-conflict'); invalidate(); return; }
     // Embedded native engines may retain old threads. Their leases stay until
     // native SessionEnd or owner exit, even after foreground eligibility moves.
     activeSession = row.session_id; epoch++; watcher = new Watcher('codex', settings, probe ? 'probe' : 'normal');
-    // Preserve the actual keyboard timestamp when rebinding. Hook arrival does not renew it.
-    if (userAt !== null) event({ type: 'activity', source: 'user', at: userAt, sessionId: activeSession });
+    // Only the verified native user submission renews inactivity, using its
+    // original timestamp rather than keyboard receipt or delayed observation.
+    userAt = candidate.at;
+    event({ type: 'activity', source: 'user', at: userAt, sessionId: activeSession });
     submittedSerial = candidate.serial;
   }
   activeTurn = row.turn_id; clean = false;

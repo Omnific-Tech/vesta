@@ -7,14 +7,17 @@ timer expires. Continue using ordinary `claude` and `codex` commands after setup
 Cache retention and net usage savings are **unverified**. Each keepalive is a
 real model turn and consumes usage.
 
-**Current checkout (unreleased 0.2.3):** Codex warming uses a native local owner and registered
+**Current checkout (unreleased 0.2.4):** Codex warming uses a native local owner and registered
 lifecycle hooks. Install with `--warm`, then review and trust only Vesta's entries
 in native `/hooks`. Until those hooks are ready, ordinary `codex` calls remain
 native and saved warming preferences stay inactive. Existing source installs need
 this registration step before warming resumes. Exit an older wrapped Codex session
 and relaunch; running sessions retain their existing integration. Claude is unchanged.
-Version 0.2.3 preserves idle eligibility across passive terminal focus and protocol
-reports. Real typing and navigation still suspend warming to protect drafts.
+Codex's inactivity budget follows the last verified user-submitted prompt.
+Scrolling, pointer movement, focus and terminal reports preserve reply eligibility
+without renewing that clock. Typing and navigation still suspend warming to
+protect drafts, but do not renew the submission clock. Each completed response
+also starts a fresh idle interval.
 
 The published v0.2.1 downloads below retain the earlier Codex wrapper. This
 native owner change has not been released; downloading that version does not
@@ -136,10 +139,10 @@ compacting a session requires a fresh reply before warming can resume.
 | Input threshold | Strictly greater than 100,000 tokens |
 | Claude idle interval | 50 minutes |
 | Codex idle interval | 20 minutes |
-| Maximum time since real user activity | 4 hours |
+| Maximum time since user activity (Codex: last submitted prompt) | 4 hours |
 
-Busy, stale and ended sessions are skipped. Keepalives do not extend the real
-user activity budget. User activity can cancel a pending ping before dispatch;
+Busy, stale and ended sessions are skipped. Keepalives do not extend the
+user inactivity budget. Draft input can cancel a pending ping before dispatch;
 once submitted to a native queue, retraction is not guaranteed.
 
 Codex warming supports bare interactive launches, `--yolo`, the short model,

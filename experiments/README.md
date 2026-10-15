@@ -23,7 +23,7 @@ each coding session. `/vesta-status` displays native Claude session metadata.
 Warming defaults to off. Opt in once with
 `npm run setup -- install --provider all --warm`; choose `--provider claude` or
 `--provider codex` for only one integration. Defaults remain 50 minutes idle for
-Claude, 20 minutes for Codex, a four-hour real-user inactivity budget, and a
+Claude, 20 minutes for Codex, a four-hour user inactivity budget, and a
 strictly greater than 100,000 native last-response input gate. Native cache input
 counts once; output and cumulative usage do not qualify. Native queue removal
 after local dispatch is not guaranteed; retention and savings are unproven.
@@ -168,7 +168,12 @@ npm run watch:codex -- --warm --cwd /absolute/path/to/project
 ```
 
 Defaults are 50 minutes idle for Claude, 20 minutes for Codex and a four-hour
-budget since real user activity. Configure `--idle-ms N` and `--budget-ms N` with
+user inactivity budget. For Codex, only the last verified user-submitted prompt
+renews that budget and the user idle clock. Typing, navigation, scrolling,
+pointer movement, focus and terminal replies do not renew it. Recognized vertical
+wheel and no-button motion preserve completed and in-flight reply eligibility;
+draft input and uncertain navigation still suspend dispatch. Claude's activity
+policy is unchanged. Configure `--idle-ms N` and `--budget-ms N` with
 positive integer milliseconds, at most four hours. Every completed response also
 starts a fresh idle interval. Warming never renews the user budget. A warm prompt
 contains only `VESTA_CACHE_KEEPALIVE`. Before opting in, add the required

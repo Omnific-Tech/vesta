@@ -6,7 +6,7 @@ the previous remote wrapper; no new release accompanies this change. Existing
 source integrations preserve native pass-through until installed native hooks are
 registered and reviewed. Exit an older wrapped session and relaunch after setup.
 
-The unreleased 0.2.3 CLI also accepts `setup` as an alias for `install`. To restore
+The unreleased 0.2.4 CLI also accepts `setup` as an alias for `install`. To restore
 an existing integration, run the locally built `./dist/vesta repair`, or use
 `repair --warm` to opt selected owned providers into warming. Plain repair keeps
 each provider's saved warm setting, custom timers and unrelated preferences.
@@ -97,8 +97,13 @@ Vesta's native `/hooks` entries; it never bypasses global hook trust. Status rep
 Native registration/asset ownership is recorded independently of shell ownership.
 Retained runtime/hook assets keep running owners valid through native cache removal.
 
-Defaults remain Claude 50 minutes idle, Codex 20 minutes idle, and four hours
-since actual user activity. Only fresh native last-response input strictly above
+Defaults remain Claude 50 minutes idle, Codex 20 minutes idle, and a four-hour
+user inactivity budget. Codex measures that budget from the last verified
+user-submitted prompt; typing, scrolling, pointer movement and focus do not renew
+it. Each completed reply also starts a fresh idle interval. Vertical wheel and
+no-button pointer movement preserve reply eligibility; draft/navigation input
+still suspends warming. Claude's activity policy is unchanged.
+Only fresh native last-response input strictly above
 100,000 tokens qualifies; cache input counts once, output and cumulative counts
 do not qualify. A busy, stale, disconnected, or unknown owner skips. Local input
 observed before dispatch cancels a pending ping. Native queue removal after
