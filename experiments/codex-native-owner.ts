@@ -48,11 +48,7 @@ const event = (row: any) => {
   catch { observerFailed = true; clean = false; return { action: 'skip', state: watcher.state }; }
 };
 const explicitResume = originalArgv.includes('resume') ? originalArgv.find(arg => /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(arg)) : undefined;
-if (explicitResume && !lease.acquire(explicitResume)) {
-  trace('lease-conflict');
-  writeFileSync(join(artifacts, 'codex-native-runtime.json'), JSON.stringify({ managed: false, ownerId, originalArgv, nativeArgv: ['--no-daemon', ...originalArgv], nativePid: process.pid, warmingSuspendedReason: 'Conflicting native owner', cleanup: [] }));
-  process.execve(native, [native, '--no-daemon', ...originalArgv], process.env as Record<string, string>);
-}
+if (explicitResume) { if (!lease.acquire(explicitResume)) trace('lease-conflict'); lease.unknown(false); }
 const nativeArgv = ['--no-daemon', ...originalArgv];
 const terminal = pty.spawn(native, nativeArgv, { cwd: process.cwd(), env: { ...process.env as Record<string, string>, TERM: process.env.TERM ?? 'xterm-256color',
   VESTA_CODEX_OWNER_ID: ownerId, VESTA_CODEX_CHANNEL: channel, VESTA_CODEX_CAPTURE: capture ? '1' : '0' }, cols: process.stdout.columns ?? 120, rows: process.stdout.rows ?? 35, name: 'xterm-256color' });
@@ -64,6 +60,7 @@ const input = (data: Buffer) => {
   const remaining = text.replace(/\x1b\[[?>]?[0-9;]*[Rc]/g, '').replace(/\x1b\[\?[0-9;]*u/g, '').replace(/\x1b\](?:10|11);rgb:[^\x07\x1b]+(?:\x07|\x1b\\)/g, '');
   if (remaining) {
     const at = Date.now(); inputSerial++; clean = false;
+    lease.unknown(true);
     const keyboard = !remaining.startsWith('\x1b') || /^\x1b(?:\[(?:[0-9;]*[ABCDHF~]|[0-9:;]+u|<[0-9;]+[Mm])|[^\[\]])/.test(remaining) || remaining.includes('\x1b[200~');
     event({ type: 'reconnect', at });
     if (keyboard) {
@@ -90,8 +87,10 @@ function submitted(candidate: { input: any; at: number; serial: number }, client
   } else {
     if (!submitArm || submitArm.consumed || submitArm.serial !== candidate.serial || candidate.at < submitArm.at) { trace('unknown-submission'); return; }
     submitArm.consumed = true;
-    if (!lease.acquire(row.session_id)) { trace('lease-conflict'); invalidate(); return; }
-    if (activeSession && activeSession !== row.session_id) lease.release(activeSession);
+    const acquired = lease.acquire(row.session_id); lease.unknown(false);
+    if (!acquired) { trace('lease-conflict'); invalidate(); return; }
+    // Embedded native engines may retain old threads. Their leases stay until
+    // native SessionEnd or owner exit, even after foreground eligibility moves.
     activeSession = row.session_id; epoch++; watcher = new Watcher('codex', settings, probe ? 'probe' : 'normal');
     // Preserve the actual keyboard timestamp when rebinding. Hook arrival does not renew it.
     if (userAt !== null) event({ type: 'activity', source: 'user', at: userAt, sessionId: activeSession });
@@ -125,8 +124,10 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
         if (row.session_id === activeSession && ![...pending.values()].some(p => p.sessionId === row.session_id && !p.consumed)) clean = false;
       } else if (row.hook_event_name === 'Stop' && row.turn_id && row.transcript_path) {
         pendingStops.set(row.turn_id, { input: row, deadline: Date.now() + 3000 });
-      } else if (row.session_id === activeSession && ['SessionEnd', 'Interrupt', 'PostCompact'].includes(row.hook_event_name)) {
-        invalidate(); if (row.hook_event_name === 'SessionEnd') lease.release(activeSession);
+      } else if (row.hook_event_name === 'SessionEnd') {
+        if (row.session_id === activeSession) invalidate(); lease.release(row.session_id);
+      } else if (row.session_id === activeSession && ['Interrupt', 'PostCompact'].includes(row.hook_event_name)) {
+        invalidate();
       }
     }
     for (const [turnId, candidate] of candidates) {
@@ -142,7 +143,8 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
       }
     }
     if (activeSession && lease.conflict(activeSession)) { trace('lease-conflict'); invalidate(); }
-    if (!clean || preparing || candidates.size || pendingStops.size || warms >= maxWarms || [...pending.values()].some(row => !row.consumed)) return;
+    if (lease.ambiguous()) { trace('ownership-ambiguous'); return; }
+    if (!clean || preparing || candidates.size || pendingStops.size || warms >= maxWarms || [...pending.values()].some(row => !row.consumed && row.sessionId === activeSession && row.epoch === epoch)) return;
     const reserve = event({ type: 'tick' }); if (reserve.action !== 'reserve') return;
     if (!clean || lease.conflict(activeSession)) return;
     const queued: Pending = { sessionId: activeSession, clientId: randomUUID(), reservationId: reserve.state.reservationId, dispatchInputSerial: inputSerial, epoch, consumed: false };
@@ -151,7 +153,7 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
       capture ? (direction, row) => trace('queue-' + direction, { row }) : undefined, {
         signal: abort.signal,
         authorize: () => {
-          if (stopped || observerFailed || !clean || inputSerial !== queued.dispatchInputSerial || activeSession !== queued.sessionId || epoch !== queued.epoch || lease.conflict(activeSession)) return false;
+          if (stopped || observerFailed || !clean || inputSerial !== queued.dispatchInputSerial || activeSession !== queued.sessionId || epoch !== queued.epoch || lease.conflict(activeSession) || lease.ambiguous()) return false;
           const dispatch = event({ type: 'dispatch', reservationId: queued.reservationId }); if (dispatch.action !== 'dispatch') return false;
           pending.set(queued.clientId, queued); warms++; trace('marker-dispatched', { pending: queued }); return true;
         },

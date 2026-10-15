@@ -6,7 +6,22 @@ const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const birth = (pid: number) => { try { return execFileSync('/bin/ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8' }).trim(); } catch { return ''; } };
 export class NativeLease {
   directory: string; owner: { pid: number; birth: string; ownerId: string }; held = new Set<string>(); seen = new Set<string>();
-  constructor(home: string, ownerId: string) { this.directory = join(home, 'vesta-owner-leases'); mkdirSync(this.directory, { recursive: true, mode: 0o700 }); this.owner = { pid: process.pid, birth: birth(process.pid), ownerId }; }
+  constructor(home: string, ownerId: string) { this.directory = join(home, 'vesta-owner-leases'); mkdirSync(this.directory, { recursive: true, mode: 0o700 }); this.owner = { pid: process.pid, birth: birth(process.pid), ownerId }; this.unknown(true); }
+  unknown(value: boolean) {
+    const path = join(this.directory, this.owner.ownerId + '.unknown');
+    if (value) { if (!existsSync(path)) writeFileSync(path, JSON.stringify(this.owner), { mode: 0o600 }); }
+    else { try { const row = JSON.parse(readFileSync(path, 'utf8')); if (row.ownerId === this.owner.ownerId && row.pid === process.pid) rmSync(path); } catch {} }
+  }
+  ambiguous() {
+    try {
+      for (const name of readdirSync(this.directory).filter(name => name.endsWith('.unknown') && name !== this.owner.ownerId + '.unknown')) {
+        const path = join(this.directory, name); const row = JSON.parse(readFileSync(path, 'utf8'));
+        if (!row.ownerId || !row.birth || !Number.isSafeInteger(row.pid) || this.alive(row)) return true;
+        rmSync(path);
+      }
+      return false;
+    } catch { return true; }
+  }
   alive(row: any) { return Number.isSafeInteger(row?.pid) && row.pid > 0 && typeof row.birth === 'string' && row.birth.length > 0 && birth(row.pid) === row.birth; }
   acquire(threadId: string) {
     if (!uuid.test(threadId)) return false;
@@ -55,7 +70,12 @@ export class NativeLease {
     try { const row = JSON.parse(readFileSync(path, 'utf8')); if (row.ownerId === this.owner.ownerId && row.pid === process.pid) rmSync(path); } catch {}
     this.held.delete(threadId);
   }
-  close() { for (const id of this.held) this.release(id); }
+  close() {
+    for (const id of this.held) this.release(id); this.unknown(false);
+    for (const name of readdirSync(this.directory).filter(name => name.endsWith('.' + this.owner.ownerId + '.peer'))) {
+      try { const path = join(this.directory, name); const row = JSON.parse(readFileSync(path, 'utf8')); if (row.ownerId === this.owner.ownerId && row.pid === process.pid) rmSync(path); } catch {}
+    }
+  }
 }
 export function nativeTurn(path: string, threadId: string, turnId: string) {
   try {

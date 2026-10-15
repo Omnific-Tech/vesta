@@ -94,6 +94,10 @@ client initialization. A draft entered after queue commitment stays a draft and
 prevents future eligibility until another real submitted reply.
 
 Known managed owners of the same thread skip warming through metadata leases.
+Leases cover retained native backend threads until SessionEnd or process exit.
+A managed picker or navigation with an unknown target suspends other producers
+until exact submitted-thread binding or process exit, so idle saved history alone
+cannot establish an owner.
 Unknown/stale ownership, incomplete rollout measurements and observer failures
 skip safely while the native TUI remains usable. Unmanaged concurrent same-thread
 writers and unrelated external queue producers are unsupported. A leftover unknown
