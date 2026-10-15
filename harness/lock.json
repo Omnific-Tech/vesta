@@ -1,17 +1,18 @@
 {
   "schema_version": 1,
-  "generation": "83fd7a756d0c71952caf49001df3ee6e",
+  "generation": "770bad51916f94bc1d3262cef9fbb2a6",
   "repositories": {
-    "app": "6acec546533e01f0babab2a46c4537567037fb0d"
+    "app": "90056b019e88856ea712164d69f4361e1c67989f"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
     "app:experiments/codex-disarm-e2e.ts": "abb19bccb9a2c532800463ba44a7b97dbdef789b31aa224d01e41f6940b5c3bf",
     "app:experiments/codex-embedded-owner-probe.ts": "45a27be2ff9eabd77894465cb4d469f23a6ff93f54a2db622caaa55006e7efea",
     "app:experiments/codex-hooks-probe-handler.mjs": "fcfd02ab577cb03799b9d7c4fb0fd88dc55b72b6f246dba8f43800875b70d788",
-    "app:experiments/codex-hooks-probe.ts": "ff3af4c2e3ed697509996783253af8fb2b0b18655aae2030bcd9fc95966e362a",
-    "app:experiments/codex-native-acceptance.ts": "cca5af53e2460c4252539f444b00715734fb6654de6d963909b0347ccf853e33",
+    "app:experiments/codex-hooks-probe.ts": "1fc575444b7dfe0d952bf007e004ac4550d7457dd85e519836eca2eaa2ccf4be",
+    "app:experiments/codex-native-acceptance.ts": "7cd695e7eeb054036b568076bf1f9e02ee576861b251fba86a4bee08ecd26c95",
     "app:experiments/codex-native-fault-fixture.mjs": "ea03d0495b8f5ec10545792a10af77ee06cd7fa2f45d8c6a4e586ebac4af648c",
+    "app:experiments/codex-native-residency-probe.ts": "a792c6621ead5e69a7883cfa8389197fc04aadf89108f13a07d0378927d2c14b",
     "app:experiments/codex-native-setup-fault-e2e.ts": "0d356dbdce1543b9533ab819b3f2f7512e1f297f9a07f2e0d36b04d2f069296b",
     "app:experiments/codex-native-warming-e2e.ts": "0f41c53c2fe52e462743288ecfc0e85316ca3f44e75ec175ac06cb7bbf0ff4a3",
     "app:experiments/context-acceptance.ts": "79c2305fefd415faf7d02fee8c644be3d8c790d5ef355841cd74b97e294432c2",
@@ -45,7 +46,7 @@
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-002/history/PROBE-002.json": "8302c117564c6adc705797b60c709e3d63b6e7e4da1759372e5b577321315343",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-002/plan.md": "046aead5dc468e8baf7ae8c0358f3d234ce85f46085c76f5745a42c40cb5b565",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/RESUME-001/failures.md": "924d78674e8f1df0c2857f8c6b3b469bd486c09796498e15da933e3665cd07c7",
-    "app:harness/artifacts/SESSION-INTEGRATION/changes/RESUME-001/plan.md": "be481c90d61e998d1b8eeaa7d499fb806759fd1183420416a98e291fdbecda74",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/RESUME-001/plan.md": "fb6808f58424664b22001dcc8d28c185a6620ece687c68945e2e7f7e318b4629",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/SETUP-001/failures.md": "4f541c33ff9b01e2c43e107714a4bd1c67713d9601d36466bdcf9e522b4b60a6",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/SETUP-001/history/SETUP-001.json": "15c68a42acea6b102f8e931aaf54c0beff2e3789316f40fa8fb4faec0987f517",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/SETUP-001/plan.md": "16e56cb39c63b9a42e377ee22890543a28cd14294b5bb776e223e35c8c6384f6",
@@ -57,7 +58,7 @@
     "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "ca715cd9c8150d9feb0bd770921ca56d0af7f1a9b1676d35e96d25971ca465b4",
     "app:harness/artifacts/features.md": "957e3fa32435f43672088810dcc5585da6979b5aa4ce42bc081aafd96f0306f7",
     "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
-    "app:harness/harness.yaml": "fdc4eac77d534011e146f5f8b268cd48b110fc6205965d00f9f099e9849a1c07",
+    "app:harness/harness.yaml": "e1f17e8f7397d4041ad06ee9d46f5542bb3c3b86e8354db4984377d7ac086de5",
     "app:harness/scenarios/DISTRIBUTION/standalone-install-update.yaml": "a33f123260ca6689d6a38370260da08f3ba6e7a2bf7a5f3baf01af3dc6d76cf8",
     "app:harness/scenarios/DISTRIBUTION/standalone-native.yaml": "33b813c69e55107648de9cdbb3bd17c398b9e32479670dfa7dc3b173cb67d814",
     "app:harness/scenarios/DISTRIBUTION/standalone-public-safety.yaml": "20b0bf31cd5774fd3acdda3a46926011dda05a848008a96bd6f2f7afaf8ed670",
@@ -376,6 +377,16 @@
       },
       "repositories": {
         "app": "6acec546533e01f0babab2a46c4537567037fb0d"
+      }
+    },
+    {
+      "reason": "Guard unknown picker ownership and resident-thread leases; preserve selected model in isolated native UI fixtures",
+      "prior_generation": "83fd7a756d0c71952caf49001df3ee6e",
+      "prior_repositories": {
+        "app": "6acec546533e01f0babab2a46c4537567037fb0d"
+      },
+      "repositories": {
+        "app": "90056b019e88856ea712164d69f4361e1c67989f"
       }
     }
   ]
