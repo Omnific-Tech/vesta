@@ -59,7 +59,6 @@ if (provider === 'claude') {
   catch { throw new Error('A readable valid personal Claude profile is required for integrity proof'); }
 }
 const env: Record<string, string> = { ...process.env as Record<string, string>, TERM: 'xterm-256color' };
-if (provider === 'claude') env.HOME = fixture;
 if (process.env.VESTA_E2E_CLI) { env.VESTA_HOME = join(artifacts, 'owned-install'); env.VESTA_BIN_DIR = join(artifacts, 'owned-bin'); }
 const e: SetupLiveEvidence = { schema: 1, kind: 'native-installed-launch', provider, startedAt: Date.now(), endedAt: 0, configDir, commands: [], personalFiles: personal.map(path => ({ path, before: path === personalProfilePath && personalProfileBefore ? personalProfileBefore.sha256 : hash(path), after: '' })), sourceFiles: [], cleanup: [], rawFiles: [] };
 const terminals: { terminal: pty.IPty; exited: boolean; file: string }[] = [];
