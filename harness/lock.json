@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "generation": "a8a1610200c259629edee3ab732dde49",
+  "generation": "8ae48a04a0b890c4fc8e35ea15cbd4b7",
   "repositories": {
-    "app": "fb1e3d07b9a9ada5ec43e02db677c4387ae2e5d7"
+    "app": "edbbbf9465b424f0f4d977f61b850dd067b02e33"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
     "app:experiments/codex-disarm-e2e.ts": "abb19bccb9a2c532800463ba44a7b97dbdef789b31aa224d01e41f6940b5c3bf",
     "app:experiments/codex-embedded-owner-probe.ts": "45a27be2ff9eabd77894465cb4d469f23a6ff93f54a2db622caaa55006e7efea",
     "app:experiments/codex-hooks-probe-handler.mjs": "fcfd02ab577cb03799b9d7c4fb0fd88dc55b72b6f246dba8f43800875b70d788",
-    "app:experiments/codex-hooks-probe.ts": "ef54c1c6e2b6299447ba1ac538531dcd81cb7bd5b96437c0689ef598dae69df7",
+    "app:experiments/codex-hooks-probe.ts": "643ddbb00d9df288c2170918c9ff85c88ba36fe0cd5a45657f4f68f37a1c0fff",
     "app:experiments/codex-native-acceptance.ts": "bf1b95183b85e29c4c7ee31edd5d9502c92bd86dac257e1489298751c2ea3de4",
     "app:experiments/codex-native-fault-fixture.mjs": "ea03d0495b8f5ec10545792a10af77ee06cd7fa2f45d8c6a4e586ebac4af648c",
     "app:experiments/codex-native-input-e2e.ts": "3787d8ebe86691d0d37375cef1c8c8239ab724af55162acf4b2ec4a5f9ee491b",
@@ -451,6 +451,16 @@
       },
       "repositories": {
         "app": "fb1e3d07b9a9ada5ec43e02db677c4387ae2e5d7"
+      }
+    },
+    {
+      "reason": "Bind passive live test snapshots to exact completed nonce turn and physical owner after observed native hook processing race",
+      "prior_generation": "a8a1610200c259629edee3ab732dde49",
+      "prior_repositories": {
+        "app": "fb1e3d07b9a9ada5ec43e02db677c4387ae2e5d7"
+      },
+      "repositories": {
+        "app": "edbbbf9465b424f0f4d977f61b850dd067b02e33"
       }
     }
   ]
