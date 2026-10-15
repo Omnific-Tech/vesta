@@ -121,6 +121,11 @@ preserved unless you explicitly enable them with `--warm`.
 
 ## How it works
 
+See the [provider guides](docs/README.md) for the
+[Claude Code plugin](docs/claude.md) and
+[Codex native owner](docs/codex.md), including activity clocks, configuration and
+live-session troubleshooting.
+
 Claude Code loads a native Vesta plugin. Its watcher belongs to the open session;
 Vesta does not reopen ended conversations. Codex's reversible zsh function uses
 the recorded native executable. When warming is configured and trusted hooks are
