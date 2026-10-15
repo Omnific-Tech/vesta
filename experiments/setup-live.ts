@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import * as pty from 'node-pty';
 import { verifySetupLiveEvidence } from './setup-live-acceptance.ts';
-import type { SetupLiveEvidence } from './setup-live-acceptance.ts';
+import type { ClaudeProfileSnapshot, SetupLiveEvidence } from './setup-live-acceptance.ts';
 import { parseClaudeStatuses } from './setup-acceptance.ts';
 import { globalInstructions, noncePrompt } from './marker-acceptance.ts';
 
@@ -26,16 +26,46 @@ const fixture = realpathSync(mkdtempSync(join(tmpdir(), 'vesta-autoload-e2e-')))
 const configDir = join(fixture, provider + '-config'); mkdirSync(configDir);
 const shellFile = join(fixture, 'zshrc'); writeFileSync(shellFile, '# isolated native launch fixture\n');
 const hash = (path: string) => existsSync(path) ? createHash('sha256').update(readFileSync(path)).digest('hex') : 'absent';
+const digest = (bytes: string | Buffer) => createHash('sha256').update(bytes).digest('hex');
+function canonical(value: any): string {
+  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
+  if (value !== null && typeof value === 'object') return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}';
+  if (typeof value === 'number') assert.ok(Number.isFinite(value), 'profile numbers must be finite JSON values');
+  return JSON.stringify(value);
+}
+function profileSnapshot(bytes: Buffer): ClaudeProfileSnapshot {
+  const profile = JSON.parse(bytes.toString('utf8'));
+  assert.ok(profile !== null && typeof profile === 'object' && !Array.isArray(profile), 'profile must be a JSON object');
+  const { pluginUsage, ...stable } = profile;
+  const pluginUsagePresent = Object.hasOwn(profile, 'pluginUsage');
+  if (pluginUsagePresent) assert.ok(pluginUsage !== null && typeof pluginUsage === 'object' && !Array.isArray(pluginUsage), 'pluginUsage must be a JSON object');
+  return { sha256: digest(bytes), stableSha256: digest(canonical(stable)), pluginUsagePresent,
+    plugins: Object.entries(pluginUsagePresent ? pluginUsage : {}).map(([id, value]) => {
+      assert.ok(value !== null && typeof value === 'object' && !Array.isArray(value), 'plugin usage entry must be a JSON object');
+      const entry = value as Record<string, unknown>;
+      const { usageCount, lastUsedAt, ...entryStable } = entry;
+      return { idSha256: digest(id), sha256: digest(canonical(entry)), stableSha256: digest(canonical(entryStable)), isVesta: /^vesta(?:@|$)/i.test(id),
+        usageCountPresent: Object.hasOwn(entry, 'usageCount'), lastUsedAtPresent: Object.hasOwn(entry, 'lastUsedAt') };
+    }) };
+}
 const tree = (path: string) => Object.fromEntries(readdirSync(path, { recursive: true, withFileTypes: true }).filter(d => d.isFile()).map(d => { const p = join(d.parentPath, d.name); return [p.slice(path.length + 1), hash(p)]; }));
 const personal = provider === 'claude' ? [join(homedir(), '.claude/settings.json'), join(homedir(), '.claude.json'), join(homedir(), '.claude/.credentials.json'), join(homedir(), '.claude/CLAUDE.md')]
   : [join(homedir(), '.codex/config.toml'), join(homedir(), '.codex/auth.json'), join(homedir(), '.zshrc'), join(homedir(), '.codex/AGENTS.md')];
 personal.push(join(homedir(), '.local/bin/vesta'));
+const personalProfilePath = join(homedir(), '.claude.json');
+let personalProfileBefore: ClaudeProfileSnapshot | undefined;
+if (provider === 'claude') {
+  try { personalProfileBefore = profileSnapshot(readFileSync(personalProfilePath)); }
+  catch { throw new Error('A readable valid personal Claude profile is required for integrity proof'); }
+}
 const env: Record<string, string> = { ...process.env as Record<string, string>, TERM: 'xterm-256color' };
+if (provider === 'claude') env.HOME = fixture;
 if (process.env.VESTA_E2E_CLI) { env.VESTA_HOME = join(artifacts, 'owned-install'); env.VESTA_BIN_DIR = join(artifacts, 'owned-bin'); }
-const e: SetupLiveEvidence = { schema: 1, kind: 'native-installed-launch', provider, startedAt: Date.now(), endedAt: 0, configDir, commands: [], personalFiles: personal.map(path => ({ path, before: hash(path), after: '' })), sourceFiles: [], cleanup: [], rawFiles: [] };
+const e: SetupLiveEvidence = { schema: 1, kind: 'native-installed-launch', provider, startedAt: Date.now(), endedAt: 0, configDir, commands: [], personalFiles: personal.map(path => ({ path, before: path === personalProfilePath && personalProfileBefore ? personalProfileBefore.sha256 : hash(path), after: '' })), sourceFiles: [], cleanup: [], rawFiles: [] };
 const terminals: { terminal: pty.IPty; exited: boolean; file: string }[] = [];
 let failure: string | undefined;
 let packagedSourceRoot: string | undefined;
+let claudePluginListFile: string | undefined;
 const deadline = Date.now() + 225000;
 const sleep = (ms: number) => new Promise(done => setTimeout(done, ms));
 const text = (file: string) => existsSync(join(artifacts, file)) ? readFileSync(join(artifacts, file), 'utf8') : '';
@@ -52,6 +82,10 @@ function run(command: string, argv: string[], input?: string) {
   const result = spawnSync(command, argv, { cwd: fixture, env, input, encoding: 'utf8', timeout: 30000 });
   const file = 'setup-' + e.commands.length + '.txt'; writeFileSync(join(artifacts, file), (result.stdout ?? '') + (result.stderr ?? '')); e.rawFiles.push(file);
   assert.equal(result.status, 0, result.stderr || result.error?.message);
+  if (provider === 'claude' && command === 'claude' && argv[0] === 'plugin' && argv[1] === 'list') {
+    claudePluginListFile = 'claude-plugin-list.json';
+    writeFileSync(join(artifacts, claudePluginListFile), result.stdout); e.rawFiles.push(claudePluginListFile);
+  }
   if (process.env.VESTA_E2E_CLI && argv.includes('install') && !packagedSourceRoot) {
     packagedSourceRoot = realpathSync(join(env.VESTA_HOME!, 'current/app/experiments'));
     if (provider === 'codex') { copyFileSync(shellFile, join(artifacts, 'installed-zshrc')); e.rawFiles.push('installed-zshrc'); }
@@ -238,7 +272,21 @@ finally {
     const packaged = join(packagedSourceRoot ?? '', file);
     return process.env.VESTA_E2E_CLI && existsSync(packaged) ? packaged : join(here, file);
   }).filter(path => existsSync(path)).map(path => ({ path, sha256: hash(path) }));
-  for (const file of e.personalFiles) file.after = hash(file.path); e.endedAt = Date.now();
+  for (const file of e.personalFiles) if (!(provider === 'claude' && file.path === personalProfilePath)) file.after = hash(file.path);
+  if (provider === 'claude') {
+    try {
+      const bytes = readFileSync(personalProfilePath);
+      e.personalFiles.find(file => file.path === personalProfilePath)!.after = digest(bytes);
+      const after = profileSnapshot(bytes);
+      const profilePath = join(configDir, '.claude.json'); const fixtureBytes = readFileSync(profilePath);
+      const fixtureProfile = profileSnapshot(fixtureBytes);
+      assert.ok(personalProfileBefore && claudePluginListFile, 'complete Claude profile isolation evidence');
+      e.claudeProfileIntegrity = { path: personalProfilePath, before: personalProfileBefore, after,
+        fixture: { root: fixture, home: env.HOME, configDir: env.CLAUDE_CONFIG_DIR, profilePath,
+          profileSha256: fixtureProfile.sha256, vestaUsagePresent: fixtureProfile.plugins.some(plugin => plugin.isVesta), pluginListFile: claudePluginListFile } };
+    } catch { failure ??= 'Unable to capture complete valid Claude profile integrity evidence'; }
+  }
+  e.endedAt = Date.now();
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ ...e, failure }, null, 2)); rmSync(fixture, { recursive: true, force: true });
 }
 if (failure) throw new Error(`${failure}; evidence: ${artifacts}`);
