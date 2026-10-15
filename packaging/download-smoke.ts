@@ -33,7 +33,7 @@ function run(name: string, exe: string, argv: string[], timeout = 90000) {
 }
 function download(version: string) {
   const directory = join(artifacts, version); mkdirSync(directory);
-  for (const asset of ['vesta-darwin-arm64', 'SHA256SUMS']) run('download-' + version + '-' + asset, '/usr/bin/curl', ['-fL', '--connect-timeout', '10', '--max-time', '90', '-o', join(directory, asset), 'https://github.com/Omnific-Tech/vesta/releases/download/v' + version + '/' + asset]);
+  for (const asset of ['vesta-darwin-arm64', 'SHA256SUMS']) run('download-' + version + '-' + asset, '/usr/bin/curl', ['--disable', '--fail', '--location', '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '10', '--max-time', '90', '-o', join(directory, asset), 'https://github.com/Omnific-Tech/vesta/releases/download/v' + version + '/' + asset]);
   const binary = join(directory, 'vesta-darwin-arm64');
   const expected = readFileSync(join(directory, 'SHA256SUMS'), 'utf8').split('\n').find(line => line.endsWith('  vesta-darwin-arm64'));
   assert.equal(expected, hash(binary) + '  vesta-darwin-arm64', 'public downloaded asset checksum');
