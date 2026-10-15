@@ -12,10 +12,12 @@ const home = () => resolve(process.env.CODEX_HOME ?? join(homedir(), '.codex'));
 const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
 const json = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
 function call(native: string, argv: string[], nativeHome: string) {
-  const result = spawnSync(native, argv, { env: { ...process.env, CODEX_HOME: nativeHome }, encoding: 'utf8', timeout: 30000 });
-  if (result.status !== 0) throw new Error('Native Codex registration failed: ' + argv.slice(0, 3).join(' '));
+  // Registry commands never consume terminal input. Isolate their stdin from
+  // the packaged caller's pipe while retaining native JSON/error output.
+  const result = spawnSync(native, argv, { env: { ...process.env, CODEX_HOME: nativeHome }, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', timeout: 30000 });
+  if (result.error || result.status !== 0) throw new Error('Native Codex registration failed: ' + argv.slice(0, 3).join(' ') + (result.error ? '; ' + result.error.message : ''));
   try { return JSON.parse(result.stdout); }
-  catch { throw new Error('Native Codex returned invalid JSON: ' + argv.join(' ') + '; exit=' + result.status + '; stdoutBytes=' + Buffer.byteLength(result.stdout ?? '')); }
+  catch { throw new Error('Native Codex returned invalid JSON: ' + native + ' ' + argv.join(' ') + '; exit=' + result.status + '; stdoutBytes=' + Buffer.byteLength(result.stdout ?? '') + '; stderrBytes=' + Buffer.byteLength(result.stderr ?? '') + '; error=' + (result.error?.message ?? 'none')); }
 }
 export function codexRegistration(native: string, state: any) {
   const nativeHome = home();
