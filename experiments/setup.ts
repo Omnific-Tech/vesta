@@ -37,7 +37,7 @@ async function handle(selected: 'claude' | 'codex') {
   const statePath = join(configDir, '.vesta-setup-' + selected + '.json'); const state = read(statePath, null);
   const settingsPath = join(configDir, 'settings.json'); const settings = selected === 'claude' ? read(settingsPath) : {};
   const registry = selected === 'claude' ? read(join(configDir, 'plugins/installed_plugins.json')).plugins?.[pluginId]?.find((p: any) => p.scope === 'user') : null;
-  const shellFile = value('--shell-file') ?? join(homedir(), '.zshrc');
+  const shellFile = value('--shell-file') ?? state?.shellFile ?? join(homedir(), '.zshrc');
   const shellText = selected === 'codex' && existsSync(shellFile) ? readFileSync(shellFile, 'utf8') : '';
   const installed = selected === 'claude' ? !!registry : shellText.includes(start);
   const configPath = join(configDir, 'vesta-codex.json'); const codexConfig = selected === 'codex' ? read(configPath) : {};
@@ -52,7 +52,7 @@ async function handle(selected: 'claude' | 'codex') {
     : { ready: false, reason: 'Codex warming needs the registered native Vesta hooks and native /hooks trust review.' };
   if (selected === 'codex' && installed && state && (!shellText.includes(state.block) || state.shellFile !== shellFile)) throw new Error('Vesta shell ownership changed; refusing to adopt edited content');
   const result: any = { operation, provider: selected, configDir, pluginId: selected === 'claude' ? pluginId : undefined, installed,
-    warmEnabled: selected === 'claude' ? options.warm === true : codexConfig.warm === true && readiness.ready,
+    warmEnabled: selected === 'claude' ? options.warm === true && installed && settings.enabledPlugins?.[pluginId] !== false : codexConfig.warm === true && readiness.ready,
     ...(selected === 'codex' ? { warmConfigured: codexConfig.warm === true, warmingSuspended: codexConfig.warm === true && !readiness.ready,
       warmingSuspendedReason: readiness.ready ? '' : readiness.reason, nativePluginId: state?.nativePluginId } : {}),
     idleMs: selected === 'claude' ? options.idle_ms ?? 3000000 : codexConfig.idleMs ?? 1200000,
@@ -67,19 +67,24 @@ async function handle(selected: 'claude' | 'codex') {
   if (operation === 'plan') return result;
   if (selected === 'claude') {
     const native = (argv: string[], input?: string) => {
-      const out = spawnSync(executable('claude'), argv, { cwd: root, env: { ...process.env, CLAUDE_CONFIG_DIR: configDir }, input, encoding: 'utf8', timeout: 30000 });
+      const out = spawnSync(state?.native ?? process.env.VESTA_RECORDED_NATIVE ?? executable('claude'), argv, { cwd: root, env: { ...process.env, CLAUDE_CONFIG_DIR: configDir }, input, encoding: 'utf8', timeout: 30000 });
       if (out.status !== 0) throw new Error(`Native Claude ${argv.join(' ')}: ${out.stderr || out.stdout || out.error}`);
     };
     if (operation === 'install') {
       if (installed && !state) throw new Error('Existing Vesta plugin is not owned by this setup; uninstall it explicitly or retain it');
       if (!installed) {
         if (read(join(configDir, 'plugins/known_marketplaces.json'))[marketplace] && !state) throw new Error('Existing vesta-local marketplace is not owned by this setup');
-        save(statePath, { provider: selected, marketplaceOwned: true });
+        save(statePath, { ...state, provider: selected, native: state?.native ?? process.env.VESTA_RECORDED_NATIVE ?? executable('claude'), marketplaceOwned: true });
         native(['plugin', 'marketplace', 'add', process.env.VESTA_MARKETPLACE_ROOT ?? root, '--scope', 'user', '--json']);
         native(['plugin', 'install', pluginId, '--scope', 'user', '--json']);
+        // Native install can initialize defaults; restore the owned saved keys.
+        const current = read(settingsPath);
+        for (const field of ['enabledPlugins', 'pluginConfigs']) if (settings[field]?.[pluginId] !== undefined) { (current[field] ??= {})[pluginId] = settings[field][pluginId]; }
+        save(settingsPath, current);
       }
       if (args.includes('--warm') && options.warm !== true) native(['plugin', 'configure', pluginId, '--values-stdin', '--json'], JSON.stringify({ warm: 'true' }));
-      result.installed = true; result.warmEnabled ||= args.includes('--warm');
+      if (state && !state.native) save(statePath, { ...read(statePath), native: process.env.VESTA_RECORDED_NATIVE ?? executable('claude') });
+      result.installed = true; result.warmEnabled = (options.warm === true || args.includes('--warm')) && read(settingsPath).enabledPlugins?.[pluginId] !== false;
     } else if (state) {
       if (installed) native(['plugin', 'uninstall', pluginId, '--scope', 'user', '--keep-data', '--json']);
       if (state.marketplaceOwned && read(join(configDir, 'plugins/known_marketplaces.json'))[marketplace]) native(['plugin', 'marketplace', 'remove', marketplace, '--scope', 'user', '--json']);
@@ -91,12 +96,13 @@ async function handle(selected: 'claude' | 'codex') {
     if (!installed && existsSync(configPath) && !state) throw new Error('Existing Vesta Codex configuration is not owned by this setup');
     const registration = codexConfig.warm === true || args.includes('--warm') ? await installNativeCodex(state?.native ?? executable('codex'), configDir, managedNode, state) : undefined;
     if (!installed) {
-      const native = executable('codex'); const addition = block(native, configPath);
+      const native = state?.native ?? process.env.VESTA_RECORDED_NATIVE ?? executable('codex'); const addition = block(native, configPath);
       if (shellText && !shellText.endsWith('\n')) throw new Error('Shell file must end with a newline before installing the managed block');
       if (existsSync(configPath) && !state) throw new Error('Existing Vesta Codex configuration is not owned by this setup');
-      const createdConfig = { warm: args.includes('--warm'), idleMs: 1200000, budgetMs: 14400000, statusDir: join(configDir, 'sessions') };
-      save(configPath, createdConfig);
-      save(statePath, { provider: selected, native, shellFile, shellCreated: !existsSync(shellFile), block: addition, createdConfig }); mkdirSync(dirname(shellFile), { recursive: true }); writeFileSync(shellFile, shellText + addition);
+      const createdConfig = state?.createdConfig ?? { warm: args.includes('--warm'), idleMs: 1200000, budgetMs: 14400000, statusDir: join(configDir, 'sessions') };
+      if (!state) save(configPath, createdConfig);
+      else if (args.includes('--warm') && codexConfig.warm !== true) save(configPath, { ...codexConfig, warm: true });
+      save(statePath, { ...state, provider: selected, native, shellFile, shellCreated: state?.shellCreated ?? !existsSync(shellFile), block: addition, createdConfig: args.includes('--warm') ? { ...createdConfig, warm: true } : createdConfig }); mkdirSync(dirname(shellFile), { recursive: true }); writeFileSync(shellFile, shellText + addition);
     } else if (args.includes('--refresh')) {
       const addition = block(state.native, configPath);
       if (addition !== state.block) { writeFileSync(shellFile, shellText.replace(state.block, addition)); save(statePath, { ...state, block: addition }); }

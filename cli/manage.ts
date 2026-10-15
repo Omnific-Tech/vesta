@@ -23,21 +23,31 @@ export function native(command: string, argv: string[], provider?: Provider) {
   return result.stdout;
 }
 const stateFile = (p: Provider) => join(p.configDir, '.vesta-setup-' + p.provider + '.json');
+const nativeExecutable = (p: Provider) => readJson(stateFile(p))?.native ?? executable(p.provider);
 const installedClaude = (p: Provider) => !!readJson(join(p.configDir, 'plugins/installed_plugins.json'), {}).plugins?.[pluginId]?.some((row: any) => row.scope === 'user');
 export function providers(args: string[], root: string, operation: string): Provider[] {
   const previous = readJson(join(root, 'installation.json'));
   const selected = value(args, '--provider'); if (selected && !['all', 'claude', 'codex'].includes(selected)) throw new Error('Unknown provider');
   const ownedNames = (previous?.providers ?? []).map((p: Provider) => p.provider);
-  const names = [...new Set<string>(selected ? selected === 'all' ? ['claude', 'codex'] : [selected]
+  const sourceOwned = operation === 'repair' && !previous ? ['claude', 'codex'].filter(name => {
+    const config = absolute(value(args, '--config-dir') ?? (name === 'claude' ? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude') : join(homedir(), '.config/vesta')));
+    return existsSync(join(config, '.vesta-setup-' + name + '.json'));
+  }) : [];
+  const names = [...new Set<string>(selected ? selected === 'all' ? operation === 'repair' ? previous ? ownedNames : sourceOwned : ['claude', 'codex'] : [selected]
+    : operation === 'repair' ? previous ? ownedNames : sourceOwned
     : previous && ['update', 'uninstall', 'status'].includes(operation) ? ownedNames
       : [...ownedNames, ...['claude', 'codex'].filter(name => executable(name))])];
-  if (!names.length && !['uninstall', 'status'].includes(operation)) throw new Error(operation === 'update' ? 'No owned provider is available to update' : 'No native Claude or Codex provider is available on PATH');
+  if (!names.length && !['uninstall', 'status'].includes(operation)) throw new Error(['update', 'repair'].includes(operation) ? 'No owned provider is available to ' + operation : 'No native Claude or Codex provider is available on PATH');
   return names.map(name => {
     if (name !== 'claude' && name !== 'codex') throw new Error('Invalid owned provider record');
     const owned = previous?.providers?.find((p: Provider) => p.provider === name);
     const configDir = absolute(value(args, '--config-dir') ?? owned?.configDir ?? (name === 'claude' ? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude') : join(homedir(), '.config/vesta')));
-    const shellFile = absolute(value(args, '--shell-file') ?? owned?.shellFile ?? join(homedir(), '.zshrc'));
+    const state = readJson(join(configDir, '.vesta-setup-' + name + '.json'));
+    const shellFile = absolute(value(args, '--shell-file') ?? owned?.shellFile ?? (operation === 'repair' ? state?.shellFile : undefined) ?? join(homedir(), '.zshrc'));
     if (owned && (configDir !== owned.configDir || shellFile !== owned.shellFile)) throw new Error('Owned provider paths cannot be overridden: ' + name + '; use the recorded configuration and shell paths');
+    if (operation === 'repair') {
+      if (previous && !owned || state?.provider !== name || (name === 'claude' ? state.marketplaceOwned !== true : typeof state.native !== 'string' || !isAbsolute(state.native) || typeof state.block !== 'string' || !state.block.includes(start) || state.shellFile !== shellFile)) throw new Error('Valid owned provider setup required for repair: ' + name);
+    }
     return { provider: name, configDir, shellFile };
   });
 }
@@ -50,7 +60,9 @@ export function preflight(selected: Provider[], operation: string, warm = false)
       readJson(join(p.configDir, 'plugins/known_marketplaces.json'), {});
       readJson(join(p.configDir, 'plugins/installed_plugins.json'), {});
     }
-    if (!executable(p.provider) && (operation !== 'uninstall' || state)) throw new Error('Missing owned/selected native provider: ' + p.provider);
+    const command = nativeExecutable(p);
+    if (!command && (operation !== 'uninstall' || state)) throw new Error('Missing owned/selected native provider: ' + p.provider);
+    if (command) { try { if (!lstatSync(command).isFile() && !lstatSync(command).isSymbolicLink()) throw new Error(); accessSync(command, constants.X_OK); } catch { throw new Error('Missing recorded native provider: ' + p.provider); } }
     if (p.provider === 'claude') {
       if (installedClaude(p) && (!state || state.marketplaceOwned !== true)) throw new Error('Foreign Claude plugin ownership; refusing adoption');
       if (readJson(join(p.configDir, 'plugins/known_marketplaces.json'), {})['vesta-local'] && state?.marketplaceOwned !== true) throw new Error('Foreign Claude marketplace ownership; refusing adoption');
@@ -108,7 +120,7 @@ function catalog(root: string, assets: string) {
   return path;
 }
 function validateClaude(p: Provider) {
-  const command = executable('claude')!; const entries = JSON.parse(native(command, ['plugin', 'list', '--json'], p));
+  const command = nativeExecutable(p)!; const entries = JSON.parse(native(command, ['plugin', 'list', '--json'], p));
   const installed = entries.find((entry: any) => entry.id === pluginId && entry.scope === 'user');
   if (!installed || installed.version !== version || installed.errors?.length || installed.errorDetails?.length || !installed.installPath) throw new Error('Native Claude plugin registration is invalid: ' + JSON.stringify(installed?.errors ?? ['Missing expected user plugin/version']));
   native(command, ['plugin', 'validate', installed.installPath, '--strict'], p);
@@ -116,7 +128,7 @@ function validateClaude(p: Provider) {
 function setup(assets: string, p: Provider, operation: string, warm: boolean, root: string) {
   const argv = ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', join(assets, 'app/experiments/setup.ts'), operation, '--provider', p.provider, '--config-dir', p.configDir, '--shell-file', p.shellFile, '--json', ...(warm ? ['--warm'] : []), ...(operation === 'install' ? ['--refresh'] : [])];
   const result = spawnSync(join(assets, 'runtime/bin/node'), argv, { env: { ...process.env, CLAUDE_CONFIG_DIR: p.configDir,
-    VESTA_MARKETPLACE_ROOT: join(root, 'marketplace'), VESTA_STABLE_NODE: join(root, 'current/runtime/bin/node'), VESTA_STABLE_ENTRYPOINT: join(root, 'current/app/experiments/codex-autoload.ts') }, encoding: 'utf8', timeout: 60000 });
+    VESTA_MARKETPLACE_ROOT: join(root, 'marketplace'), VESTA_STABLE_NODE: join(root, 'current/runtime/bin/node'), VESTA_STABLE_ENTRYPOINT: join(root, 'current/app/experiments/codex-autoload.ts'), VESTA_RECORDED_NATIVE: nativeExecutable(p) }, encoding: 'utf8', timeout: 60000 });
   if (result.status !== 0) throw new Error(result.stderr || result.error?.message || 'Native setup failed');
 }
 type SavedFile = { path: string; bytes: Buffer | null; shellState?: string; nativeCodex?: any };
@@ -193,17 +205,19 @@ export async function status(args: string[], root: string) {
     const ready = p.provider === 'codex' && options.warm && state?.nativePluginId
       ? await codexHookReadiness(state.native, process.cwd(), state.nativeHookCommand)
       : { ready: false, reason: 'Codex warming needs registered native hooks and native /hooks trust review.' };
-    integrations.push({ ...p, available: !!executable(p.provider), owned: !!state, installed: p.provider === 'claude' ? installedClaude(p) : !!state?.block && shell.includes(state.block),
-      warmEnabled: p.provider === 'claude' ? options.warm === true : options.warm === true && ready.ready,
+    const claudeReady = p.provider === 'claude' && installedClaude(p) && settings.enabledPlugins?.[pluginId] !== false;
+    integrations.push({ ...p, available: !!nativeExecutable(p), owned: !!state, installed: p.provider === 'claude' ? installedClaude(p) : !!state?.block && shell.includes(state.block),
+      warmEnabled: p.provider === 'claude' ? options.warm === true && claudeReady : options.warm === true && ready.ready,
+      ...(p.provider === 'claude' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !claudeReady, warmingSuspendedReason: claudeReady ? '' : 'Install and enable the owned Vesta Claude plugin, then restart Claude.' } : {}),
       ...(p.provider === 'codex' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !ready.ready,
         warmingSuspendedReason: ready.ready ? '' : ready.reason, nativePluginId: state?.nativePluginId } : {}),
       idleMs: options.idle_ms ?? options.idleMs ?? (p.provider === 'claude' ? 3000000 : 1200000), budgetMs: options.budget_ms ?? options.budgetMs ?? 14400000 });
   }
   return { version, root, installation, integrations };
 }
-export async function install(args: string[], root: string) {
+export async function install(args: string[], root: string, repairing = false) {
   return withLock(root, async () => {
-    const selected = providers(args, root, 'install'); preflight(selected, 'install', args.includes('--warm'));
+    const selected = providers(args, root, repairing ? 'repair' : 'install'); preflight(selected, repairing ? 'repair' : 'install', args.includes('--warm'));
     const previous = readJson(join(root, 'installation.json')); if (previous && compare(version, previous.version) < 0) throw new Error('Refusing to downgrade an installed newer version');
     const assets = prepareVersion(root); const cliLink = previous?.binLink ?? join(absolute(process.env.VESTA_BIN_DIR ?? join(homedir(), '.local/bin')), 'vesta');
     ownedLink(cliLink, previous ? join(root, 'current/bin/vesta') : undefined);
@@ -217,7 +231,7 @@ export async function install(args: string[], root: string) {
       for (const p of selected) {
         if (p.provider === 'claude' && installedClaude(p)) {
           claudeChanged = true;
-          const command = executable('claude')!; const known = readJson(join(p.configDir, 'plugins/known_marketplaces.json'), {})['vesta-local'];
+          const command = nativeExecutable(p)!; const known = readJson(join(p.configDir, 'plugins/known_marketplaces.json'), {})['vesta-local'];
           const oldSource = known?.source?.path ?? known?.source?.url;
           if (oldSource !== marketplace) {
             native(command, ['plugin', 'uninstall', pluginId, '--scope', 'user', '--keep-data', '--json'], p);
@@ -243,19 +257,25 @@ export async function install(args: string[], root: string) {
       for (const p of selected) { const index = inventory.findIndex(owned => owned.provider === p.provider); if (index < 0) inventory.push(p); else inventory[index] = p; }
       saveJson(join(root, 'installation.json'), { schema: 1, version, providers: inventory, binLink: cliLink });
       caches.retain();
+      if (repairing) {
+        const integrations = [];
+        for (const p of selected) integrations.push(...(await status(['status', '--provider', p.provider, '--config-dir', p.configDir, '--shell-file', p.shellFile], root)).integrations);
+        return { version, root, repaired: selected.map(p => p.provider), restartClaude: selected.some(p => p.provider === 'claude'), restartCodex: selected.some(p => p.provider === 'codex'), integrations };
+      }
       return { version, root, installed: selected.map(p => p.provider), restartClaude: selected.some(p => p.provider === 'claude') };
     } catch (error) {
       let rollbackError: unknown;
       try {
         caches.retain();
         await restore(saved.filter(file => file.path.includes('/marketplace/')));
-        if (claudeChanged) for (const p of selected.filter(p => p.provider === 'claude')) native(executable('claude')!, ['plugin', 'update', pluginId, '--scope', 'user', '--json'], p);
+        if (claudeChanged) for (const p of selected.filter(p => p.provider === 'claude')) native(nativeExecutable(p)!, ['plugin', 'update', pluginId, '--scope', 'user', '--json'], p);
       } catch (rollback) { rollbackError = rollback; }
       try { await restore(saved); link(join(root, 'current'), oldCurrent); if (!previous && existsSync(cliLink)) link(cliLink); } catch (rollback) { rollbackError = rollback; }
       throw new Error(String(error) + (rollbackError ? '; rollback/compensation failed: ' + String(rollbackError) : '; prior integrations and activation restored'));
     } finally { caches.cleanup(); }
   });
 }
+export const repair = (args: string[], root: string) => install(args, root, true);
 export async function uninstall(args: string[], root: string) {
   return withLock(root, async () => {
     const previous = readJson(join(root, 'installation.json')); const selected = providers(args, root, 'uninstall'); preflight(selected, 'uninstall');
