@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "9fe027fef113f3b165e1b69870cc4495",
+  "generation": "d519bc9b179023a59c5617878ef3e972",
   "repositories": {
-    "app": "1af64fa40f7c0548a98fd779d7793cda77cac85b"
+    "app": "2ecb5e36a5afc522d25ff73231f050c0af22648f"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -32,8 +32,8 @@
     "app:harness/artifacts/DISTRIBUTION/changes/PUBLIC-001/plan.md": "ad34f2111fa76c933a301b586af777e0570c91c1d36ae65ff76a9263d53a18a8",
     "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/history/RELEASE-001.json": "b33bc2bbaf8387c4a223b765ba9549a5e16177cf284153404cdc8ce84870a45a",
     "app:harness/artifacts/DISTRIBUTION/changes/RELEASE-001/plan.md": "ec28752a070d8359acaf2ae127f535b41a8153d2169005dc1d1c6e76a140c5ca",
-    "app:harness/artifacts/DISTRIBUTION/changes/REPAIR-001/failures.md": "7c59155a1e0d6e9c752d57df1361b34e8e753b34ffeb1fb4c731086bafbbdc0c",
-    "app:harness/artifacts/DISTRIBUTION/changes/REPAIR-001/plan.md": "7fa55cde97b760abfd3454ac3ebb4d2115034d0a210dc99e882959b763a13377",
+    "app:harness/artifacts/DISTRIBUTION/changes/REPAIR-001/failures.md": "21ade67eeb735d423db7ec52ed4388946b22a4ffcf49a19177c52adf7282bf5c",
+    "app:harness/artifacts/DISTRIBUTION/changes/REPAIR-001/plan.md": "0dae12e386640d45415f0111506cb62fe95393b33c962c42ca63f9b006e76b2f",
     "app:harness/artifacts/DISTRIBUTION/spec.md": "dee5b94eb801671b420d4aa8c6403e5e83b6bdc7bf12bc49f75a918fd4374422",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DISARM-001/history/DISARM-001.json": "748f0b62b375c763bb5e782e0aea2c908330ca5ee1859cee8c55cee457bc1763",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DISARM-001/plan.md": "dbf8064e9a4ae74265026b3624b4535a1790dd9de67f9afcc9d55db0be643e54",
@@ -62,7 +62,8 @@
     "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "ca715cd9c8150d9feb0bd770921ca56d0af7f1a9b1676d35e96d25971ca465b4",
     "app:harness/artifacts/features.md": "957e3fa32435f43672088810dcc5585da6979b5aa4ce42bc081aafd96f0306f7",
     "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
-    "app:harness/harness.yaml": "558410505ce3790cda41cec8f802b17b041b9fa28277e7fc44481b5dbd2f0472",
+    "app:harness/harness.yaml": "db9ae68865780384e432441613ceb308d7ed5d52ba036d114cd9f49b99cdab27",
+    "app:harness/scenarios/DISTRIBUTION/native-registry-transport.yaml": "8139883f50ed3b7b55ef7dec974aa89632dbe3f90ea9f4081e9d7c7d9290702f",
     "app:harness/scenarios/DISTRIBUTION/standalone-install-update.yaml": "a33f123260ca6689d6a38370260da08f3ba6e7a2bf7a5f3baf01af3dc6d76cf8",
     "app:harness/scenarios/DISTRIBUTION/standalone-native.yaml": "33b813c69e55107648de9cdbb3bd17c398b9e32479670dfa7dc3b173cb67d814",
     "app:harness/scenarios/DISTRIBUTION/standalone-public-safety.yaml": "20b0bf31cd5774fd3acdda3a46926011dda05a848008a96bd6f2f7afaf8ed670",
@@ -89,11 +90,12 @@
     "app:harness/scenarios/SESSION-INTEGRATION/native-forwarding.yaml": "25bdbf096986b46aabadbf4597e461b97e46278efdfa8061b5d04fb62f6a7bf8",
     "app:harness/scenarios/SESSION-INTEGRATION/native-setup.yaml": "11e8d3c08bc08b50e0402812b5a7316f4ccd11b5da8b82ad07a7bfe7dcb33a4b",
     "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "b6e067c4ad01ef3df114acc154c21b2673fdda353c8f4632f12f6efccad422ac",
-    "app:harness/tasks/REPAIR-001.json": "e4697343ddaf97a8e132037e038e637b96cff9f9cb76f4196fd16b0c3477aade",
+    "app:harness/tasks/REPAIR-001.json": "90c6fc9941144d060345f9f69b0db949aad7d7e8e5c9b97064582f4cb9916b04",
     "app:packaging/curl-fixture.zsh": "96d51db92ae35d21b9265139fae3e4fbed7c8b95460e77aad5c9baa47c7d4f58",
     "app:packaging/e2e-common.ts": "fd2b413d0b0c655e751d4d827d60e93c9e03784ce947fa8e6dcaabaf77d45226",
     "app:packaging/gh-fixture.zsh": "60f31eb9f81c8e3ae8f24dc78d0555fc2630a121f2f96b0d4ba2f03cff20126f",
     "app:packaging/native-e2e.ts": "0b350e8594aac0766e58cca9b95381fb6e743f015880ad185de62f519f9d3808",
+    "app:packaging/native-registry-e2e.ts": "27f900c228b6307d7ac23ac1f591ee12944520ce0a78d174837c6fbc731e6b83",
     "app:packaging/provider-fault.zsh": "e1eeea943dddf7e07301a622091c50a504a3751ca4057ff6885d4ad6278febfc",
     "app:packaging/public-acceptance.ts": "fb229094869367850161ef74170b4380453116b663f323fc54ca75ab7301f103",
     "app:packaging/public-e2e.ts": "0748b3cf452385c6f7a791d423c8d70a5d87fde5929f35b8972fe5f464f2ec9c",
@@ -403,6 +405,16 @@
       },
       "repositories": {
         "app": "1af64fa40f7c0548a98fd779d7793cda77cac85b"
+      }
+    },
+    {
+      "reason": "Strengthen native npm registry transport proof after repeated packaged preflight failures",
+      "prior_generation": "9fe027fef113f3b165e1b69870cc4495",
+      "prior_repositories": {
+        "app": "1af64fa40f7c0548a98fd779d7793cda77cac85b"
+      },
+      "repositories": {
+        "app": "2ecb5e36a5afc522d25ff73231f050c0af22648f"
       }
     }
   ]
