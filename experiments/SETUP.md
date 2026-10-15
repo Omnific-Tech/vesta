@@ -6,6 +6,28 @@ the previous remote wrapper; no new release accompanies this change. Existing
 source integrations preserve native pass-through until installed native hooks are
 registered and reviewed. Exit an older wrapped session and relaunch after setup.
 
+The unreleased 0.2.2 CLI also accepts `setup` as an alias for `install`. To restore
+an existing integration, run the locally built `./dist/vesta repair`, or use
+`repair --warm` to opt selected owned providers into warming. Plain repair keeps
+each provider's saved warm setting, custom timers and unrelated preferences.
+It restores missing owned registrations and complete missing shell blocks while
+rejecting foreign registrations or edited owned blocks.
+
+Repair uses recorded standalone providers and paths. Before standalone setup,
+it can migrate source-owned setup records from `~/.config/vesta` and the Claude
+configuration directory into retained bundled runtime paths. Use `--provider`
+and `--config-dir` for an owned source integration at a custom configuration
+path. Merely available providers are never adopted by repair. The recorded native
+executable and shell path remain in use. Repair prints effective readiness and
+Claude/Codex restart requirements; native `/hooks` review and global feature
+settings remain under your control. Disabled Claude plugins stay disabled.
+Existing sessions keep their current runtime until you exit and relaunch them.
+
+An unchanged-version update repairs missing owned registrations or shell blocks
+using the installed immutable manager; healthy integrations remain unchanged even
+when native hook trust is pending. Published 0.2.1 downloads do not contain these
+commands or the native owner; no release is published by this change.
+
 Use the standalone macOS arm64 release, existing subscription logins, and installed
 native Claude/Codex executables. Vesta embeds pinned Node 22.17.1 and native PTY
 assets; end users need no runtime installation or source checkout. Native support
