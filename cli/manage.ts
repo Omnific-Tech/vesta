@@ -151,11 +151,12 @@ async function restore(saved: SavedFile[]) {
     if (file.shellState) {
       const before = file.bytes?.toString() ?? ''; const current = existsSync(file.path) ? readFileSync(file.path, 'utf8') : '';
       const block = currentBlocks.get(file.path); const oldState = saved.find(row => row.path === file.shellState); const oldBlock = oldState?.bytes ? JSON.parse(oldState.bytes.toString()).block : undefined;
+      const previousBlock = oldBlock && before.includes(oldBlock) ? oldBlock : undefined;
       let restored = current;
-      if (block && current.includes(block)) restored = current.replace(block, oldBlock ?? '');
-      else if (oldBlock && current.includes(oldBlock)) restored = current;
+      if (block && current.includes(block)) restored = current.replace(block, previousBlock ?? '');
+      else if (previousBlock && current.includes(previousBlock)) restored = current;
       else if (current.includes(start)) throw new Error('Shell ownership changed during compensation');
-      else if (oldBlock) restored = current + oldBlock;
+      else if (previousBlock) restored = current + previousBlock;
       if (restored === '' && file.bytes === null) rmSync(file.path, { force: true });
       else { mkdirSync(dirname(file.path), { recursive: true }); writeFileSync(file.path, restored === current && current === before ? file.bytes! : restored); }
       continue;
