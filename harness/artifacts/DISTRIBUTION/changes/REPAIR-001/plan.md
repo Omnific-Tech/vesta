@@ -58,3 +58,9 @@ Keep the original 30-second product bound and recorded executable, capture full
 stream closure and clean up only owned subprocess groups. Underlying upstream
 cause remains unproven; require repeated real compiled metadata proof and the
 actual same-conversation packaged model proof on final frozen source.
+
+Authenticated native controls later identified unscoped native plugin listing as
+the actual remote-network path, independent of Bun. The strengthened transport
+fixture includes authentication and scopes native controls to vesta-local before
+product implementation applies that supported marketplace filter. Keep native
+marketplace ownership checks, trust and global feature settings unchanged.

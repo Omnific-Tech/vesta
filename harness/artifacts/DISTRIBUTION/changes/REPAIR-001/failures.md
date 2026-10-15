@@ -56,3 +56,15 @@ actual compiled setup/repair behind the same synchronous Node relay plus async
 Node controls, bounded capture, owned-process sampling, preserved recorded native,
 zero model turns and personal hashes. This additional required check strengthens
 the existing installation/repair acceptance; product scope is unchanged.
+
+Authenticated native controls subsequently established the missing condition:
+default `plugin list --json` queries configured and remote marketplaces (also
+stated by native CLI help), including remote installed connectors even for an
+empty isolated CODEX_HOME. Direct Node execution reproduced remote TLS activity
+and a 16.748-second response, independent of Bun. The supported
+`--marketplace vesta-local` filter returned local JSON in 46 ms; authenticated
+marketplace/list also remained local and fast. The stress contract now includes
+an auth symlink without retaining auth contents and requires exact owned-market
+queries before changing product calls. Preserve full-close async capture, bounded
+cleanup and original deadlines; scope registry reads to the owned marketplace
+instead of fetching unrelated account resources or disabling native features.
