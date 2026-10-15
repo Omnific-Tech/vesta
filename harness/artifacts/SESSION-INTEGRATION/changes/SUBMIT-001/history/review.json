@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "task_id": "SUBMIT-001",
+  "reviewer_id": "codex-root-reviewer",
+  "fingerprint": "f6cbddd9791702d89423425c9407cba134560255339ddf8748e909a405ebe948",
+  "baseline_generation": "07e4a85357eac64bb1fe9226a238a566",
+  "decision": "approved",
+  "findings": [],
+  "notes": "Independent root review of gpt-6.1-sol-medium implementation at frozen HEAD d7efed6b8f7c612ac2533fb6b7f38d6dd0ada60c. Developer explicitly replaced keyboard-based Codex clocks with last verified submitted-prompt semantics after real private audit showed seven mouse/navigation events invalidating an active turn (exact subtype not retained). Reviewed that only exact bound real user submission with native packet timestamp renews userAt; raw input and attributed warm client cannot renew it. Valid bounded vertical SGR wheel64/65 and no-button hover35 (supported modifiers, positive coordinates<=65535, uppercase M) preserve old state without restoring invalid drafts. Other editing/navigation/unknown input remains conservative; pending parser/authorization, byte forwarding and exact queue identity stay intact. Shared watcher policy and Claude behavior are unchanged. Fresh verify-all run 2026-10-15T14-12-19.210Z-b6343998f2a0626e86c60ac0324049f3 passed all seven checks with unchanged before/after fingerprint. Inspected 43-case owner PTY fixture, native source/CLI-resume/packaged summaries and timestamp/client attribution assertions: actual reading during/after replies preserves metrics/generation/submission time and each native variant produces nonce/K/nonce/K/nonce. Draft/unknown and warm non-renewal guards, lifecycle,21-case compiled repair and private diagnostic relay regressions pass; personal hashes unchanged. Distinct synchronized0.2.4 metadata and exact tested binary/receipt staged under ignored dist with matching source HEAD/hash/version. No personal installation, trust, existing process changes or publication. Native live tests use explicit probe timing/thresholds; no real cache TTL/savings claim. Remaining unsupported inputs still fail closed, and upgraded owner must be relaunched. No blocking findings."
+}

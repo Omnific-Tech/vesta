@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "DOCS-002",
+  "mode": "quick",
+  "scope": "Feature SESSION-INTEGRATION, change DOCS-002: add root docs index and source-backed Claude/Codex architecture, setup, timing, configuration and troubleshooting guides linked from README. Push accumulated fixes and docs to origin main after verification; no GitHub binary release, runtime behavior or personal installation changes.",
+  "implementor_id": "gpt-6.1-sol-medium",
+  "dependencies": [],
+  "risk_tags": [],
+  "acceptance": [
+    { "id": "AC-PROVIDER-DOCS", "description": "Root docs index and separate Claude/Codex guides explain actual native plugin/watchers, owner lifecycle and delivery, setup/repair/trust/relaunch, threshold/defaults and current provider-specific activity semantics backed by linked source." },
+    { "id": "AC-DOC-LINKS", "description": "README links to root guides; local file and heading links resolve and a repeatable static verification artifact records checked documentation identities/results." },
+    { "id": "AC-DOC-LIMITS", "description": "Explain readiness versus live attachment, fresh reply eligibility, drafts and supported reading behavior, privacy-safe diagnostics, current0.2.4 checkout versus published0.2.1, real model costs and unverified cache retention/savings. No personal identifiers or unsupported pause/config/release claims." }
+  ],
+  "verification": ["provider-docs"]
+}

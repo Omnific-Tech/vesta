@@ -6,6 +6,8 @@ repositories:
     path: .
 verification_inputs:
   - repo: app
+    path: experiments/docs-check.ts
+  - repo: app
     path: experiments/diagnose-codex-e2e.ts
   - repo: app
     path: experiments/diagnose-codex-fixture.mjs
