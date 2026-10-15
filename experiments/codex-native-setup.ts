@@ -41,14 +41,14 @@ export async function codexRegistration(native: string, state: any) {
   const nativeHome = home();
   if (state?.nativeCodexHome && state.nativeCodexHome !== nativeHome) throw new Error('Owned native Codex home cannot be relocated implicitly');
   if (!existsSync(nativeHome)) return { nativeHome, plugin: undefined, marketplace: undefined };
-  const plugin = (await call(native, ['plugin', 'list', '--json'], nativeHome)).installed.find((row: any) => row.pluginId === codexPluginId);
+  const plugin = (await call(native, ['plugin', 'list', '--marketplace', 'vesta-local', '--json'], nativeHome)).installed.find((row: any) => row.pluginId === codexPluginId);
   const marketplace = (await call(native, ['plugin', 'marketplace', 'list', '--json'], nativeHome)).marketplaces.find((row: any) => row.name === 'vesta-local');
   if (plugin && (state?.nativePluginId !== codexPluginId || plugin.source?.path !== join(state.nativeMarketplaceRoot, 'plugin'))) throw new Error('Foreign native Codex Vesta plugin ownership');
   if (marketplace && (!state?.nativeMarketplaceOwned || marketplace.marketplaceSource?.source !== state.nativeMarketplaceRoot)) throw new Error('Foreign native Codex Vesta marketplace ownership');
   return { nativeHome, plugin, marketplace };
 }
 const registry = async (native: string, nativeHome: string) => ({ nativeHome,
-  plugin: (await call(native, ['plugin', 'list', '--json'], nativeHome)).installed.find((row: any) => row.pluginId === codexPluginId),
+  plugin: (await call(native, ['plugin', 'list', '--marketplace', 'vesta-local', '--json'], nativeHome)).installed.find((row: any) => row.pluginId === codexPluginId),
   marketplace: (await call(native, ['plugin', 'marketplace', 'list', '--json'], nativeHome)).marketplaces.find((row: any) => row.name === 'vesta-local') });
 function validateCatalog(path: string) {
   const catalog = json(join(path, '.agents/plugins/marketplace.json'));
