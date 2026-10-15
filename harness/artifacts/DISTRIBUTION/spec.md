@@ -6,6 +6,16 @@ becomes public under Apache License 2.0. First released version was v0.2.0;
 the public distribution patch is v0.2.1. Use anonymous HTTPS curl release access.
 
 Commands: vesta install --warm, status, update (also --update), uninstall, --version.
+The current unreleased 0.2.2 change adds setup as an install alias and an explicit
+repair command. Default repair restores only existing owned providers, including
+source-owned setup records before standalone installation. It preserves saved
+warming preferences; --warm enables warming options for all selected owned
+providers. Restore missing owned shell/registry entries using retained native
+identity and paths; preserve custom settings and unrelated hooks. Report effective
+readiness and required restarts. Native Codex hook trust/global disables are never
+bypassed, and existing running sessions are not changed. Same-version update must
+repair drifted owned Codex registrations, retaining honest healthy no-op behavior;
+candidate installation begins after the outer operation lock is released.
 Installation of a newer version refreshes owned Claude/Codex integrations through
 the same mechanism as update. No background update, checkout dependency, or end-user
 Node/npm/Bun requirement. Native harnesses and curl remain prerequisites;
