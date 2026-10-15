@@ -1,7 +1,6 @@
 
-# Telos local execution exclusions
-harness/runs/
-harness/.telos/
+# Local private Telos harness
+/harness/
 node_modules/
 dist/
 packaging/.cache/
