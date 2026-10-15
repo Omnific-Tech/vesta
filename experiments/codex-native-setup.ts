@@ -14,7 +14,8 @@ const json = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
 function call(native: string, argv: string[], nativeHome: string) {
   const result = spawnSync(native, argv, { env: { ...process.env, CODEX_HOME: nativeHome }, encoding: 'utf8', timeout: 30000 });
   if (result.status !== 0) throw new Error('Native Codex registration failed: ' + argv.slice(0, 3).join(' '));
-  return JSON.parse(result.stdout);
+  try { return JSON.parse(result.stdout); }
+  catch { throw new Error('Native Codex returned invalid JSON: ' + argv.join(' ') + '; exit=' + result.status + '; stdoutBytes=' + Buffer.byteLength(result.stdout ?? '')); }
 }
 export function codexRegistration(native: string, state: any) {
   const nativeHome = home();
