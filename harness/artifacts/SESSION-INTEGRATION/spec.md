@@ -1,5 +1,17 @@
 # Same-session integration experiment
 
+## Submitted-prompt activity (SUBMIT-001)
+
+The developer clarified that Codex idle and four-hour inactivity clocks follow
+the last verified real submitted prompt, not arbitrary keyboard/mouse activity.
+Warm submissions and lifecycle completion cannot renew that timestamp. Valid
+vertical wheel scrolling and no-button hover preserve reading eligibility and
+fresh metrics, during or after completion. Draft editing, potentially mutating
+click/drag, actual conversation navigation and unknown input still block unsafe
+dispatch without renewing submission clocks. Reading events never restore
+invalidated drafts. This overrides prior Codex keyboard-based budget wording;
+Claude behavior remains unchanged.
+
 ## Passive terminal input (IDLE-001)
 
 Codex passive focus notifications and recognized terminal protocol replies must
@@ -20,7 +32,7 @@ resumes a thread or starts a model turn. The owning native session must deliver
 exact VESTA_CACHE_KEEPALIVE and respond K in that same conversation.
 
 Bind per-launch identity, exact current thread/turn, and producer client message
-ID. Actual terminal user input is the real-activity budget source; keepalive hooks
+ID. Verified real user prompt submission is Codex's budget source; keepalive hooks
 and completion never extend it. Navigation/composition cancels old eligibility;
 a fresh completed user reply is required after resume or thread switching.
 Unknown metrics/events, untrusted/disabled hooks, ownership conflicts and observer
