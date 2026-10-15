@@ -36,6 +36,7 @@ const nonce = 'VESTA-' + randomUUID(); const eventsPath = join(artifacts, 'hooks
 const commands: any[] = []; const children: ReturnType<typeof spawn>[] = []; const cleanup: any[] = [];
 let installationIndex = -1;
 const installedFiles: NativeResumeEvidence['installedFiles'] = [];
+const passiveWindows: NativeResumeEvidence['passiveWindows'] = [];
 let siblingBefore: any; let siblingAfter: any;
 const dryTransitions: NativeResumeEvidence['dryTransitions'] = [];
 let collision: NativeResumeEvidence['collision'] = { observed: false, rawFile: 'collision.txt', queuedBefore: 0, queuedAfter: 0 };
@@ -100,6 +101,29 @@ function launch(argv: string[]) {
   return terminal;
 }
 async function type(terminal: pty.IPty, text: string) { terminal.write('\x1b[200~' + text + '\x1b[201~'); await sleep(300); terminal.write('\r'); }
+const traceRows = () => {
+  const paths = shipped ? terminals.map((_, i) => join(artifacts, 'owner-' + i, 'codex-native-trace.jsonl')) : [join(artifacts, 'embedded-trace.jsonl')];
+  return paths.flatMap(path => existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : []);
+};
+async function passiveReports(terminal: pty.IPty, label: string) {
+  if (!shipped) return;
+  const before = await wait(() => traceRows().findLast(row => row.kind === 'response-complete' && row.clean && row.activeSession === first), label + ' owner completed metric');
+  const policy = traceRows().findLast(row => row.kind === 'policy')!.row.state;
+  const startedAt = Date.now();
+  const reports = [
+    { category: 'focus', chunks: ['\x1b[I\x1b[O'] },
+    { category: 'cursor', chunks: ['\x1b', '[1;', '1R'] },
+    { category: 'keyboard-mode', chunks: ['\x1b[?', '1u'] },
+    { category: 'device-attributes', chunks: ['\x1b[?1;', '2c\x1b[>0;1;0c'] },
+    { category: 'color', chunks: ['\x1b]10;rgb:ffff/ffff/ffff\x1b', '\\', '\x1b]11;rgb:0000/0000/0000\x07'] },
+  ];
+  for (const report of reports) for (const chunk of report.chunks) { terminal.write(chunk); await sleep(30); }
+  await sleep(100);
+  const after = traceRows().findLast(row => row.kind === 'policy')!.row.state;
+  assert.deepEqual(after, policy, label + ' passive reports preserve completed eligibility and real activity');
+  assert.equal(traceRows().filter(row => row.at >= startedAt && ['user-input', 'unknown-terminal-input'].includes(row.kind)).length, 0, label + ' reports are not keyboard input');
+  passiveWindows.push({ label, ownerId: before.ownerId, turnId: before.activeTurn, startedAt, endedAt: Date.now(), categories: reports.map(row => row.category), before: policy, after });
+}
 try {
   if (existsSync(personal[1]!.path)) symlinkSync(personal[1]!.path, join(home, 'auth.json'));
   const model = existsSync(personal[0]!.path) ? readFileSync(personal[0]!.path, 'utf8').match(/^model\s*=\s*"[^"\n]+"/m)?.[0] ?? '' : '';
@@ -166,6 +190,7 @@ try {
   first = (await wait(() => events('SessionStart').find(row => row.input.source === 'startup'), 'fresh registered-plugin startup')).input.session_id;
   assert.ok(rows().some(row => row.sentinel && row.input.session_id === first), 'existing guard hook remains active');
   await wait(() => events('Stop').find(row => row.input.session_id === first && row.input.last_assistant_message?.trim() === nonce), 'first native nonce response'); turnCount++;
+  if (!residency) await passiveReports(terminal, 'initial');
   if (residency) {
     const before = Date.now(); await sleep(300); await type(terminal, '/new'); await sleep(1200); await type(terminal, noncePrompt);
     const next = await wait(() => events('Stop').find(row => row.at >= before && row.input.session_id !== first && row.input.last_assistant_message?.trim() === nonce), 'real second native conversation response');
@@ -182,10 +207,6 @@ try {
   await wait(() => events('Stop').find(row => row.input.session_id === first && row.input.last_assistant_message?.trim() === 'K'), 'queue reaches existing native owner'); queueDelivered = true; turnCount++;
   if (embedded) {
     assert.ok(events('UserPromptSubmit').every(row => typeof row.environmentOwner === 'string' && row.environmentOwner.length > 0), 'hooks belong to exact embedded wrapper');
-    const traceRows = () => {
-      const paths = shipped ? terminals.map((_, i) => join(artifacts, 'owner-' + i, 'codex-native-trace.jsonl')) : [join(artifacts, 'embedded-trace.jsonl')];
-      return paths.flatMap(path => existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : []);
-    };
     assert.equal(traceRows().filter(row => row.kind === 'marker-dispatched').length, 1, 'real timer automatically dispatched first marker');
     if (shipped) {
       const queuedBefore = traceRows().filter(row => row.kind === 'queue-added').length;
@@ -221,9 +242,10 @@ try {
     }
     await type(terminal, noncePrompt);
     await wait(() => events('Stop').find(row => row.at >= beforeResume && row.input.session_id === first && row.input.last_assistant_message?.trim() === nonce), 'fresh resumed native nonce response'); turnCount++;
+    await passiveReports(terminal, 'resumed');
     if (variant === 'cancel-race' || shipped) {
       await wait(() => traceRows().filter(row => row.kind === 'queue-added').length === 2, 'second exact queue request committed before typing race');
-      terminal.write('VESTA_DRAFT_MUST_SURVIVE');
+      terminal.write('\x1b[IVESTA_DRAFT_MUST_SURVIVE\x1b[O');
     }
     await wait(() => events('Stop').find(row => row.at >= beforeResume && row.input.session_id === first && row.input.last_assistant_message?.trim() === 'K'), 'automatic resumed same-conversation K'); turnCount++;
     if (variant === 'cancel-race' || shipped) { await sleep(250); terminal.write('\x15'); await sleep(250); }
@@ -299,7 +321,7 @@ finally {
       hooksFile: 'hooks.jsonl', traceFile: 'shipped-trace.jsonl', rolloutFiles: readdirSync(artifacts).filter(file => file.startsWith('rollout-')),
       nonce, sessionId: first, initialCwd: cwd, expectedFinalCwd: variant === 'cross-cwd' ? otherCwd : cwd,
       siblingServer: { pid: siblingBefore?.pid ?? 0, before: siblingBefore?.alive ?? false, afterOwnerExit: siblingAfter?.alive ?? false, beforeFile: 'sibling-before.json', afterFile: 'sibling-after.json' },
-      personalFiles: personal, dryTransitions, collision, installedFiles,
+      personalFiles: personal, dryTransitions, collision, installedFiles, passiveWindows,
       sourceFiles: ['setup.ts', 'codex-autoload.ts', 'codex-native-owner.ts', 'vesta-codex/handler.mjs', 'vesta-codex/hooks/hooks.json', 'codex-native-warming-e2e.ts', 'codex-native-acceptance.ts'].filter(file => existsSync(join(here, file))).map(file => ({ path: join(here, file), sha256: hash(join(here, file)) })),
     };
     writeFileSync(join(artifacts, 'shipped-summary.json'), JSON.stringify(evidence, null, 2));

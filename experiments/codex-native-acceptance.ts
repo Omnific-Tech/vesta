@@ -20,6 +20,7 @@ export type NativeResumeEvidence = {
   dryTransitions: { form: 'last' | 'picker' | 'cross-cwd'; rawFile: string; sessionId: string; cwd: string; expectedCwd: string; submittedBefore: number; submittedAfter: number; queuedBefore: number; queuedAfter: number }[];
   collision: { observed: boolean; rawFile: string; queuedBefore: number; queuedAfter: number };
   installedFiles: { sourcePath: string; sha256: string; rawFile: string }[];
+  passiveWindows: { label: string; ownerId: string; turnId: string; startedAt: number; endedAt: number; categories: string[]; before: any; after: any }[];
 };
 export function verifyNativeResumeEvidence(e: NativeResumeEvidence, directory: string) {
   assert.equal(e.schema, 1); assert.equal(e.kind, 'native-installed-resume-warming');
@@ -54,6 +55,16 @@ export function verifyNativeResumeEvidence(e: NativeResumeEvidence, directory: s
   assert.ok(owned.length >= 10, 'raw native submitted/completed hooks');
   const dispatched = trace.filter(row => row.kind === 'marker-dispatched');
   assert.equal(dispatched.length, 2, 'exactly initial and resumed automatic keepalives');
+  assert.deepEqual(e.passiveWindows.map(row => row.label), ['initial', 'resumed']);
+  for (const window of e.passiveWindows) {
+    assert.deepEqual(window.categories, ['focus', 'cursor', 'keyboard-mode', 'device-attributes', 'color']);
+    assert.deepEqual(window.after, window.before, 'passive reports preserve completed eligibility');
+    assert.equal(window.before.busy, false); assert.ok(window.before.tokens > 0);
+    const between = trace.filter(row => row.ownerId === window.ownerId && row.at >= window.startedAt && row.at <= window.endedAt);
+    assert.ok(!between.some(row => ['user-input', 'unknown-terminal-input'].includes(row.kind)), 'no false input from passive reports');
+    const dispatch = dispatched.find(row => row.ownerId === window.ownerId && row.activeTurn === window.turnId && row.at > window.endedAt);
+    assert.ok(dispatch, 'preserved report eligibility leads to actual timer dispatch');
+  }
   const messages = rollouts.filter(row => row.type === 'event_msg' && row.payload?.type === 'item_completed' && row.payload?.item?.type === 'UserMessage');
   const stops = owned.filter(row => row.input.hook_event_name === 'Stop');
   assert.deepEqual(stops.map(row => row.input.last_assistant_message?.trim()), [e.nonce, 'K', e.nonce, 'K', e.nonce], 'native nonce/K/resume/continuity responses');
