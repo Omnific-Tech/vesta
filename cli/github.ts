@@ -21,7 +21,7 @@ export async function update(args: string[], root: string) {
       if (!value(args, '--provider') && !existsSync(join(root, 'installation.json'))) throw new Error('Owned installation required for default update; run vesta install first');
       const targets = providers(args, root, 'update');
       if (!targets.length) throw new Error('No owned provider is available to update');
-      preflight(targets, 'update');
+      await preflight(targets, 'update');
       if (!value(args, '--provider') && existsSync(join(root, 'installation.json'))) ownedTargets = targets.map(p => p.provider);
       const release = JSON.parse(curl(['--max-filesize', '1048576', 'https://api.github.com/repos/' + repository + '/releases/latest']));
       if (release.draft || release.prerelease || !/^v\d+\.\d+\.\d+$/.test(release.tag_name)) throw new Error('Latest release must be a stable published semantic version');
@@ -37,7 +37,7 @@ export async function update(args: string[], root: string) {
             const effective = await nativeRequest(state.native, 'config/read', { includeLayers: false });
             if (effective.config.features?.plugins === false || effective.config.features?.hooks === false) continue;
             if (!state.nativePluginId || !state.nativeMarketplaceRoot?.includes('/codex-native-assets/' + installed + '-')) { lagging = true; continue; }
-            const registration = codexRegistration(state.native, state);
+            const registration = await codexRegistration(state.native, state);
             if (!registration.plugin || !registration.marketplace) lagging = true;
             continue;
           }

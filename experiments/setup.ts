@@ -119,7 +119,7 @@ async function handle(selected: 'claude' | 'codex') {
       result.activate += '; review and trust only the Vesta entries in native /hooks';
     }
   } else if (state) {
-    uninstallNativeCodex(state.native, state);
+    await uninstallNativeCodex(state.native, state);
     const current = existsSync(state.shellFile) ? readFileSync(state.shellFile, 'utf8') : '';
     if (current.includes(start)) {
       if (!current.includes(state.block)) throw new Error('Vesta block changed after setup; refusing to remove edited shell content');

@@ -51,7 +51,7 @@ export function providers(args: string[], root: string, operation: string): Prov
     return { provider: name, configDir, shellFile };
   });
 }
-export function preflight(selected: Provider[], operation: string, warm = false) {
+export async function preflight(selected: Provider[], operation: string, warm = false) {
   for (const p of selected) {
     const state = readJson(stateFile(p));
     // Parse every selected configuration before any provider can be changed.
@@ -70,7 +70,7 @@ export function preflight(selected: Provider[], operation: string, warm = false)
       const shell = existsSync(p.shellFile) ? readFileSync(p.shellFile, 'utf8') : '';
       if (shell.includes(start) && (!state || state.shellFile !== p.shellFile || !shell.includes(state.block))) throw new Error('Codex shell ownership conflict');
       if (existsSync(join(p.configDir, 'vesta-codex.json')) && !state) throw new Error('Foreign Codex configuration ownership');
-      if (state?.nativePluginId || warm || readJson(join(p.configDir, 'vesta-codex.json'), {}).warm === true) codexRegistration(state?.native ?? executable('codex')!, state);
+      if (state?.nativePluginId || warm || readJson(join(p.configDir, 'vesta-codex.json'), {}).warm === true) await codexRegistration(state?.native ?? executable('codex')!, state);
     }
   }
 }
@@ -132,14 +132,14 @@ function setup(assets: string, p: Provider, operation: string, warm: boolean, ro
   if (result.status !== 0) throw new Error(result.stderr || result.error?.message || 'Native setup failed');
 }
 type SavedFile = { path: string; bytes: Buffer | null; shellState?: string; nativeCodex?: any };
-function snapshot(root: string, selected: Provider[]): SavedFile[] {
+async function snapshot(root: string, selected: Provider[]): Promise<SavedFile[]> {
   const paths = [join(root, 'installation.json'), join(root, 'marketplace/.claude-plugin/marketplace.json')];
   for (const p of selected) paths.push(stateFile(p), ...(p.provider === 'claude' ? ['settings.json', 'plugins/known_marketplaces.json', 'plugins/installed_plugins.json'].map(file => join(p.configDir, file)) : [p.shellFile, join(p.configDir, 'vesta-codex.json')]));
-  return [...new Set(paths)].map(path => {
+  return Promise.all([...new Set(paths)].map(async path => {
     const codex = selected.find(p => p.provider === 'codex' && stateFile(p) === path); const state = codex ? readJson(path) : undefined;
-    return { path, bytes: existsSync(path) ? readFileSync(path) : null, nativeCodex: state?.nativePluginId ? codexRegistration(state.native, state) : undefined,
+    return { path, bytes: existsSync(path) ? readFileSync(path) : null, nativeCodex: state?.nativePluginId ? await codexRegistration(state.native, state) : undefined,
       shellState: selected.find(p => p.provider === 'codex' && p.shellFile === path) ? stateFile(selected.find(p => p.provider === 'codex' && p.shellFile === path)!) : undefined };
-  });
+  }));
 }
 async function restore(saved: SavedFile[]) {
   const currentBlocks = new Map(saved.filter(file => file.shellState).map(file => [file.path, readJson(file.shellState!)?.block]));
@@ -218,13 +218,13 @@ export async function status(args: string[], root: string) {
 }
 export async function install(args: string[], root: string, repairing = false) {
   return withLock(root, async () => {
-    const selected = providers(args, root, repairing ? 'repair' : 'install'); preflight(selected, repairing ? 'repair' : 'install', args.includes('--warm'));
+    const selected = providers(args, root, repairing ? 'repair' : 'install'); await preflight(selected, repairing ? 'repair' : 'install', args.includes('--warm'));
     const previous = readJson(join(root, 'installation.json')); if (previous && compare(version, previous.version) < 0) throw new Error('Refusing to downgrade an installed newer version');
     const assets = prepareVersion(root); const cliLink = previous?.binLink ?? join(absolute(process.env.VESTA_BIN_DIR ?? join(homedir(), '.local/bin')), 'vesta');
     ownedLink(cliLink, previous ? join(root, 'current/bin/vesta') : undefined);
     ownedLink(join(root, 'current'), previous ? 'versions/' + previous.version : undefined);
     if (present(join(root, 'marketplace/plugin'))) throw new Error('Unsupported legacy marketplace link; refusing to adopt it');
-    const saved = snapshot(root, selected); const oldCurrent = existsSync(join(root, 'current')) ? readlinkSync(join(root, 'current')) : undefined;
+    const saved = await snapshot(root, selected); const oldCurrent = existsSync(join(root, 'current')) ? readlinkSync(join(root, 'current')) : undefined;
     let claudeChanged = false;
     const caches = preserveClaudeCaches(root, selected);
     try {
@@ -279,11 +279,11 @@ export async function install(args: string[], root: string, repairing = false) {
 export const repair = (args: string[], root: string) => install(args, root, true);
 export async function uninstall(args: string[], root: string) {
   return withLock(root, async () => {
-    const previous = readJson(join(root, 'installation.json')); const selected = providers(args, root, 'uninstall'); preflight(selected, 'uninstall');
+    const previous = readJson(join(root, 'installation.json')); const selected = providers(args, root, 'uninstall'); await preflight(selected, 'uninstall');
     if (previous?.binLink) ownedLink(previous.binLink, join(root, 'current/bin/vesta'));
     ownedLink(join(root, 'current'), previous ? 'versions/' + previous.version : undefined);
     const assets = previous ? join(root, 'versions', previous.version) : prepareVersion(root);
-    const saved = snapshot(root, selected);
+    const saved = await snapshot(root, selected);
     const caches = preserveClaudeCaches(root, selected);
     try { for (const p of selected) if (existsSync(stateFile(p))) setup(assets, p, 'uninstall', false, root); }
     catch (error) {
