@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generation": "8ae48a04a0b890c4fc8e35ea15cbd4b7",
+  "generation": "edb6f814314be3429f9e336c373fc612",
   "repositories": {
-    "app": "edbbbf9465b424f0f4d977f61b850dd067b02e33"
+    "app": "eba4307e1c166ae0b5b9d8c7c14f17ac71eb14d7"
   },
   "oracle": {
     "app:experiments/acceptance.ts": "1cfdfa5bf85962fa1c414e63a4a4f689dc2ac155053493b5713c6086fdbc795b",
@@ -18,6 +18,8 @@
     "app:experiments/codex-native-setup-fault-e2e.ts": "0d356dbdce1543b9533ab819b3f2f7512e1f297f9a07f2e0d36b04d2f069296b",
     "app:experiments/codex-native-warming-e2e.ts": "0f41c53c2fe52e462743288ecfc0e85316ca3f44e75ec175ac06cb7bbf0ff4a3",
     "app:experiments/context-acceptance.ts": "79c2305fefd415faf7d02fee8c644be3d8c790d5ef355841cd74b97e294432c2",
+    "app:experiments/diagnose-codex-e2e.ts": "4f8dc1d1c67cd1f8b8c6041c2cb2836691837f1b3b594b97d35a9a4f186878c4",
+    "app:experiments/diagnose-codex-fixture.mjs": "ff3465c8fbd12cc91fa7097e7046052bef90a541519ee307439c603fa5140724",
     "app:experiments/marker-acceptance.ts": "b76c3906ee6ef3b90219088af99b42c87329376e91c47e5986b642bf8ced83b2",
     "app:experiments/native-socket-probe.ts": "c43d9c9fb31a34a861269295051c3560a579363fd598956af343f181c27ec16a",
     "app:experiments/setup-acceptance.ts": "dfc27754f1d5b6642475f3a354b1ab41ea65a1c9406a85f7c17488cdd85d4d58",
@@ -43,9 +45,13 @@
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DISARM-001/plan.md": "dbf8064e9a4ae74265026b3624b4535a1790dd9de67f9afcc9d55db0be643e54",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/history/DOCS-001.json": "354e3ecc3e4121726afe1db876f4cddc865b12e6ce4e9ffc0709001496c9e46c",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/DOCS-001/plan.md": "6e045b2a98a7c240bee81a5ca46ef4fc1c87f5e0ea828c1181ef70e5a85419ed",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/IDLE-001/history/IDLE-001.json": "d230dad3b5b659f3da037a8dc257e24fc097466e4f6f15853e6d85515623bd6d",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/IDLE-001/history/review.json": "4856c3d09bee56641b69c837721586005c63844b5e3e2aa8a9e165d6fb14b548",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/IDLE-001/plan.md": "06e09ca338ab4e109a0f8a7639fbd133c362cea0184ab3ee9fd055cfe243fe5d",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/MARKER-001/history/MARKER-001.json": "9d71b0c2f437dcf291d2ce8005309354d5a133a160a662fa527ca38234646bf9",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/MARKER-001/plan.md": "2cd404e33ec22703bf1d305f6e931d9cbb62ebe6782403d0f53373f98354291e",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/OBSERVE-001/failures.md": "dc2fa5f7cbe53c2ac746b4275493838cf56d18adb41522f9587010086970ff6f",
+    "app:harness/artifacts/SESSION-INTEGRATION/changes/OBSERVE-001/plan.md": "1ec47f29e2455f66f8e6ab2b19548d2466aa2545da640c6c60acef6d5daceec1",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/failures.md": "3e646558afcb76fcb226c99fa08df765f3d18f1c6e39b04c5fbe39838d8afe6f",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/history/PROBE-001.json": "cfa515c7915f4673444954f8a91bd619a28ffe531fc397d42422ac445d22721b",
     "app:harness/artifacts/SESSION-INTEGRATION/changes/PROBE-001/plan.md": "2b2de02d8f9e3610487f526e6ada28f97a61f1e507c622bb4c70ab2d0b4fd6b4",
@@ -67,7 +73,7 @@
     "app:harness/artifacts/SESSION-INTEGRATION/spec.md": "6d2c0935a4763117f9384e3c2e3d680a38c936337c6d7e723763deda28d452da",
     "app:harness/artifacts/features.md": "957e3fa32435f43672088810dcc5585da6979b5aa4ce42bc081aafd96f0306f7",
     "app:harness/artifacts/init_spec.md": "ba2f77f5b0d33425d0e9a1c9352bada86535797988b6510d9d1b7914509ab1d7",
-    "app:harness/harness.yaml": "d538958d3cb912f050d49462b41df136891067cb47bb8b6fc52a301edf81fcbd",
+    "app:harness/harness.yaml": "cbbcd694d4f48cab4b6ab3d67d4a5122c92d8de5cf041e13e234c1a0114eca98",
     "app:harness/scenarios/DISTRIBUTION/native-registry-transport.yaml": "8139883f50ed3b7b55ef7dec974aa89632dbe3f90ea9f4081e9d7c7d9290702f",
     "app:harness/scenarios/DISTRIBUTION/standalone-install-update.yaml": "a33f123260ca6689d6a38370260da08f3ba6e7a2bf7a5f3baf01af3dc6d76cf8",
     "app:harness/scenarios/DISTRIBUTION/standalone-native.yaml": "33b813c69e55107648de9cdbb3bd17c398b9e32479670dfa7dc3b173cb67d814",
@@ -80,6 +86,7 @@
     "app:harness/scenarios/SESSION-INTEGRATION/claude.yaml": "214c4a273efcef778f4091f98a5f6893155550f5715cc07bcf24d3c1ab1b49be",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-context-probe.yaml": "49e774026dee1e65ec4df8e0679029ba5de9378cc1e8ea9c36b9535c3606d87f",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-disarm.yaml": "34820a041db3079ed3fbd70dbc0daaa351a3b84b58ba9b374f72bc49e8abd037",
+    "app:harness/scenarios/SESSION-INTEGRATION/codex-input-diagnostics.yaml": "328d6766b4a38cd4d098e82debe363a62aec18fb878560a949bf45939446147c",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-integrated-live.yaml": "f32de7946697b1e5b9a38dbd6747c4bd75af3d8b08fd07a35d2f0028f67099ac",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-native-cli-resume-live.yaml": "be46e9a7f822c8c35d8f070853d541d6fd539e5af6e6ab3cd5adce4ee086bd1b",
     "app:harness/scenarios/SESSION-INTEGRATION/codex-native-input.yaml": "a4d2afe16f3c2b9d24c79e2dd3611763a7cfb06afdf2832d7b78d96c6c7c9516",
@@ -96,7 +103,7 @@
     "app:harness/scenarios/SESSION-INTEGRATION/native-forwarding.yaml": "25bdbf096986b46aabadbf4597e461b97e46278efdfa8061b5d04fb62f6a7bf8",
     "app:harness/scenarios/SESSION-INTEGRATION/native-setup.yaml": "11e8d3c08bc08b50e0402812b5a7316f4ccd11b5da8b82ad07a7bfe7dcb33a4b",
     "app:harness/scenarios/SESSION-INTEGRATION/watcher-lifecycle.yaml": "b6e067c4ad01ef3df114acc154c21b2673fdda353c8f4632f12f6efccad422ac",
-    "app:harness/tasks/IDLE-001.json": "d230dad3b5b659f3da037a8dc257e24fc097466e4f6f15853e6d85515623bd6d",
+    "app:harness/tasks/OBSERVE-001.json": "24ccac9fb6e40c61576f2d159a99d9fadc09ed71306c3185eeadafbe017bc976",
     "app:packaging/curl-fixture.zsh": "96d51db92ae35d21b9265139fae3e4fbed7c8b95460e77aad5c9baa47c7d4f58",
     "app:packaging/e2e-common.ts": "fd2b413d0b0c655e751d4d827d60e93c9e03784ce947fa8e6dcaabaf77d45226",
     "app:packaging/gh-fixture.zsh": "60f31eb9f81c8e3ae8f24dc78d0555fc2630a121f2f96b0d4ba2f03cff20126f",
@@ -110,7 +117,7 @@
     "app:packaging/repair-e2e.ts": "3918bf96ac3548da874853bb8d78718fe1516a0beb1b2813c210d26866ce0235"
   },
   "modes": {
-    "IDLE-001": "strict"
+    "OBSERVE-001": "standard"
   },
   "amendments": [
     {
@@ -461,6 +468,16 @@
       },
       "repositories": {
         "app": "edbbbf9465b424f0f4d977f61b850dd067b02e33"
+      }
+    },
+    {
+      "reason": "Add explicit private diagnostic relay after remaining real-terminal invalidation could not be reconstructed from existing metadata",
+      "prior_generation": "8ae48a04a0b890c4fc8e35ea15cbd4b7",
+      "prior_repositories": {
+        "app": "edbbbf9465b424f0f4d977f61b850dd067b02e33"
+      },
+      "repositories": {
+        "app": "eba4307e1c166ae0b5b9d8c7c14f17ac71eb14d7"
       }
     }
   ]
