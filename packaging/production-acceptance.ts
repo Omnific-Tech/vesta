@@ -22,6 +22,8 @@ export function verifyProductionControls(directory: string, expected: ReturnType
   assert.equal(evidence.kind, kind);
   assert.equal(evidence.binary, expected.binary, 'suite used exact production path');
   assert.equal(evidence.binarySha256, expected.binarySha256);
+  assert.equal(evidence.receiptFile, expected.receipt, 'suite used exact production receipt');
+  if (kind === 'native-controls') assert.deepEqual(evidence.receipt, JSON.parse(readFileSync(expected.receipt, 'utf8')), 'native embedded-asset oracle used exact receipt');
   assert.deepEqual(evidence.productionIdentityBefore, expected, 'suite verified candidate before execution');
   assert.deepEqual(evidence.productionIdentityAfter, expected, 'suite verified candidate after cleanup');
   const installs = evidence.commands.filter((command: any) => command.argv[1] === 'install');

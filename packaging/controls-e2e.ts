@@ -8,11 +8,12 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { buildRelocated, hash, nativeBin, nodeFlags, nextReleaseVersion, releaseVersion, root, sealEvidence } from './e2e-common.ts';
 import { controlMessage, integration, resetDefaults, sameControls, verifyControls } from '../experiments/controls-acceptance.ts';
+import { controlsArtifact, controlsArtifactAfter } from './controls-artifact.ts';
 
 const flag = process.argv.indexOf('--artifacts');
 const artifacts = resolve(flag < 0 ? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/controls-cli', 'artifacts') : process.argv[flag + 1]!);
 assert.ok(!existsSync(artifacts) || !readdirSync(artifacts).length, 'fresh artifacts'); mkdirSync(artifacts, { recursive: true });
-const built = buildRelocated(artifacts);
+const built = controlsArtifact(artifacts);
 const candidateDir = join(artifacts, 'update-candidate'); mkdirSync(candidateDir); const candidate = buildRelocated(candidateDir, nextReleaseVersion);
 const personal = ['.claude/settings.json', '.claude/CLAUDE.md', '.codex/config.toml', '.codex/auth.json', '.codex/AGENTS.md', '.zshrc'].map(file => { const path = join(homedir(), file); return { path, before: existsSync(path) ? hash(path) : 'absent', after: '' }; });
 const commands: any[] = []; const cases: any[] = []; let failure = '';
@@ -241,7 +242,8 @@ try {
 finally {
   for (const file of personal) file.after = existsSync(file.path) ? hash(file.path) : 'absent';
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'compiled-controls', failure, commands, cases, personal, binary: built.binary, binarySha256: hash(built.binary), version: releaseVersion,
-    sourceFiles: ['packaging/controls-e2e.ts', 'experiments/controls-acceptance.ts', 'cli/main.ts', 'cli/manage.ts', 'cli/controls.ts', 'experiments/watcher-policy.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
+    receiptFile: built.receipt, productionIdentityBefore: built.productionIdentityBefore, productionIdentityAfter: controlsArtifactAfter(built),
+    sourceFiles: ['packaging/controls-e2e.ts', 'packaging/controls-artifact.ts', 'packaging/production-acceptance.ts', 'experiments/controls-acceptance.ts', 'cli/main.ts', 'cli/manage.ts', 'cli/controls.ts', 'experiments/watcher-policy.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
   sealEvidence(artifacts);
 }
 if (failure) throw new Error(failure + '; artifacts: ' + artifacts); verifyControls(artifacts);

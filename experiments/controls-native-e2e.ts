@@ -18,7 +18,8 @@ import { homedir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import * as pty from 'node-pty';
-import { buildRelocated, hash, nativeBin, nodeFlags, root, sealEvidence } from '../packaging/e2e-common.ts';
+import { hash, nativeBin, nodeFlags, root, sealEvidence } from '../packaging/e2e-common.ts';
+import { controlsArtifact, controlsArtifactAfter } from '../packaging/controls-artifact.ts';
 import { verifyBuildReceipt } from '../packaging/release-acceptance.ts';
 import { nativeRequest } from './codex-native-ipc.ts';
 import { controlMessage, controlFileError, codexControlSnapshot, controlProfileSnapshot, verifyControlProfile, integration, resetDefaults, sameControls, verifyControls } from './controls-acceptance.ts';
@@ -28,7 +29,7 @@ import { parseClaudeStatuses } from './setup-acceptance.ts';
 const flag = process.argv.indexOf('--artifacts');
 const artifacts = resolve(flag < 0 ? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/controls-native', 'artifacts') : process.argv[flag + 1]!);
 assert.ok(!existsSync(artifacts) || !readdirSync(artifacts).length, 'fresh artifacts'); mkdirSync(artifacts, { recursive: true });
-const built = buildRelocated(artifacts); const receipt = verifyBuildReceipt(built.receipt, built.binary);
+const built = controlsArtifact(artifacts); const receipt = verifyBuildReceipt(built.receipt, built.binary);
 const fixture = join(artifacts, 'fixture'); mkdirSync(fixture); const config = join(fixture, 'vesta'); mkdirSync(config);
 const claude = join(fixture, 'claude'); mkdirSync(claude); const codex = join(fixture, 'codex'); mkdirSync(codex);
 const shell = join(fixture, 'zshrc'); writeFileSync(shell, '# isolated native controls fixture\n');
@@ -45,7 +46,7 @@ const commands: any[] = []; const observations: any[] = []; const cleanup: any[]
 type Owner = { provider: 'claude' | 'codex'; index: number; pid: number; terminal: pty.IPty; terminalFile: string; snapshotsFile: string; traceFile: string; rolloutFile: string; sessionId: string; nonce: string; exited: boolean; folder: string; statusSource?: string };
 const owners: Owner[] = []; let failure = ''; let promptCount = 0;
 const sleep = (ms: number) => new Promise(done => setTimeout(done, ms));
-const deadline = Date.now() + 720000;
+const deadline = Math.min(Date.now() + 720000, process.env.VESTA_E2E_DEADLINE ? Number(process.env.VESTA_E2E_DEADLINE) - 15000 : Infinity);
 const rows = (path: string): any[] => existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } }) : [];
 function entries(dir: string) {
   try { return readdirSync(dir, { withFileTypes: true }); }
@@ -55,7 +56,7 @@ function files(dir: string): string[] {
   return entries(dir).flatMap(entry => entry.isFile() ? [join(dir, entry.name)] : entry.isDirectory() && !entry.name.endsWith('.lock') ? files(join(dir, entry.name)) : []);
 }
 function command(args: string[], command = built.binary, input?: string) {
-  const startedAt = Date.now(); const result = spawnSync(command, args, { cwd: fixture, env, input, encoding: 'utf8', timeout: 60000 });
+  const startedAt = Date.now(); const result = spawnSync(command, args, { cwd: fixture, env, input, encoding: 'utf8', timeout: Math.max(1, Math.min(60000, deadline - Date.now())) });
   const prefix = 'command-' + commands.length; writeFileSync(join(artifacts, prefix + '.stdout'), result.stdout ?? ''); writeFileSync(join(artifacts, prefix + '.stderr'), result.stderr ?? '');
   commands.push({ argv: [command, ...args], startedAt, endedAt: Date.now(), code: result.status, stdoutFile: prefix + '.stdout', stderrFile: prefix + '.stderr' });
   assert.equal(result.status, 0, result.stderr || result.error?.message); return JSON.parse(result.stdout);
@@ -339,7 +340,8 @@ finally {
   try { profileIntegrity.after = controlProfileSnapshot(readFileSync(profilePath)); personal.find(file => file.path === profilePath)!.after = profileIntegrity.after.sha256; verifyControlProfile(profileIntegrity.before, profileIntegrity.after); }
   catch { failure ||= 'Personal Claude profile integrity validation failed (values redacted)'; }
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'native-controls', failure, binary: built.binary, binarySha256: hash(built.binary), receipt, promptCount, maximumNativeTurns: promptCount + 6, commands, observations, cleanup, installedFiles, personal,
-    profileIntegrity, owners: owners.map(({ terminal, folder, ...owner }) => owner), sourceFiles: ['experiments/controls-native-e2e.ts', 'experiments/controls-acceptance.ts', 'experiments/controls-claude-host-fixture.ts', 'experiments/vesta-claude/hooks/register.ts', 'experiments/codex-native-owner.ts', 'cli/main.ts', 'cli/manage.ts', 'cli/controls.ts', 'experiments/watcher-policy.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
+    receiptFile: built.receipt, productionIdentityBefore: built.productionIdentityBefore, productionIdentityAfter: controlsArtifactAfter(built),
+    profileIntegrity, owners: owners.map(({ terminal, folder, ...owner }) => owner), sourceFiles: ['experiments/controls-native-e2e.ts', 'packaging/controls-artifact.ts', 'packaging/production-acceptance.ts', 'experiments/controls-acceptance.ts', 'experiments/controls-claude-host-fixture.ts', 'experiments/vesta-claude/hooks/register.ts', 'experiments/codex-native-owner.ts', 'cli/main.ts', 'cli/manage.ts', 'cli/controls.ts', 'experiments/watcher-policy.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
   sealEvidence(artifacts);
 }
 if (failure) throw new Error(failure + '; artifacts: ' + artifacts); verifyControls(artifacts);
