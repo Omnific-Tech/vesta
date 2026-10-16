@@ -57,7 +57,8 @@ const readControls = ($, target = watcher, id = sessionId) => {
         // first post-write prompt is usable even before the ordinary poll. A
         // restored old file has no such proof: require input after recovery was
         // actually observed, not input received during the failed interval.
-        if (configError && !(next.controlRevision > config.controlRevision && next.controlChangedAt >= errorAt)) errorAt = await $.clock.now();
+        const causal = next.controlRevision > config.controlRevision && next.controlChangedAt >= Math.max(config.controlChangedAt, errorAt);
+        if ((changed || configError) && !causal) errorAt = await $.clock.now();
         if (target !== watcher || id !== sessionId) return false;
         const changedAt = Math.max(next.controlChangedAt, errorAt);
         config = next; nativeEnabled = enabled; signature = nextSignature; configError = '';

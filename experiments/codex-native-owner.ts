@@ -61,7 +61,8 @@ function readControls() {
   try {
     const next = parseControls(JSON.parse(readFileSync(value('--config')!, 'utf8'))); const signature = JSON.stringify(next);
     if (signature !== controlSignature || controlError) {
-      if (controlError && !(next.controlRevision > live.controlRevision && next.controlChangedAt >= errorAt)) errorAt = Date.now();
+      const causal = next.controlRevision > live.controlRevision && next.controlChangedAt >= Math.max(live.controlChangedAt, errorAt);
+      if (!causal) errorAt = Date.now();
       live = next; controlSignature = signature; controlError = ''; settings = settingsFor(next); resetReason = 'controls';
       event({ type: 'control', config: { ...settings, threshold: settings.probeThreshold ?? settings.threshold }, enabled: live.warm && !live.paused, changedAt: settings.controlChangedAt });
     }
