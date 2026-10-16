@@ -12,7 +12,7 @@ import * as pty from 'node-pty';
 import { buildRelocated, hash, nativeBin, nodeFlags, root, sealEvidence } from '../packaging/e2e-common.ts';
 import { verifyBuildReceipt } from '../packaging/release-acceptance.ts';
 import { nativeRequest } from './codex-native-ipc.ts';
-import { controlMessage, codexControlSnapshot, controlProfileSnapshot, verifyControlProfile, integration, sameControls, verifyControls } from './controls-acceptance.ts';
+import { controlMessage, controlFileError, codexControlSnapshot, controlProfileSnapshot, verifyControlProfile, integration, sameControls, verifyControls } from './controls-acceptance.ts';
 import { claudeControlHostFixture } from './controls-claude-host-fixture.ts';
 
 const flag = process.argv.indexOf('--artifacts');
@@ -99,7 +99,11 @@ async function bind(owner: Owner) {
   } else {
     await wait(() => existsSync(join(artifacts, owner.terminalFile)) && stripVTControlCharacters(readFileSync(join(artifacts, owner.terminalFile), 'utf8')).includes('›'), 'Codex composer');
     await type(owner, 'Reply with exactly ' + owner.nonce + '. Do not use tools.');
-    const value = await wait(() => { const value = snapshot(owner); return value?.sessionId && !value.busy && value.tokens > 0 ? value : undefined; }, 'Codex real initial response'); owner.sessionId = value.sessionId;
+    const value = await wait(() => {
+      const value = snapshot(owner); if (!value?.sessionId || value.busy) return;
+      const completed = rows(join(artifacts, owner.traceFile)).findLast(row => row.kind === 'response-complete' && row.activeSession === value.sessionId && row.text?.trim() === owner.nonce);
+      return completed ? value : undefined;
+    }, 'Codex own session and actual initial assistant nonce'); owner.sessionId = value.sessionId;
   }
   await wait(() => snapshot(owner), 'native passive status available');
 }
@@ -181,14 +185,14 @@ try {
   for (const provider of ['claude', 'codex'] as const) {
     const file = join(provider === 'claude' ? claude : config, provider === 'claude' ? 'settings.json' : 'vesta-codex.json');
     const good = readFileSync(file); writeFileSync(file, '{');
-    for (const owner of owners.filter(owner => owner.provider === provider)) await capture(owner, 'malformed', value => !!value.warmingSuspendedReason);
+    for (const owner of owners.filter(owner => owner.provider === provider)) await capture(owner, 'malformed', value => controlFileError(value.warmingSuspendedReason));
     writeFileSync(file, good);
     for (const owner of owners.filter(owner => owner.provider === provider)) {
       const recovered = await capture(owner, 'recovered', value => !value.warmingSuspendedReason && value.tokens === null);
       observations.push({ name: 'malformed-recovery', provider, recovered });
     }
     const away = file + '.fixture-removed'; renameSync(file, away);
-    try { for (const owner of owners.filter(owner => owner.provider === provider)) await capture(owner, 'missing', value => !!value.warmingSuspendedReason); }
+    try { for (const owner of owners.filter(owner => owner.provider === provider)) await capture(owner, 'missing', value => controlFileError(value.warmingSuspendedReason)); }
     finally { renameSync(away, file); }
     for (const owner of owners.filter(owner => owner.provider === provider)) await capture(owner, 'restored', value => !value.warmingSuspendedReason && value.tokens === null);
   }

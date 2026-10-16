@@ -33,8 +33,10 @@ const sha = (bytes: string | Buffer) => createHash('sha256').update(bytes).diges
 function canonical(value: any): string {
   if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
   if (value !== null && typeof value === 'object') return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}';
+  if (typeof value === 'number') assert.ok(Number.isFinite(value), 'personal profile number must be finite (values redacted)');
   return JSON.stringify(value);
 }
+export const controlFileError = (reason: unknown) => typeof reason === 'string' && /config(?:uration)?|settings|control(?:s| state| file)?/i.test(reason) && /invalid|malformed|missing|unreadable|unavailable|not found|enoent|failed.*read|read.*failed/i.test(reason);
 export function controlProfileSnapshot(bytes: Buffer) {
   let profile: any; try { profile = JSON.parse(bytes.toString('utf8')); } catch { throw new Error('Personal profile is invalid JSON (values redacted)'); }
   assert.ok(profile && typeof profile === 'object' && !Array.isArray(profile), 'personal profile must be an object');
@@ -171,9 +173,9 @@ export function verifyControls(directory: string) {
     assert.equal(changed.turnId, busy.turnId); assert.equal(changed.userAt, busy.userAt);
     assert.equal(completed.busy, false); assert.equal(completed.tokens, null); assert.equal(completed.userAt, busy.userAt);
     for (const owner of e.owners.filter((row: any) => row.provider === provider)) {
-      const rows = rawRows(owner.snapshotsFile); assert.ok(rows.find((row: any) => row.phase === 'malformed').value.warmingSuspendedReason);
+      const rows = rawRows(owner.snapshotsFile); assert.ok(controlFileError(rows.find((row: any) => row.phase === 'malformed').value.warmingSuspendedReason));
       const recovered = rows.find((row: any) => row.phase === 'recovered').value; assert.equal(recovered.tokens, null); assert.ok(!recovered.warmingSuspendedReason);
-      assert.ok(rows.find((row: any) => row.phase === 'missing').value.warmingSuspendedReason);
+      assert.ok(controlFileError(rows.find((row: any) => row.phase === 'missing').value.warmingSuspendedReason));
       const restored = rows.find((row: any) => row.phase === 'restored').value; assert.equal(restored.tokens, null); assert.ok(!restored.warmingSuspendedReason);
     }
   }
