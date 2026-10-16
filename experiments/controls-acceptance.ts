@@ -12,6 +12,10 @@
 // - repair/update lose preferences; rollback erases unrelated native settings;
 // - missing live files silently fall back to captured warming options;
 // - a yielded Claude reservation ignores a real CLI pause/config write;
+// - Claude awaits dispatch-status persistence after its last file read, then
+//   submits despite a CLI pause/config write while that store operation waits;
+// - delayed native metadata for input received while config was invalid supplies
+//   fresh eligibility after restoration by reusing the first failure timestamp;
 // - an OS failure writing the second selected configuration leaves first edited;
 // - integrity assertion diffs leak private profile values, or absent counters
 //   become present despite a permitted non-Vesta native usage-counter update;
@@ -185,24 +189,28 @@ export function verifyControls(directory: string) {
   assert.equal(host.kind, 'simulated-native-host-actual-shipped-claude-module'); assert.equal(host.binarySha256, e.binarySha256);
   assert.equal(host.moduleSha256, e.installedFiles.find((file: any) => file.assetPath.endsWith('/vesta-claude/hooks/register.ts')).sha256);
   const hostRows = readFileSync(join(hostDirectory, host.logFile), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
-  assert.deepEqual(host.scenarios.map((row: any) => row.operation), ['pause', 'config']);
+  assert.deepEqual(host.scenarios.map((row: any) => [row.operation, row.stage]), [['pause', 'yield'], ['config', 'yield'], ['pause', 'store'], ['config', 'store']]);
   for (const scenario of host.scenarios) {
-    const rows = hostRows.filter((row: any) => row.operation === scenario.operation);
-    const held = rows.findIndex((row: any) => row.kind === 'yield-held'); const changed = rows.findIndex((row: any) => row.kind === 'control-changed'); const released = rows.findIndex((row: any) => row.kind === 'yield-released');
+    const rows = hostRows.filter((row: any) => row.operation === scenario.operation && row.stage === scenario.stage);
+    const held = rows.findIndex((row: any) => row.kind === scenario.stage + '-held'); const changed = rows.findIndex((row: any) => row.kind === 'control-changed'); const released = rows.findIndex((row: any) => row.kind === scenario.stage + '-released');
     assert.ok(held >= 0 && changed > held && released > changed, 'actual adapter yield brackets real compiled CLI change');
-    assert.ok(rows.slice(0, held).some((row: any) => row.kind === 'store' && row.value.pending === true));
+    assert.ok(rows.slice(0, held).some((row: any) => row.kind === 'store' && (scenario.stage === 'yield' ? row.value.pending === true : row.value.dispatched === true)));
     assert.ok(rows.slice(released).some((row: any) => row.kind === 'store' && row.value.pending === false && row.value.tokens === null));
     assert.equal(rows.filter((row: any) => row.kind === 'prompt-submit').length, 0);
     assert.notEqual(readFileSync(join(hostDirectory, scenario.beforeFile), 'utf8'), readFileSync(join(hostDirectory, scenario.afterFile), 'utf8'));
   }
-  for (const name of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input']) {
+  for (const name of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input', 'delayed-prerecovery-input']) {
     const observation = e.observations.find((row: any) => row.name === name); assert.equal(observation.synthetic, true);
     const trace = rawRows(observation.traceFile); assert.ok(trace.some((row: any) => row.kind === 'response-complete'));
     const queue = join(directory, observation.queueFile); assert.equal(existsSync(queue) ? rawRows(observation.queueFile).length : 0, 0);
     assert.equal(trace.filter((row: any) => row.kind === 'marker-dispatched').length, 0);
     if (name === 'threshold-equality') assert.ok(trace.some((row: any) => row.kind === 'policy' && row.row.state.tokens === 209848));
     else if (name === 'precommit-cancel') { assert.ok(trace.some((row: any) => row.kind === 'queue-process' && row.at <= observation.changedAt)); assert.ok(trace.some((row: any) => row.kind === 'queue-cancelled' && row.at >= observation.changedAt)); }
-    else { assert.ok(trace.some((row: any) => row.kind === 'user-input' && row.at < observation.changedAt)); assert.equal(trace.findLast((row: any) => row.kind === 'policy' && row.row.type === 'turn-complete').row.state.tokens, null); }
+    else {
+      assert.ok(trace.some((row: any) => row.kind === 'user-input' && row.at < observation.changedAt));
+      assert.equal(trace.findLast((row: any) => row.kind === 'policy' && row.row.type === 'turn-complete').row.state.tokens, null);
+      if (name === 'delayed-prerecovery-input') assert.ok(controlFileError(JSON.parse(readFileSync(join(directory, observation.malformedStatusFile), 'utf8')).warmingSuspendedReason));
+    }
   }
   for (const file of e.installedFiles) {
     const asset = e.receipt.assets.find((asset: any) => asset.path === file.assetPath);

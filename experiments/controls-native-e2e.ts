@@ -220,7 +220,7 @@ try {
   observations.push({ name: 'claude-precommit-host', summaryFile: 'claude-host/summary.json', synthetic: true, moduleSha256: host.moduleSha256 });
   // Supplemental exact threshold and final IPC authorization race use actual
   // embedded owner with existing synthetic-native transport and fixed209848 input.
-  for (const scenario of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input'] as const) {
+  for (const scenario of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input', 'delayed-prerecovery-input'] as const) {
     const folder = join(artifacts, scenario); mkdirSync(folder); const home = join(folder, 'home'); mkdirSync(home);
     const native = join(folder, 'synthetic-native'); copyFileSync(join(root, 'experiments/codex-native-input-fixture.mjs'), native); chmodSync(native, 0o755);
     const configPath = join(folder, 'config.json'); const settings = { warm: true, paused: false, controlRevision: 0, idleMs: 800, budgetMs: 10000, threshold: scenario === 'threshold-equality' ? 209848 : 0, message: controlMessage, statusDir: folder };
@@ -230,15 +230,22 @@ try {
     let output = ''; terminal.onData(data => { output += data; }); terminal.onExit(() => { exited = true; });
     const trace = () => rows(join(folder, 'codex-native-trace.jsonl'));
     try {
-      await wait(() => output.includes('VESTA_INPUT_FIXTURE_READY'), scenario + ' ready'); terminal.write('seed\r');
+      await wait(() => output.includes('VESTA_INPUT_FIXTURE_READY'), scenario + ' ready');
+      let malformedStatusFile: string | undefined;
+      if (scenario === 'delayed-prerecovery-input') {
+        writeFileSync(configPath, '{');
+        await wait(() => { const file = join(folder, 'codex-native-status.json'); if (!existsSync(file)) return; try { return controlFileError(JSON.parse(readFileSync(file, 'utf8')).warmingSuspendedReason); } catch { return; } }, 'owner observed invalid config before input');
+        malformedStatusFile = relative(artifacts, join(folder, 'invalid-status.json')); copyFileSync(join(folder, 'codex-native-status.json'), join(artifacts, malformedStatusFile));
+      }
+      terminal.write('seed\r');
       let changedAt: number | undefined;
-      if (scenario === 'delayed-prechange-input') {
+      if (scenario === 'delayed-prechange-input' || scenario === 'delayed-prerecovery-input') {
         // Existing transport delays native submission metadata by80ms. Wait for
         // the real owner's keyboard receipt, then revise before that metadata.
         const until = Date.now() + 5000;
         while (!trace().some(row => row.kind === 'user-input') && Date.now() < until) await sleep(5);
         assert.ok(trace().some(row => row.kind === 'user-input'), 'actual owner received pre-change input');
-        changedAt = Date.now(); writeFileSync(configPath, JSON.stringify({ ...settings, idleMs: 801, controlRevision: 1, controlChangedAt: changedAt }));
+        changedAt = Date.now(); writeFileSync(configPath, JSON.stringify(scenario === 'delayed-prerecovery-input' ? settings : { ...settings, idleMs: 801, controlRevision: 1, controlChangedAt: changedAt }));
       }
       await wait(() => trace().some(row => row.kind === 'response-complete'), scenario + ' real owner synthetic completion');
       if (scenario === 'precommit-cancel') {
@@ -247,7 +254,7 @@ try {
       }
       const observedUntil = Date.now() + 2200; while (Date.now() < observedUntil) await sleep(50);
       assert.equal(rows(join(folder, 'queue.jsonl')).length, 0, scenario + ' prevents native queue write');
-      observations.push({ name: scenario, changedAt, observedUntil, traceFile: relative(artifacts, join(folder, 'codex-native-trace.jsonl')), queueFile: relative(artifacts, join(folder, 'queue.jsonl')), synthetic: true });
+      observations.push({ name: scenario, changedAt, observedUntil, malformedStatusFile, traceFile: relative(artifacts, join(folder, 'codex-native-trace.jsonl')), queueFile: relative(artifacts, join(folder, 'queue.jsonl')), synthetic: true });
     } finally {
       terminal.kill('SIGTERM'); await wait(() => exited, scenario + ' owned cleanup', 5000); writeFileSync(join(folder, 'terminal.txt'), output); cleanup.push({ pid: terminal.pid, owned: true, exited });
     }
