@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { directory, prepareVersion, readJson, saveJson, sha256, version } from './assets.ts';
 import { codexHookReadiness } from '../experiments/codex-native-ipc.ts';
 import { codexRegistration, restoreNativeCodex } from '../experiments/codex-native-setup.ts';
-import { controlConfig } from '../experiments/watcher-policy.ts';
+import { controlConfig, claudeControlOptions } from '../experiments/watcher-policy.ts';
 
 export type Provider = { provider: 'claude' | 'codex'; configDir: string; shellFile: string };
 export const pluginId = 'vesta@vesta-local';
@@ -203,7 +203,7 @@ export async function status(args: string[], root: string, selected?: Provider[]
   const integrations = [];
   for (const p of selected ?? providers(args, root, 'status')) {
     const state = readJson(stateFile(p)); const settings = readJson(join(p.configDir, p.provider === 'claude' ? 'settings.json' : 'vesta-codex.json'), {});
-    const options = p.provider === 'claude' ? settings.pluginConfigs?.[pluginId]?.options ?? {} : settings;
+    const options = p.provider === 'claude' ? claudeControlOptions(settings) : settings;
     const config = controlConfig(p.provider, options, p.provider === 'claude');
     const shell = p.provider === 'codex' && existsSync(p.shellFile) ? readFileSync(p.shellFile, 'utf8') : '';
     const ready = p.provider === 'codex' && options.warm && state?.nativePluginId

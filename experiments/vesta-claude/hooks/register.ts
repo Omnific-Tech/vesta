@@ -1,4 +1,4 @@
-import { Watcher, controlConfig } from './policy.ts';
+import { Watcher, controlConfig, claudeControlOptions } from './policy.ts';
 
 let configuredOptions;
 let watcher;
@@ -48,8 +48,7 @@ const readControls = ($, target = watcher, id = sessionId) => {
       const document = JSON.parse(await $.fs.read(configPath));
       if (target !== watcher || id !== sessionId || target.state.ended) return false;
       if (!document || typeof document !== 'object' || Array.isArray(document)) throw new Error('Invalid settings');
-      const raw = document.pluginConfigs?.['vesta@vesta-local']?.options;
-      const next = controlConfig('claude', raw === undefined ? {} : raw, true);
+      const next = controlConfig('claude', claudeControlOptions(document), true);
       const enabled = document.enabledPlugins?.['vesta@vesta-local'] !== false;
       const nextSignature = JSON.stringify([next, enabled]);
       if (nextSignature !== signature || configError) {

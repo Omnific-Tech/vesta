@@ -1,6 +1,17 @@
 // Host-independent policy shared by the CLI and Claude's in-process mod.
 export type WatchEvent = { type: string; at: number; [key: string]: any };
 export const controlKeys = { idleMs: 'idle_ms', budgetMs: 'budget_ms', threshold: 'threshold', message: 'message', paused: 'paused', controlRevision: 'control_revision', controlChangedAt: 'control_changed_at' };
+export function claudeControlOptions(document: any) {
+  const object = value => value && typeof value === 'object' && !Array.isArray(value);
+  if (!object(document)) throw new Error('Invalid Vesta configuration document');
+  let container = document;
+  for (const key of ['pluginConfigs', 'vesta@vesta-local', 'options']) {
+    if (!Object.hasOwn(container, key)) return {};
+    container = container[key];
+    if (!object(container)) throw new Error('Invalid Vesta configuration container');
+  }
+  return container;
+}
 export function controlConfig(provider: string, raw: any = {}, nativeClaude = false) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid Vesta configuration object');
   const get = (key: string, fallback: any) => { const value = raw[nativeClaude ? controlKeys[key] ?? key : key]; return value === undefined ? fallback : value; };

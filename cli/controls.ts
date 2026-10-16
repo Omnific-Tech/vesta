@@ -2,17 +2,18 @@ import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync
 import { dirname, join } from 'node:path';
 import { providers, status, withLock } from './manage.ts';
 import type { Provider } from './manage.ts';
-import { controlConfig, controlKeys } from '../experiments/watcher-policy.ts';
+import { controlConfig, controlKeys, claudeControlOptions } from '../experiments/watcher-policy.ts';
 
 const flags = new Set(['--provider', '--config-dir', '--shell-file', '--idle-ms', '--budget-ms', '--threshold', '--message', '--json']);
 const mutations = { '--idle-ms': 'idleMs', '--budget-ms': 'budgetMs', '--threshold': 'threshold', '--message': 'message' };
 const json = (path: string) => {
-  const value = JSON.parse(readFileSync(path, 'utf8'));
+  let value: any;
+  try { value = JSON.parse(readFileSync(path, 'utf8')); } catch { throw new Error('Vesta configuration unreadable or invalid: ' + path); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid configuration object: ' + path);
   return value;
 };
 const pathFor = (p: Provider) => join(p.configDir, p.provider === 'claude' ? 'settings.json' : 'vesta-codex.json');
-const options = (p: Provider, document: any) => p.provider === 'claude' ? document.pluginConfigs?.['vesta@vesta-local']?.options ?? {} : document;
+const options = (p: Provider, document: any) => p.provider === 'claude' ? claudeControlOptions(document) : document;
 const replace = (p: Provider, document: any, value: any) => {
   if (p.provider !== 'claude') return value;
   return { ...document, pluginConfigs: { ...document.pluginConfigs, 'vesta@vesta-local': { ...document.pluginConfigs?.['vesta@vesta-local'], options: value } } };
@@ -73,6 +74,7 @@ export async function controls(args: string[], root: string) {
       }
       throw new Error(String(error) + (compensation || '; prior controls restored'));
     }
-    return status(args, root, selected);
+    try { return await status(args, root, selected); }
+    catch { throw new Error('Vesta configuration inspection unavailable; check selected settings and retry.'); }
   });
 }
