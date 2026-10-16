@@ -1,10 +1,10 @@
 // Opt-in native local owner. Native hooks observe; durable queue submits.
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import * as pty from 'node-pty';
-import { Watcher } from './watcher-policy.ts';
+import { Watcher, controlConfig } from './watcher-policy.ts';
 import { nativeRequest } from './codex-native-ipc.ts';
 import { NativeLease, nativeTurn } from './codex-native-state.ts';
 import { TerminalInput } from './codex-terminal-input.ts';
@@ -16,9 +16,15 @@ const passthrough = () => process.execve(native, [native, ...originalArgv], proc
 const config = (() => { try { return JSON.parse(readFileSync(value('--config')!, 'utf8')); } catch { passthrough(); } })();
 const probe = options.includes('--probe'); const capture = probe && options.includes('--capture-native');
 if (!probe && options.some(arg => ['--probe-threshold', '--idle-ms', '--budget-ms', '--max-warms', '--capture-native'].includes(arg))) throw new Error('native probe overrides require --probe');
-const settings = { idleMs: probe && value('--idle-ms') ? Number(value('--idle-ms')) : config.idleMs,
-  budgetMs: probe && value('--budget-ms') ? Number(value('--budget-ms')) : config.budgetMs,
-  ...(probe && value('--probe-threshold') ? { probeThreshold: Number(value('--probe-threshold')) } : {}) };
+const parseControls = (raw: any) => controlConfig('codex', probe && raw.warm === undefined ? { ...raw, warm: true } : raw);
+let live: ReturnType<typeof controlConfig>;
+try { live = parseControls(config); } catch { passthrough(); }
+let controlSignature = JSON.stringify(live!); let controlError = ''; let errorAt = 0; let lastAction = 'start'; let resetReason = 'start';
+const settingsFor = (next: typeof live) => ({ ...next, paused: next.paused || !next.warm || !!controlError, controlChangedAt: Math.max(next.controlChangedAt, errorAt),
+  idleMs: probe && value('--idle-ms') ? Number(value('--idle-ms')) : next.idleMs,
+  budgetMs: probe && value('--budget-ms') ? Number(value('--budget-ms')) : next.budgetMs,
+  ...(probe && value('--probe-threshold') ? { probeThreshold: Number(value('--probe-threshold')) } : {}) });
+let settings = settingsFor(live);
 const maxWarms = probe && value('--max-warms') ? Number(value('--max-warms')) : Infinity;
 if (!(maxWarms === Infinity || Number.isSafeInteger(maxWarms) && maxWarms >= 0 && maxWarms <= 3)) throw new Error('invalid native probe warm limit');
 let watcher = new Watcher('codex', settings, probe ? 'probe' : 'normal');
@@ -40,13 +46,32 @@ const trace = (kind: string, extra: any = {}) => {
   const row = { at: Date.now(), kind, ownerId, inputSerial, submittedSerial, clean, activeSession, activeTurn, ...extra };
   try {
     if (capture) appendFileSync(join(artifacts, 'codex-native-trace.jsonl'), JSON.stringify(row) + '\n');
-    else writeFileSync(join(artifacts, 'codex-native-status.json'), JSON.stringify({ ownerId, sessionId: activeSession, warming: !observerFailed && !stopped, kind, state: watcher.state }));
+    const status = join(artifacts, 'codex-native-status.json');
+    writeFileSync(status + '.tmp', JSON.stringify({ ...live, ownerId, sessionId: activeSession, warming: !observerFailed && !stopped && live.warm && !live.paused && !controlError,
+      warmConfigured: live.warm, warmEnabled: live.warm && !live.paused && !controlError, warmingSuspendedReason: controlError || (live.paused ? 'Vesta warming is paused.' : ''),
+      minimumRuntimeVersion: '0.2.6', lastAction, resetReason, kind, state: watcher.state }), { mode: 0o600 }); renameSync(status + '.tmp', status);
   } catch { observerFailed = true; clean = false; }
 };
 const event = (row: any) => {
-  try { const result = watcher.event({ at: Date.now(), ...row }); trace('policy', { row: result }); return result; }
+  try { const result = watcher.event({ at: Date.now(), ...row }); lastAction = result.action; trace('policy', { row: result }); return result; }
   catch { observerFailed = true; clean = false; return { action: 'skip', state: watcher.state }; }
 };
+function readControls() {
+  try {
+    const next = parseControls(JSON.parse(readFileSync(value('--config')!, 'utf8'))); const signature = JSON.stringify(next);
+    if (signature !== controlSignature || controlError) {
+      live = next; controlSignature = signature; controlError = ''; settings = settingsFor(next); resetReason = 'controls';
+      event({ type: 'control', config: { ...settings, threshold: settings.probeThreshold ?? settings.threshold }, enabled: live.warm && !live.paused, changedAt: settings.controlChangedAt });
+    }
+    return !controlError;
+  } catch {
+    if (!controlError) {
+      errorAt = Date.now(); controlError = 'Vesta configuration unavailable or invalid; restore readable vesta-codex.json, then submit a fresh prompt and reply.';
+      settings = settingsFor(live); resetReason = 'configuration-error'; event({ type: 'control', enabled: false, changedAt: errorAt });
+    }
+    return false;
+  }
+}
 const explicitResume = originalArgv.includes('resume') ? originalArgv.find(arg => /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(arg)) : undefined;
 if (explicitResume) { if (!lease.acquire(explicitResume)) trace('lease-conflict'); lease.unknown(false); }
 const nativeArgv = ['--no-daemon', ...originalArgv];
@@ -72,6 +97,7 @@ const expireInput = () => {
   if (decoder.pending && !stopped) inputTimer = setTimeout(expireInput, Math.max(1, decoder.deadline - Date.now()));
 };
 const input = (data: Buffer) => {
+  readControls();
   terminal.write(data);
   const result = decoder.feed(data, Date.now());
   if (result.keyboard || result.unknown) invalidateInput(result.keyboard, result.text);
@@ -84,6 +110,7 @@ terminal.onData(data => { if (capture) appendFileSync(join(artifacts, 'codex-nat
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(signal, () => { stopped = true; terminal.kill(signal); });
 function invalidate() { clean = false; event({ type: 'reconnect' }); }
 function submitted(candidate: { input: any; at: number; serial: number }, clientId: string) {
+  readControls();
   if (typeof clientId !== 'string' || !clientId) { trace('unknown-submission'); return; }
   const row = candidate.input; const queued = pending.get(clientId);
   if (queued) {
@@ -106,9 +133,11 @@ function submitted(candidate: { input: any; at: number; serial: number }, client
     submittedSerial = candidate.serial;
   }
   activeTurn = row.turn_id; clean = false;
-  event({ type: 'turn-start', sessionId: activeSession, turnId: activeTurn, source: queued ? 'warm' : 'user' });
+  const source = queued ? 'warm' : submitArm && submitArm.at >= Math.max(live.controlChangedAt, errorAt) ? 'user' : 'other';
+  event({ type: 'turn-start', sessionId: activeSession, turnId: activeTurn, source, submittedAt: queued ? undefined : submitArm?.at });
 }
 function completed(row: any) {
+  readControls();
   const queued = warmTurns.get(row.turn_id);
   if (row.session_id !== activeSession || row.turn_id !== activeTurn || queued && queued.epoch !== epoch) return true;
   const bound = nativeTurn(row.transcript_path, row.session_id, row.turn_id);
@@ -122,6 +151,7 @@ function completed(row: any) {
 let tickBusy = false;
 const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) return; tickBusy = true;
   void (async () => {
+    readControls();
     if (decoder.expire(Date.now())) invalidateInput(false);
     const contents = readFileSync(channel, 'utf8'); if (contents.length < fileOffset) throw new Error('native channel was replaced');
     partial += contents.slice(fileOffset); fileOffset = contents.length;
@@ -159,11 +189,13 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
     if (!clean || lease.conflict(activeSession)) return;
     const queued: Pending = { sessionId: activeSession, clientId: randomUUID(), reservationId: reserve.state.reservationId, dispatchInputSerial: inputSerial, epoch, consumed: false };
     preparing = true;
-    const writer = nativeRequest(native, 'thread/queue/add', { threadId: queued.sessionId, clientUserMessageId: queued.clientId, input: [{ type: 'text', text: 'VESTA_CACHE_KEEPALIVE', text_elements: [] }] },
+    const revision = controlSignature; const message = live.message;
+    const writer = nativeRequest(native, 'thread/queue/add', { threadId: queued.sessionId, clientUserMessageId: queued.clientId, input: [{ type: 'text', text: message, text_elements: [] }] },
       capture ? (direction, row) => trace('queue-' + direction, { row }) : undefined, {
         signal: abort.signal,
         authorize: async () => {
           while (decoder.pending && !stopped && !observerFailed && clean) await new Promise(done => setTimeout(done, 10));
+          if (!readControls() || revision !== controlSignature || !live.warm || live.paused) return false;
           if (stopped || observerFailed || !clean || inputSerial !== queued.dispatchInputSerial || activeSession !== queued.sessionId || epoch !== queued.epoch || lease.conflict(activeSession) || lease.ambiguous()) return false;
           const dispatch = event({ type: 'dispatch', reservationId: queued.reservationId }); if (dispatch.action !== 'dispatch') return false;
           pending.set(queued.clientId, queued); warms++; trace('marker-dispatched', { pending: queued }); return true;

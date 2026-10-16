@@ -1,110 +1,150 @@
-import { Watcher } from './policy.ts';
+import { Watcher, controlConfig } from './policy.ts';
 
 let configuredOptions;
-  let watcher;
-  let sessionId = '';
-  let timer;
-  let resetReason = 'start';
-  let nextReset = '';
-  let warmPending = false;
-  let nextPromptOrigin;
-  const warmEnvelope = "The vesta plugin sent a message:\nVESTA_CACHE_KEEPALIVE\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above.";
-  let config;
-  const status = () => ({ ...watcher.state, pluginId: 'vesta@vesta-local', sessionId, storeKey: 'status:' + sessionId,
-    warmEnabled: config.warm, idleMs: watcher.defaults.idleMs, budgetMs: watcher.defaults.budgetMs,
-    threshold: watcher.defaults.threshold, resetReason });
-  const persist = async ($, target = watcher, id = sessionId) => {
-    if (target !== watcher || id !== sessionId) return;
-    await $.store.set('status:' + id, status());
-  };
-  const event = async ($, type, extra = {}, target = watcher, id = sessionId) => {
-    if (!target) return;
-    const at = await $.clock.now();
-    if (target !== watcher || id !== sessionId) return;
-    const result = target.event({ type, at, ...extra });
-    await persist($, target, id); return result;
-  };
-  const ensure = async ($) => {
-    const id = await $.session.id();
-    if (!watcher || id !== sessionId || watcher.state.ended) {
-      const previousWatcher = watcher; const previousSession = sessionId; const previousTimer = timer;
-      const old = await $.store.get('status:' + id);
-      const currentId = await $.session.id();
-      if (currentId !== id || watcher !== previousWatcher || sessionId !== previousSession) return;
-      previousTimer?.cancel();
-      sessionId = id;
-      config = { warm: configuredOptions.warm === true, idleMs: configuredOptions.idle_ms ?? 3000000, budgetMs: configuredOptions.budget_ms ?? 14400000 };
-      watcher = new Watcher('claude', { idleMs: config.idleMs, budgetMs: config.budgetMs });
-      resetReason = nextReset || (old ? 'reload' : 'start'); nextReset = ''; warmPending = false; nextPromptOrigin = undefined;
-      const owner = watcher; const ownerSession = sessionId; const ownerConfig = config;
-      await persist($, owner, ownerSession);
-      if (owner !== watcher || ownerSession !== sessionId) return;
-      timer = $.clock.every(Math.min(30000, watcher.defaults.idleMs), async () => {
-        if (!ownerConfig.warm || owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
-        const nativeSession = await $.session.id();
-        if (owner !== watcher || ownerSession !== sessionId || owner.state.ended || nativeSession !== ownerSession) return;
-        const reserve = await event($, 'tick', {}, owner, ownerSession);
-        if (!reserve || reserve.action !== 'reserve' || owner !== watcher || ownerSession !== sessionId) return;
-        await $.clock.sleep(0);
-        if (owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
-        const dispatch = await event($, 'dispatch', { reservationId: reserve.state.reservationId }, owner, ownerSession);
-        if (!dispatch || dispatch.action !== 'dispatch' || owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
-        warmPending = true;
-        try { await $.prompt.submit({ text: 'VESTA_CACHE_KEEPALIVE' }); }
-        catch {
-          if (owner === watcher && ownerSession === sessionId) warmPending = false;
-          await event($, 'submit-failed', {}, owner, ownerSession);
-        }
-      });
+let watcher;
+let sessionId = '';
+let timer;
+let config;
+let configPath = '';
+let signature = '';
+let configError = '';
+let errorAt = 0;
+let nativeEnabled = true;
+let lastAction = 'start';
+let resetReason = 'start';
+let nextReset = '';
+let warmPending;
+let nextPromptOrigin;
+let nextUserSubmittedAt;
+let polling = Promise.resolve();
+let tickBusy = false;
+const envelope = message => "The vesta plugin sent a message:\n" + message + "\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above.";
+const status = () => ({ ...watcher.state, ...config, pluginId: 'vesta@vesta-local', sessionId, storeKey: 'status:' + sessionId,
+  warmConfigured: config.warm, warmEnabled: config.warm && !config.paused && !configError && nativeEnabled,
+  warmingSuspendedReason: configError || (config.paused ? 'Vesta warming is paused.' : !nativeEnabled ? 'Native Vesta plugin is disabled.' : ''),
+  minimumRuntimeVersion: '0.2.6', lastAction, resetReason });
+const persist = async ($, target = watcher, id = sessionId) => {
+  if (target !== watcher || id !== sessionId) return;
+  await $.store.set('status:' + id, status());
+};
+const event = async ($, type, extra = {}, target = watcher, id = sessionId) => {
+  if (!target) return;
+  const at = await $.clock.now();
+  if (target !== watcher || id !== sessionId) return;
+  const result = target.event({ type, at, ...extra }); lastAction = result.action;
+  await persist($, target, id); return result;
+};
+const readControls = ($, target = watcher, id = sessionId) => {
+  const read = async () => {
+    if (!target || target !== watcher || id !== sessionId || target.state.ended) return false;
+    try {
+      if (!configPath) {
+        const directory = await $.env.get('CLAUDE_CONFIG_DIR');
+        const home = directory ? '' : await $.env.get('HOME');
+        if (target !== watcher || id !== sessionId) return false;
+        if (!directory && !home) throw new Error('Missing configuration directory');
+        configPath = (directory || home + '/.claude').replace(/\/$/, '') + '/settings.json';
+      }
+      const document = JSON.parse(await $.fs.read(configPath));
+      if (target !== watcher || id !== sessionId || target.state.ended) return false;
+      if (!document || typeof document !== 'object' || Array.isArray(document)) throw new Error('Invalid settings');
+      const raw = document.pluginConfigs?.['vesta@vesta-local']?.options;
+      const next = controlConfig('claude', raw === undefined ? {} : raw, true);
+      const enabled = document.enabledPlugins?.['vesta@vesta-local'] !== false;
+      const nextSignature = JSON.stringify([next, enabled]);
+      if (nextSignature !== signature || configError) {
+        const changed = signature !== '';
+        const changedAt = Math.max(next.controlChangedAt, errorAt);
+        config = next; nativeEnabled = enabled; signature = nextSignature; configError = '';
+        if (changed) resetReason = 'controls';
+        await event($, 'control', { config: next, enabled: next.warm && !next.paused && enabled, changedAt }, target, id);
+      }
+      return target === watcher && id === sessionId && !configError;
+    } catch {
+      if (target !== watcher || id !== sessionId) return false;
+      if (!configError) {
+        errorAt = await $.clock.now();
+        if (target !== watcher || id !== sessionId) return false;
+        configError = 'Vesta configuration unavailable or invalid; restore readable settings.json, then submit a fresh prompt and reply.';
+        resetReason = 'configuration-error';
+        await event($, 'control', { enabled: false, changedAt: errorAt }, target, id);
+      }
+      return false;
     }
   };
+  const result = polling.then(read, read); polling = result.then(() => undefined, () => undefined); return result;
+};
+const ensure = async $ => {
+  const id = await $.session.id();
+  if (!watcher || id !== sessionId || watcher.state.ended) {
+    const previous = watcher; const previousId = sessionId;
+    const old = await $.store.get('status:' + id);
+    if (await $.session.id() !== id || previous !== watcher || previousId !== sessionId) return;
+    timer?.cancel(); sessionId = id;
+    config = controlConfig('claude', configuredOptions, true);
+    watcher = new Watcher('claude', config); signature = ''; configError = ''; errorAt = 0; configPath = '';
+    resetReason = nextReset || (old ? 'reload' : 'start'); nextReset = ''; warmPending = undefined; nextPromptOrigin = undefined; nextUserSubmittedAt = undefined;
+    const owner = watcher; const ownerSession = sessionId;
+    await readControls($, owner, ownerSession);
+    if (owner !== watcher || ownerSession !== sessionId) return;
+    await persist($, owner, ownerSession);
+    timer = $.clock.every(1000, async () => {
+      if (tickBusy || owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
+      tickBusy = true;
+      try {
+        if (!await readControls($, owner, ownerSession) || owner !== watcher || ownerSession !== sessionId) return;
+        if (await $.session.id() !== ownerSession || owner !== watcher || ownerSession !== sessionId) return;
+        const reserve = await event($, 'tick', {}, owner, ownerSession);
+        if (!reserve || reserve.action !== 'reserve' || !config.warm || config.paused || !nativeEnabled) return;
+        const revision = signature; const message = config.message;
+        await $.clock.sleep(0);
+        if (!await readControls($, owner, ownerSession) || revision !== signature || owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
+        const dispatch = await event($, 'dispatch', { reservationId: reserve.state.reservationId }, owner, ownerSession);
+        if (!dispatch || dispatch.action !== 'dispatch' || owner !== watcher || ownerSession !== sessionId || owner.state.ended || revision !== signature) return;
+        // Keep the exact old payload until native turn.start attributes it, even
+        // if a later control change invalidates future warming eligibility.
+        warmPending = message;
+        try { await $.prompt.submit({ text: message }); }
+        catch { if (owner === watcher && ownerSession === sessionId) warmPending = undefined; await event($, 'submit-failed', {}, owner, ownerSession); }
+      } finally { tickBusy = false; }
+    });
+  } else await readControls($);
+};
 export function register(on, options) {
-  if (watcher) {
-    timer?.cancel(); watcher = undefined; sessionId = ''; nextReset = 'reload'; warmPending = false; nextPromptOrigin = undefined;
-  }
+  if (watcher) { timer?.cancel(); watcher = undefined; sessionId = ''; nextReset = 'reload'; warmPending = undefined; nextPromptOrigin = undefined; }
   configuredOptions = options;
-  on('session.start', async ($, e, next) => {
-    await ensure($); await $.command.register({ name: 'vesta-status', description: 'Show this session’s Vesta metadata without a model request' });
-    return next(e);
-  });
+  on('session.start', async ($, e, next) => { await ensure($); await $.command.register({ name: 'vesta-status', description: 'Show this session’s Vesta metadata without a model request' }); return next(e); });
   on('command.run', async ($, e, next) => {
     await ensure($);
     if (['composer', 'bridge'].includes(e.origin.kind)) await event($, 'activity', { source: 'user' });
     if (e.command === 'vesta-status') return { text: 'VESTA_STATUS ' + JSON.stringify(status()) };
     if (['clear', 'resume', 'branch'].includes(e.command)) nextReset = e.command;
-    if (e.command === 'reload-plugins') {
-      nextReset = 'reload'; timer?.cancel(); await event($, 'exit');
-    }
+    if (e.command === 'reload-plugins') { nextReset = 'reload'; timer?.cancel(); await event($, 'exit'); }
     return next(e);
   });
   on('prompt.edit', async ($, e, next) => { await ensure($); await event($, 'activity', { source: 'user' }); return next(e); });
   on('prompt.submit', async ($, e, next) => {
-    await ensure($);
+    const submittedAt = await $.clock.now(); await ensure($);
     nextPromptOrigin = e.origin;
-    if (['composer', 'bridge'].includes(e.origin.kind)) await event($, 'activity', { source: 'user' });
+    if (['composer', 'bridge'].includes(e.origin.kind)) { nextUserSubmittedAt = submittedAt; await event($, 'activity', { source: 'user' }); }
     return next(e);
   });
   on('turn.start', async ($, e, next) => {
     await ensure($);
-    // Native $.prompt.submit skips the submitting plugin's own middleware.
-    // Require our outstanding submission and the exact native envelope; an
-    // observed composer/bridge origin can never become our warm turn.
-    const source = warmPending && e.text === warmEnvelope && (!nextPromptOrigin || (nextPromptOrigin.kind === 'plugin' && nextPromptOrigin.name === 'vesta')) ? 'warm' : 'other';
-    nextPromptOrigin = undefined; if (source === 'warm') warmPending = false;
-    await event($, 'turn-start', { sessionId, turnId: e.turnId, source });
-    return next(e);
+    const own = warmPending !== undefined && e.text === envelope(warmPending) && (!nextPromptOrigin || nextPromptOrigin.kind === 'plugin' && nextPromptOrigin.name === 'vesta');
+    const source = own ? 'warm' : nextPromptOrigin && ['composer', 'bridge'].includes(nextPromptOrigin.kind) ? 'user' : 'other';
+    const submittedAt = nextUserSubmittedAt; nextPromptOrigin = undefined; nextUserSubmittedAt = undefined; if (own) warmPending = undefined;
+    await event($, 'turn-start', { sessionId, turnId: e.turnId, source, submittedAt }); return next(e);
   });
   on('turn.complete', async ($, e, next) => {
-    const result = await next(e);
-    await ensure($); await event($, 'turn-complete', { sessionId, turnId: e.turnId, raw: e.reason === 'answer' ? await $.session.usage() : null });
-    return result;
+    const result = await next(e); await ensure($);
+    await event($, 'turn-complete', { sessionId, turnId: e.turnId, raw: e.reason === 'answer' ? await $.session.usage() : null }); return result;
   });
   on('session.compact', async ($, e, next) => { await event($, 'compact'); return next(e); });
   on('session.attach', async ($, e, next) => { await event($, 'reconnect'); return next(e); });
   on('session.detach', async ($, e, next) => { await event($, 'reconnect'); return next(e); });
   on('session.end', async ($, e, next) => {
-    timer?.cancel(); warmPending = false; nextPromptOrigin = undefined; await event($, 'exit');
-    if (['clear', 'resume'].includes(e.reason)) nextReset ||= e.reason;
-    return next(e);
+    timer?.cancel(); warmPending = undefined; nextPromptOrigin = undefined; nextUserSubmittedAt = undefined; await event($, 'exit');
+    if (['clear', 'resume'].includes(e.reason)) nextReset ||= e.reason; return next(e);
   });
 }

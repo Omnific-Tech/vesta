@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codexHookReadiness, codexPluginId } from './codex-native-ipc.ts';
+import { controlConfig } from './watcher-policy.ts';
 const split = process.argv.indexOf('--');
 const options = process.argv.slice(2, split); const argv = process.argv.slice(split + 1);
 const native = options[options.indexOf('--native') + 1]!;
@@ -25,6 +26,7 @@ let probe: string[] = [];
 try {
   if (!supported) passthrough();
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  controlConfig('codex', config);
   if (config.warm !== true || !isAbsolute(config.statusDir) || ![config.idleMs, config.budgetMs].every(value => Number.isSafeInteger(value) && value > 0 && value <= 14400000)) passthrough();
   const statePath = join(dirname(configPath), '.vesta-setup-codex.json');
   if (!existsSync(statePath)) passthrough();
