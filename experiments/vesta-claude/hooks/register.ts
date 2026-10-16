@@ -135,7 +135,10 @@ const ensure = async $ => {
         warmPending = message;
         await persist($, owner, ownerSession);
         if (!await readControls($, owner, ownerSession) || revision !== signature || owner !== watcher || ownerSession !== sessionId || owner.state.ended
-            || owner.state.busy || owner.state.generation !== dispatch.state.generation || owner.state.userAt !== dispatch.state.userAt) { warmPending = undefined; await persist($, owner, ownerSession); return; }
+            || owner.state.busy || owner.state.generation !== dispatch.state.generation || owner.state.userAt !== dispatch.state.userAt) {
+          if (owner === watcher && ownerSession === sessionId) { warmPending = undefined; await persist($, owner, ownerSession); }
+          return;
+        }
         try { await $.prompt.submit({ text: message }); }
         catch { if (owner === watcher && ownerSession === sessionId) warmPending = undefined; await event($, 'submit-failed', {}, owner, ownerSession); }
       } finally { tickBusy = false; }
