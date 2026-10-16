@@ -3,11 +3,10 @@
 // explicitly supplemental and never stand in for either provider's model turns.
 // Startup failure: Codex renders a loading composer before a delayed update
 // dialog. Blind Enter can execute Update now instead of submitting the prompt.
-// Require loaded model/composer evidence and dismiss only the observed update
-// dialog with Escape; unknown dialogs must never receive automated Enter.
-// Some native key modes do not act on bare Escape. In the exact update menu,
-// select and verify the nonpersistent `2. Skip` entry before sending Enter;
-// never send Enter while `1. Update now` is the observed selection.
+// The fixture centrally manages its pinned native binary and disables native
+// automatic update checks in disposable config, verified through config/read.
+// This is fixture setup, not Vesta behavior. Loaded composer evidence is still
+// required; unexpected update/other dialogs never receive automated Enter.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -117,8 +116,7 @@ async function bind(owner: Owner) {
   await wait(() => snapshot(owner), 'native passive status available');
 }
 async function codexComposer(owner: Owner) {
-  const file = join(artifacts, owner.terminalFile); let dismissed = -1; let skipSelected = false;
-  let skipOffset = -1;
+  const file = join(artifacts, owner.terminalFile);
   const ready = () => {
     if (!existsSync(file)) return;
     const raw = readFileSync(file, 'utf8'); const plain = stripVTControlCharacters(raw);
@@ -126,22 +124,10 @@ async function codexComposer(owner: Owner) {
     const composer = plain.lastIndexOf('Ask Codex to do anything');
     const footers = [...plain.matchAll(/\bGPT-[A-Za-z0-9.-]+\s+(?:default|low|medium|high|xhigh|max|ultra)\s*·/gi)];
     const footer = footers.at(-1)?.index ?? -1;
-    if (modal > composer && !skipSelected) {
-      const menu = plain.slice(modal);
-      assert.ok(menu.includes('Update now') && /esc\s*skip/i.test(menu), 'only exact observed native update menu may be dismissed');
-      if (skipOffset < 0) { skipOffset = raw.length; owner.terminal.write('\x1b[B'); return; }
-      const fresh = stripVTControlCharacters(raw.slice(skipOffset));
-      // Only the actual freshly rendered safe selection authorizes Enter.
-      if (!/›\s*2\.\s*Skip(?:\s|$)/.test(fresh)) return;
-      assert.ok(!/›\s*1\.\s*Update now/.test(fresh.slice(fresh.lastIndexOf('›'))), 'Update now remains forbidden');
-      skipSelected = true; dismissed = modal;
-      observations.push({ name: 'codex-update-dismissed', ownerIndex: owner.index, terminalFile: owner.terminalFile, at: Date.now(), rawOffset: raw.length, selectionOffset: skipOffset, action: 'verified-2-Skip' });
-      owner.terminal.write('\r');
-      return;
-    }
+    assert.ok(modal < 0 || modal < composer, 'unexpected native update dialog blocks automated submission');
     // A model footer is rendered after initialization; the loading placeholder
     // alone is not evidence that Enter belongs to the real native composer.
-    if (composer < 0 || footer < 0 || modal > composer || footer < dismissed) return;
+    if (composer < 0 || footer < 0) return;
     const tail = plain.slice(Math.max(composer, footer));
     assert.ok(!/Update now|Keep current model|\b(?:1|2)\.\s*(?:Allow|Approve)|enter\s*(?:confirm|continue)/i.test(tail), 'unknown native modal blocks automated submission');
     return raw.length;
@@ -153,12 +139,7 @@ async function type(owner: Owner, text: string, model = true) {
   if (owner.provider === 'codex') await codexComposer(owner);
   const paste = () => owner.terminal.write('\x15\x1b[200~' + text + '\x1b[201~');
   paste(); await sleep(300);
-  if (owner.provider === 'codex') {
-    const before = observations.filter(row => row.name === 'codex-update-dismissed' && row.ownerIndex === owner.index).length;
-    await codexComposer(owner);
-    const after = observations.filter(row => row.name === 'codex-update-dismissed' && row.ownerIndex === owner.index).length;
-    if (after > before) { paste(); await sleep(300); await codexComposer(owner); }
-  }
+  if (owner.provider === 'codex') await codexComposer(owner);
   owner.terminal.write('\r');
 }
 async function capture(owner: Owner, phase: string, predicate: (value: any) => boolean = () => true) {
@@ -189,7 +170,10 @@ async function trustCodex() {
 try {
   writeFileSync(join(claude, '.claude.json'), JSON.stringify({ hasCompletedOnboarding: true, theme: 'dark', projects: { [fixture]: { hasTrustDialogAccepted: true } } }));
   const model = readFileSync(join(homedir(), '.codex/config.toml'), 'utf8').match(/^model\s*=\s*"[^"\n]+"/m)?.[0] ?? '';
-  writeFileSync(join(codex, 'config.toml'), model + '\n[notice]\nhide_rate_limit_model_nudge = true\n[features]\nhooks = true\nplugins = true\n[projects.' + JSON.stringify(fixture) + ']\ntrust_level = "trusted"\n');
+  writeFileSync(join(codex, 'config.toml'), model + '\ncheck_for_update_on_startup = false\n[notice]\nhide_rate_limit_model_nudge = true\n[features]\nhooks = true\nplugins = true\n[projects.' + JSON.stringify(fixture) + ']\ntrust_level = "trusted"\n');
+  const nativeConfig = await nativeRequest(nativeCodex, 'config/read', { includeLayers: false }, undefined, { env });
+  writeFileSync(join(artifacts, 'native-config-read.json'), JSON.stringify(nativeConfig, null, 2));
+  assert.equal(nativeConfig.config.check_for_update_on_startup, false, 'native effective disposable configuration disables automatic updates');
   symlinkSync(join(homedir(), '.codex/auth.json'), join(codex, 'auth.json'));
   const rule = `When a Vesta cache keepalive message has the exact body ${controlMessage} (including inside the native Claude plugin-message envelope), reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.\n`;
   writeFileSync(join(claude, 'CLAUDE.md'), rule); writeFileSync(join(codex, 'AGENTS.md'), rule); writeFileSync(join(artifacts, 'fixture-reply-rule.txt'), rule);
