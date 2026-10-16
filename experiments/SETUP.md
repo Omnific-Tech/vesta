@@ -1,6 +1,6 @@
 # One-time native CLI setup
 
-Unreleased source 0.2.6 adds persistent `vesta pause|resume|reset` and live
+Version 0.2.6 adds persistent `vesta pause|resume|reset` and live
 `vesta config [--idle-ms N] [--budget-ms N] [--threshold N] [--message TEXT]`.
 Select `--provider claude|codex|all` (`both` remains a compatibility alias), or omit it for owned
 integrations only. Controls use recorded paths and preserve opt-in and unknown
@@ -14,14 +14,15 @@ native commit; host/I/O delays can delay observation, and already committed mess
 upgrading. See [Claude controls](../docs/claude.md) and
 [Codex controls](../docs/codex.md), including the custom-text reply rule.
 
-Version 0.2.5 Codex warming uses native local ownership, registered hooks and
-the native durable queue. Claude is unchanged. Upgrades from v0.2.1 replace its
+Version 0.2.6 Codex warming uses native local ownership, registered hooks and
+the native durable queue. Upgrades from v0.2.1 replace its
 previous remote wrapper. Existing source integrations preserve native pass-through
 until installed native hooks are registered and reviewed. Exit an older wrapped
-session and relaunch from a new terminal after setup. See the
-[v0.2.5 release notes](../docs/releases/v0.2.5.md) for upgrade instructions.
+session, run `source ~/.zshrc` in your existing terminal (or open a new terminal),
+and relaunch after setup. See the
+[v0.2.6 release notes](../docs/releases/v0.2.6.md) for upgrade instructions.
 
-The v0.2.5 CLI also accepts `setup` as an alias for `install`. To restore
+The CLI also accepts `setup` as an alias for `install`. To restore
 an existing integration, run `vesta repair`, or use
 `repair --warm` to opt selected owned providers into warming. Plain repair keeps
 each provider's saved warm setting, custom timers and unrelated preferences.
@@ -41,8 +42,8 @@ Existing sessions keep their current runtime until you exit and relaunch them.
 An unchanged-version update repairs missing owned registrations or shell blocks
 using the installed immutable manager; healthy integrations remain unchanged even
 when native hook trust is pending. Older v0.2.1 installations need `vesta update`
-or a fresh v0.2.5 download and `install` before these commands and the native owner
-are available. For v0.2.0, download and install v0.2.5 to replace its older updater.
+or a fresh v0.2.6 download and `install` before these commands and the native owner
+are available. For v0.2.0, download and install v0.2.6 to replace its older updater.
 
 Use the standalone macOS arm64 release, existing subscription logins, and installed
 native Claude/Codex executables. Vesta embeds pinned Node 22.17.1 and native PTY
@@ -163,8 +164,9 @@ Uninstall removes owned native plugin/marketplace entries and the exact owned zs
 block. It preserves unrelated configuration and later shell edits. An edited
 managed block produces an ownership conflict instead of silently removing it.
 Externally edited Codex configuration is retained. Native hook trust preferences
-and immutable Vesta Codex assets remain for running owners. Open a new terminal after
-uninstall; an already sourced shell function falls back to the native command.
+and immutable Vesta Codex assets remain for running owners. An already sourced
+shell function falls back to the native command after uninstall; opening a new
+terminal also removes that function from the shell.
 Removing all providers removes the CLI link and current activation. Removing
 one selected provider retains other integrations and their activation.
 Immutable version assets and

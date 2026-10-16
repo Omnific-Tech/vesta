@@ -9,12 +9,13 @@ APIs. It has no separate daemon that reopens conversations.
 ## Setup and configuration
 
 Add the [global reply rule](../README.md#1-add-the-reply-rule), then install with
-`vesta install --provider claude --warm` using a build containing this checkout.
+`vesta install --provider claude --warm` from the
+[v0.2.6 release](releases/v0.2.6.md).
 Restart Claude Code and use ordinary `claude` commands. The global instruction
 file is `~/.claude/CLAUDE.md`, or the corresponding file under `CLAUDE_CONFIG_DIR`.
 Vesta never edits that file for you.
 
-The following live controls belong to **unreleased source version 0.2.6**.
+The following live controls are available in **version 0.2.6**.
 Restart older sessions once after upgrading; running v0.2.5 owners cannot read
 these controls.
 

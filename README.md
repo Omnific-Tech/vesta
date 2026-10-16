@@ -7,16 +7,16 @@ timer expires. Continue using ordinary `claude` and `codex` commands after setup
 Cache retention and net usage savings are **unverified**. Each keepalive is a
 real model turn and consumes usage.
 
-**Unreleased source 0.2.6:** persistent `vesta pause|resume` and live
+**Version 0.2.6:** persistent `vesta pause|resume` and live
 `vesta config --idle-ms N --budget-ms N --threshold N --message TEXT` apply to
 all selected owned sessions (`--provider claude|codex|all`; `both` remains a
 compatibility alias). `vesta reset --provider all` restores default intervals,
 budget, threshold and message, and unpauses, preserving saved warm opt-in and
 installation. Changed controls require a fresh real prompt/reply. Restart older
 runtimes once after upgrading. See the [Claude](docs/claude.md) and
-[Codex](docs/codex.md) guides. Download instructions below remain published v0.2.5.
+[Codex](docs/codex.md) guides and [v0.2.6 release notes](docs/releases/v0.2.6.md).
 
-**Version 0.2.5:** Codex warming uses a native local owner and registered
+**Since version 0.2.5:** Codex warming uses a native local owner and registered
 lifecycle hooks. Install with `--warm`, then review and trust only Vesta's entries
 in native `/hooks`. Until those hooks are ready, ordinary `codex` calls remain
 native and saved warming preferences stay inactive. Existing source installs need
@@ -28,9 +28,9 @@ without renewing that clock. Typing and navigation still suspend warming to
 protect drafts, but do not renew the submission clock. Each completed response
 also starts a fresh idle interval.
 
-Upgrading from v0.2.1 replaces its earlier Codex wrapper. Version 0.2.5 supports
+Upgrading from v0.2.1 replaces its earlier Codex wrapper. Version 0.2.5 introduced
 CLI resume and `/resume` with a fresh completed reply before warming. See the
-[release notes](docs/releases/v0.2.5.md) for changes and upgrade steps.
+[v0.2.5 release notes](docs/releases/v0.2.5.md) for those earlier changes.
 
 ## Requirements
 
@@ -67,8 +67,8 @@ adds a native plugin-message envelope around the marker.
 Run these commands in a directory where you can save the download:
 
 ```sh
-curl -fL https://github.com/Omnific-Tech/vesta/releases/download/v0.2.5/vesta-darwin-arm64 -o vesta-darwin-arm64
-curl -fL https://github.com/Omnific-Tech/vesta/releases/download/v0.2.5/SHA256SUMS -o SHA256SUMS
+curl -fL https://github.com/Omnific-Tech/vesta/releases/download/v0.2.6/vesta-darwin-arm64 -o vesta-darwin-arm64
+curl -fL https://github.com/Omnific-Tech/vesta/releases/download/v0.2.6/SHA256SUMS -o SHA256SUMS
 grep '  vesta-darwin-arm64$' SHA256SUMS | shasum -a 256 -c -
 ```
 
@@ -88,14 +88,15 @@ privileges.
 Installation discovers the available providers. Use `--provider claude` or
 `--provider codex` to select one explicitly. Omit `--warm` to install without
 enabling warming on a new installation; refreshes preserve existing preferences.
-In version 0.2.5, `--warm` enables Claude warming and registers Codex's native
+In version 0.2.6, `--warm` enables Claude warming and registers Codex's native
 hooks. Codex warming becomes ready after native hook trust review. Source setup:
 
 ```sh
 node --experimental-strip-types experiments/setup.ts install --provider codex --warm
 ```
 
-Open a new terminal and start new Claude/Codex sessions after installation.
+Run `source ~/.zshrc` in your existing terminal to load the managed Codex function,
+or open a new terminal. Start new Claude/Codex sessions after installation.
 Put `~/.local/bin` on your PATH to use `vesta` directly:
 
 ```sh
@@ -114,6 +115,10 @@ Add that line to your shell configuration if the directory is not already on PAT
 | `vesta repair --warm` | Restore owned integrations and opt selected providers into warming |
 | `vesta status` | Inspect installation and provider setup |
 | `vesta update` | Download the latest stable release and refresh owned integrations |
+| `vesta pause [--provider all]` | Persistently pause selected owned integrations |
+| `vesta resume [--provider all]` | Unpause while preserving saved warming opt-in |
+| `vesta config [--provider all]` | Inspect controls; add value flags to change them live |
+| `vesta reset [--provider all]` | Restore provider defaults and unpause, preserving opt-in |
 | `vesta uninstall` | Remove managed integrations and the CLI link |
 | `vesta --version` | Print the CLI version |
 
@@ -123,9 +128,16 @@ Vesta preserves unrelated configuration and keeps version assets needed by
 running sessions. Restart Claude and start a new Codex session after updates;
 existing sessions keep their current runtime.
 
-Upgrading from v0.2.1: run `vesta update`, or download v0.2.5 above and run
-`install` again. Review Vesta's Codex entries in native `/hooks`, exit older
-wrapped sessions, and relaunch from a new terminal. Upgrading from v0.2.0 requires
+Reset rejects malformed or invalid existing control settings before writing any
+selected provider. For custom message text, `vesta config` prints the matching
+K-only reply rule. Send it as a normal prompt to current sessions and add it to
+the applicable global instruction file for future sessions before warming.
+
+Upgrading from v0.2.1 or later: run `vesta update`, or download v0.2.6 above and run
+`install` again. Reload your shell with `source ~/.zshrc` (or open a new terminal),
+review Vesta's Codex entries in native `/hooks` if prompted, and restart older
+Claude/Codex sessions once. Send a fresh normal prompt and wait for a qualifying
+reply; setup readiness alone does not prove live attachment. Upgrading from v0.2.0 requires
 the download-and-install route to replace its GitHub CLI based updater.
 Existing warming settings are preserved unless you explicitly enable them with
 `--warm`. Older immutable version assets remain available for running sessions.

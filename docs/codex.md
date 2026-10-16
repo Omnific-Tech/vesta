@@ -2,15 +2,14 @@
 
 [All provider guides](README.md) · [Install Vesta](../README.md#install)
 
-In version 0.2.5, an owned zsh `codex` function loads Vesta's recorded
+In version 0.2.6, an owned zsh `codex` function loads Vesta's recorded
 native executable. When warming is opted in and its six native hooks are ready,
 it starts the native TUI with the original arguments plus `--no-daemon`. The
 session has a local physical owner rather than a shared-daemon attachment.
 Vesta uses a PTY to relay terminal traffic and observe input; keepalives enter
 the native durable queue, never as marker keystrokes.
 
-**Unreleased source version 0.2.6** adds live controls. Published v0.2.5 links
-still refer to that released version. Restart each older session once after
+**Version 0.2.6** adds live controls. Restart each older session once after
 upgrading; running v0.2.5 owners cannot read new controls.
 
 ```sh
@@ -55,14 +54,15 @@ instructions to a keepalive payload.
 1. Add the [global reply rule](../README.md#1-add-the-reply-rule) to
    `~/.codex/AGENTS.md`, or the applicable instruction file under `CODEX_HOME`.
    Account for `AGENTS.override.md` if your session loads it instead.
-2. From the [v0.2.5 release](releases/v0.2.5.md), run
+2. From the [v0.2.6 release](releases/v0.2.6.md), run
    `vesta install --provider codex --warm`. A source checkout can use
    `node --experimental-strip-types experiments/setup.ts install --provider codex --warm`.
 3. Review and trust only Vesta's entries in native `/hooks`. The required hooks
    are `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`, `Interrupt` and
    `PostCompact`; all must be enabled, trusted and match the owned registration.
-4. Exit the session used for trust review. Open a new terminal to load the shell
-   function, then start a new supported Codex session and submit a normal prompt.
+4. Exit the session used for trust review. Run `source ~/.zshrc` in your existing
+   terminal to load the shell function, or open a new terminal. Start a new
+   supported Codex session and submit a normal prompt.
    Hook approval does not retrofit a process that already started without the owner.
 
 Warming is off by default. Its saved configuration lives in
@@ -160,7 +160,7 @@ activity policy.
 
 Check `vesta status`, native `/hooks` trust, and the launch form first. An old
 session can remain native pass-through even after setup reports ready. Exit it,
-open a new terminal, relaunch and complete a normal prompt. The reply must meet
+run `source ~/.zshrc` (or open a new terminal), relaunch and complete a normal prompt. The reply must meet
 the threshold, and there must be no draft or competing managed owner. Waiting
 longer cannot repair missing attachment or stale measurements.
 
