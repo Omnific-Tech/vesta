@@ -10,6 +10,11 @@
 // - control changes invent activity, renew budget, lose ownership or attribution;
 // - threshold equality dispatches; custom text differs from native queued body;
 // - repair/update lose preferences; rollback erases unrelated native settings;
+// - missing live files silently fall back to captured warming options;
+// - a yielded Claude reservation ignores a real CLI pause/config write;
+// - an OS failure writing the second selected configuration leaves first edited;
+// - integrity assertion diffs leak private profile values, or absent counters
+//   become present despite a permitted non-Vesta native usage-counter update;
 // - a synthetic model response, authored success flag, mutable source checkout or
 //   unclean personal/native profile is presented as real native evidence.
 import assert from 'node:assert/strict';
@@ -24,6 +29,35 @@ export const controlMessage = 'VESTA_CUSTOM_CONTROL_🪔';
 export const controlFields = ['paused', 'controlRevision', 'idleMs', 'budgetMs', 'threshold', 'message'] as const;
 export const digest = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
 export const codexControlSnapshot = (value: any) => ({ ...value.state, ...Object.fromEntries(controlFields.map(key => [key, value[key] ?? value.state?.[key]])), warmingSuspendedReason: value.warmingSuspendedReason, lastAction: value.lastAction, ownerId: value.ownerId });
+const sha = (bytes: string | Buffer) => createHash('sha256').update(bytes).digest('hex');
+function canonical(value: any): string {
+  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
+  if (value !== null && typeof value === 'object') return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}';
+  return JSON.stringify(value);
+}
+export function controlProfileSnapshot(bytes: Buffer) {
+  let profile: any; try { profile = JSON.parse(bytes.toString('utf8')); } catch { throw new Error('Personal profile is invalid JSON (values redacted)'); }
+  assert.ok(profile && typeof profile === 'object' && !Array.isArray(profile), 'personal profile must be an object');
+  const { pluginUsage, ...stable } = profile; const pluginUsagePresent = Object.hasOwn(profile, 'pluginUsage');
+  if (pluginUsagePresent) assert.ok(pluginUsage && typeof pluginUsage === 'object' && !Array.isArray(pluginUsage), 'plugin usage must be an object');
+  return { sha256: sha(bytes), stableSha256: sha(canonical(stable)), pluginUsagePresent,
+    plugins: Object.entries(pluginUsagePresent ? pluginUsage : {}).map(([id, value]: [string, any]) => {
+      assert.ok(value && typeof value === 'object' && !Array.isArray(value), 'plugin usage entry must be an object');
+      const { usageCount, lastUsedAt, ...stable } = value;
+      return { idSha256: sha(id), sha256: sha(canonical(value)), stableSha256: sha(canonical(stable)), isVesta: /^vesta(?:@|$)/i.test(id),
+        usageCountPresent: Object.hasOwn(value, 'usageCount'), lastUsedAtPresent: Object.hasOwn(value, 'lastUsedAt') };
+    }).sort((a, b) => a.idSha256.localeCompare(b.idSha256)) };
+}
+export function verifyControlProfile(before: ReturnType<typeof controlProfileSnapshot>, after: ReturnType<typeof controlProfileSnapshot>) {
+  // Every assertion compares hashes/booleans only; no private JSON/IDs/values.
+  assert.equal(after.stableSha256, before.stableSha256, 'personal stable profile hash changed');
+  assert.equal(after.pluginUsagePresent, before.pluginUsagePresent, 'personal plugin usage presence changed');
+  assert.deepEqual(after.plugins.map(row => row.idSha256), before.plugins.map(row => row.idSha256), 'personal hashed plugin identity set changed');
+  before.plugins.forEach((a, i) => {
+    const b = after.plugins[i]!; assert.equal(b.isVesta, a.isVesta); assert.equal(b.usageCountPresent, a.usageCountPresent); assert.equal(b.lastUsedAtPresent, a.lastUsedAtPresent);
+    assert.equal(b.stableSha256, a.stableSha256, 'personal plugin stable hash changed'); if (a.isVesta) assert.equal(b.sha256, a.sha256, 'personal Vesta hash changed');
+  });
+}
 export function integration(value: any, provider: string) {
   const row = value.integrations?.find((row: any) => row.provider === provider);
   assert.ok(row, 'selected integration returned: ' + provider);
@@ -47,16 +81,26 @@ export function verifyControls(directory: string) {
     readFileSync(join(directory, command.stdoutFile)); readFileSync(join(directory, command.stderrFile));
   }
   assert.equal(digest(e.binary), e.binarySha256, 'exact compiled candidate');
-  for (const file of e.personal) assert.equal(file.after, file.before, 'personal file unchanged: ' + file.path);
+  for (const file of e.personal) if (file.path !== e.profileIntegrity?.path) assert.equal(file.after, file.before, 'personal file unchanged: ' + file.path);
   for (const file of e.sourceFiles) assert.equal(digest(file.path), file.sha256, 'contract and source identity');
   if (e.kind === 'compiled-controls') {
-    for (const name of ['defaults', 'validation', 'selection', 'idempotence', 'revision-burst', 'custom-rule', 'preservation', 'unowned', 'preflight', 'lock', 'repair', 'update', 'compensation', 'source-owned']) {
+    for (const name of ['defaults', 'validation', 'selection', 'idempotence', 'revision-burst', 'custom-rule', 'preservation', 'unowned', 'preflight', 'lock', 'os-write-failure', 'repair', 'update', 'compensation', 'source-owned']) {
       const c = e.cases.find((row: any) => row.name === name); assert.ok(c, 'executed CLI case: ' + name);
       assert.ok(c.commandIndexes.length > 0); for (const index of c.commandIndexes) assert.ok(e.commands[index]);
     }
+    const before = JSON.parse(readFileSync(join(directory, 'os-write-before.json'), 'utf8'));
+    const after = JSON.parse(readFileSync(join(directory, 'os-write-after.json'), 'utf8'));
+    const observation = JSON.parse(readFileSync(join(directory, 'os-write-observation.json'), 'utf8'));
+    assert.ok(['EACCES', 'EPERM', 'EROFS'].includes(observation.observedErrno)); assert.equal(observation.secondParentMode, 0o555);
+    assert.deepEqual(after.map((row: any) => row.bytes), before.map((row: any) => row.bytes), 'controlled OS failure leaves exact pre-command selected bytes');
+    assert.deepEqual(observation.replacementsObserved, after.filter((row: any, i: number) => row.inode !== before[i].inode || row.mtimeMs !== before[i].mtimeMs).map((row: any) => row.path));
     return;
   }
   assert.equal(e.kind, 'native-controls');
+  const personalProfile = e.personal.find((row: any) => row.path === e.profileIntegrity.path); assert.ok(personalProfile);
+  assert.equal(e.profileIntegrity.before.sha256, personalProfile.before);
+  assert.equal(e.profileIntegrity.after.sha256, personalProfile.after);
+  verifyControlProfile(e.profileIntegrity.before, e.profileIntegrity.after);
   const rawRows = (file: string) => readFileSync(join(directory, file), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
   for (const provider of ['claude', 'codex']) {
     const owners = e.owners.filter((owner: any) => owner.provider === provider);
@@ -75,6 +119,7 @@ export function verifyControls(directory: string) {
       }
       const resumed = snapshots.findLast((s: any) => s.phase === 'resumed');
       const configured = snapshots.find((s: any) => s.phase === 'configured');
+      assert.ok(configured.at >= resumed.at, 'configuration clock comparison follows latest intentional activity');
       assert.equal(paused.value.paused, true); assert.equal(resumed.value.paused, false);
       assert.ok(resumed.value.controlRevision > paused.value.controlRevision);
       assert.equal(resumed.value.tokens, null); assert.equal(configured.value.tokens, null);
@@ -120,13 +165,33 @@ export function verifyControls(directory: string) {
     const snapshots = rawRows(owner.snapshotsFile); const busy = snapshots.find((row: any) => row.phase === 'busy-before').value;
     const changed = snapshots.find((row: any) => row.phase === 'busy-changed').value;
     const completed = snapshots.find((row: any) => row.phase === 'busy-after').value;
+    const immediate = snapshots.find((row: any) => row.phase === 'immediate-postwrite').value;
+    assert.ok(immediate.tokens > 0); assert.equal(immediate.busy, false);
     assert.equal(busy.busy, true); assert.equal(changed.busy, true); assert.ok(changed.controlRevision > busy.controlRevision);
     assert.equal(changed.turnId, busy.turnId); assert.equal(changed.userAt, busy.userAt);
     assert.equal(completed.busy, false); assert.equal(completed.tokens, null); assert.equal(completed.userAt, busy.userAt);
     for (const owner of e.owners.filter((row: any) => row.provider === provider)) {
       const rows = rawRows(owner.snapshotsFile); assert.ok(rows.find((row: any) => row.phase === 'malformed').value.warmingSuspendedReason);
       const recovered = rows.find((row: any) => row.phase === 'recovered').value; assert.equal(recovered.tokens, null); assert.ok(!recovered.warmingSuspendedReason);
+      assert.ok(rows.find((row: any) => row.phase === 'missing').value.warmingSuspendedReason);
+      const restored = rows.find((row: any) => row.phase === 'restored').value; assert.equal(restored.tokens, null); assert.ok(!restored.warmingSuspendedReason);
     }
+  }
+  const hostObservation = e.observations.find((row: any) => row.name === 'claude-precommit-host'); assert.ok(hostObservation); assert.equal(hostObservation.synthetic, true);
+  const hostDirectory = dirname(join(directory, hostObservation.summaryFile));
+  const host = JSON.parse(readFileSync(join(directory, hostObservation.summaryFile), 'utf8'));
+  assert.equal(host.kind, 'simulated-native-host-actual-shipped-claude-module'); assert.equal(host.binarySha256, e.binarySha256);
+  assert.equal(host.moduleSha256, e.installedFiles.find((file: any) => file.assetPath.endsWith('/vesta-claude/hooks/register.ts')).sha256);
+  const hostRows = readFileSync(join(hostDirectory, host.logFile), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
+  assert.deepEqual(host.scenarios.map((row: any) => row.operation), ['pause', 'config']);
+  for (const scenario of host.scenarios) {
+    const rows = hostRows.filter((row: any) => row.operation === scenario.operation);
+    const held = rows.findIndex((row: any) => row.kind === 'yield-held'); const changed = rows.findIndex((row: any) => row.kind === 'control-changed'); const released = rows.findIndex((row: any) => row.kind === 'yield-released');
+    assert.ok(held >= 0 && changed > held && released > changed, 'actual adapter yield brackets real compiled CLI change');
+    assert.ok(rows.slice(0, held).some((row: any) => row.kind === 'store' && row.value.pending === true));
+    assert.ok(rows.slice(released).some((row: any) => row.kind === 'store' && row.value.pending === false && row.value.tokens === null));
+    assert.equal(rows.filter((row: any) => row.kind === 'prompt-submit').length, 0);
+    assert.notEqual(readFileSync(join(hostDirectory, scenario.beforeFile), 'utf8'), readFileSync(join(hostDirectory, scenario.afterFile), 'utf8'));
   }
   for (const name of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input']) {
     const observation = e.observations.find((row: any) => row.name === name); assert.equal(observation.synthetic, true);

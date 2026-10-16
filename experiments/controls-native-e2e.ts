@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
@@ -12,7 +12,8 @@ import * as pty from 'node-pty';
 import { buildRelocated, hash, nativeBin, nodeFlags, root, sealEvidence } from '../packaging/e2e-common.ts';
 import { verifyBuildReceipt } from '../packaging/release-acceptance.ts';
 import { nativeRequest } from './codex-native-ipc.ts';
-import { controlMessage, codexControlSnapshot, integration, sameControls, verifyControls } from './controls-acceptance.ts';
+import { controlMessage, codexControlSnapshot, controlProfileSnapshot, verifyControlProfile, integration, sameControls, verifyControls } from './controls-acceptance.ts';
+import { claudeControlHostFixture } from './controls-claude-host-fixture.ts';
 
 const flag = process.argv.indexOf('--artifacts');
 const artifacts = resolve(flag < 0 ? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/controls-native', 'artifacts') : process.argv[flag + 1]!);
@@ -27,12 +28,10 @@ const personal = ['.claude/settings.json', '.claude/.credentials.json', '.claude
 const profilePath = join(homedir(), '.claude.json');
 // Claude may update native usage counters. Compare all other profile bytes in
 // canonical JSON, and disallow adding or modifying a personal Vesta entry.
-const profile = () => {
-  const value = JSON.parse(readFileSync(profilePath, 'utf8')); const usage = value.pluginUsage; delete value.pluginUsage;
-  return { stable: value, usagePresent: usage !== undefined, ids: Object.keys(usage ?? {}).sort(), vesta: Object.fromEntries(Object.entries(usage ?? {}).filter(([id]) => /^vesta(?:@|$)/i.test(id))),
-    usageStable: Object.fromEntries(Object.entries(usage ?? {}).map(([id, row]: any) => { const { usageCount, lastUsedAt, ...stable } = row; return [id, stable]; })) };
-};
-const profileBefore = profile(); const commands: any[] = []; const observations: any[] = []; const cleanup: any[] = []; const installedFiles: any[] = [];
+const profileBefore = controlProfileSnapshot(readFileSync(profilePath));
+personal.push({ path: profilePath, before: profileBefore.sha256, after: '' });
+const profileIntegrity = { path: profilePath, before: profileBefore, after: profileBefore };
+const commands: any[] = []; const observations: any[] = []; const cleanup: any[] = []; const installedFiles: any[] = [];
 type Owner = { provider: 'claude' | 'codex'; index: number; pid: number; terminal: pty.IPty; terminalFile: string; snapshotsFile: string; traceFile: string; rolloutFile: string; sessionId: string; nonce: string; exited: boolean; folder: string; statusSource?: string };
 const owners: Owner[] = []; let failure = ''; let promptCount = 0;
 const sleep = (ms: number) => new Promise(done => setTimeout(done, ms));
@@ -51,6 +50,7 @@ async function wait<T>(get: () => T | undefined | false, label: string, ms = 450
     for (const owner of owners.filter(owner => !owner.exited)) {
       const text = existsSync(join(artifacts, owner.terminalFile)) ? stripVTControlCharacters(readFileSync(join(artifacts, owner.terminalFile), 'utf8')) : '';
       assert.ok(!/not logged in|authentication (?:failed|required)|usage limit reached|rate limit exceeded|out of extra usage/i.test(text), 'native auth/quota failure; no retry/model switch');
+      assert.ok(warms(owner) <= 1, 'automatic native turns exceeded one per owner; stop immediately');
     }
     const value = get(); if (value) return value; await sleep(100);
   }
@@ -174,7 +174,7 @@ try {
   }
   // Refresh resumed snapshots after intentional real activity, before config.
   for (const owner of owners) await capture(owner, 'resumed', value => !value.paused && !value.busy);
-  command(['config', '--idle-ms', '10000', '--budget-ms', '180000', '--threshold', '0']);
+  command(['config', '--idle-ms', '30000', '--budget-ms', '180000', '--threshold', '0']);
   for (const owner of owners) await capture(owner, 'configured', value => value.threshold === 0 && value.tokens === null);
   // Malformed and absent persisted config both suspend; recovery cannot restore
   // a metric. Capture actual owner metadata, never author a success flag.
@@ -187,11 +187,14 @@ try {
       const recovered = await capture(owner, 'recovered', value => !value.warmingSuspendedReason && value.tokens === null);
       observations.push({ name: 'malformed-recovery', provider, recovered });
     }
+    const away = file + '.fixture-removed'; renameSync(file, away);
+    try { for (const owner of owners.filter(owner => owner.provider === provider)) await capture(owner, 'missing', value => !!value.warmingSuspendedReason); }
+    finally { renameSync(away, file); }
+    for (const owner of owners.filter(owner => owner.provider === provider)) await capture(owner, 'restored', value => !value.warmingSuspendedReason && value.tokens === null);
   }
-  for (const owner of owners) {
-    const since = Date.now(); await type(owner, 'Remember ' + owner.nonce + '. Reply with exactly ' + owner.nonce + '. Do not use tools.');
-    await capture(owner, 'fresh', value => !value.busy && value.tokens > 0 && value.userAt >= since);
-  }
+  const freshSince = Date.now();
+  await Promise.all(owners.map(owner => type(owner, 'Remember ' + owner.nonce + '. Reply with exactly ' + owner.nonce + '. Do not use tools.')));
+  await Promise.all(owners.map(owner => capture(owner, 'fresh', value => !value.busy && value.tokens > 0 && value.userAt >= freshSince)));
   await wait(() => owners.every(owner => warms(owner) === 1), 'one actual native custom warm per owner', 90000);
   // Disable future eligibility without fabricating activity; shortened budget
   // expires from original user submission, not this config command.
@@ -209,6 +212,8 @@ try {
     [join(env.VESTA_HOME, 'current/app/experiments/codex-native-owner.ts'), 'app/experiments/codex-native-owner.ts'],
     [join(env.VESTA_HOME, 'current/app/experiments/watcher-policy.ts'), 'app/experiments/watcher-policy.ts'],
   ]) installedFiles.push({ path: file, assetPath, sha256: hash(file!) });
+  const host = await claudeControlHostFixture({ binary: built.binary, modulePath: join(plugin.installPath, 'hooks/register.ts'), configDir: claude, env, directory: join(artifacts, 'claude-host') });
+  observations.push({ name: 'claude-precommit-host', summaryFile: 'claude-host/summary.json', synthetic: true, moduleSha256: host.moduleSha256 });
   // Supplemental exact threshold and final IPC authorization race use actual
   // embedded owner with existing synthetic-native transport and fixed209848 input.
   for (const scenario of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input'] as const) {
@@ -229,12 +234,12 @@ try {
         const until = Date.now() + 5000;
         while (!trace().some(row => row.kind === 'user-input') && Date.now() < until) await sleep(5);
         assert.ok(trace().some(row => row.kind === 'user-input'), 'actual owner received pre-change input');
-        changedAt = Date.now(); writeFileSync(configPath, JSON.stringify({ ...settings, idleMs: 801, controlRevision: 1 }));
+        changedAt = Date.now(); writeFileSync(configPath, JSON.stringify({ ...settings, idleMs: 801, controlRevision: 1, controlChangedAt: changedAt }));
       }
       await wait(() => trace().some(row => row.kind === 'response-complete'), scenario + ' real owner synthetic completion');
       if (scenario === 'precommit-cancel') {
         await wait(() => trace().some(row => row.kind === 'queue-process'), 'actual IPC child initialized before pause');
-        changedAt = Date.now(); writeFileSync(configPath, JSON.stringify({ ...settings, paused: true, controlRevision: 1 }));
+        changedAt = Date.now(); writeFileSync(configPath, JSON.stringify({ ...settings, paused: true, controlRevision: 1, controlChangedAt: changedAt }));
       }
       const observedUntil = Date.now() + 2200; while (Date.now() < observedUntil) await sleep(50);
       assert.equal(rows(join(folder, 'queue.jsonl')).length, 0, scenario + ' prevents native queue write');
@@ -257,10 +262,11 @@ finally {
       const runtime = join(owner.folder, 'codex-native-runtime.json'); if (existsSync(runtime)) cleanup.push(...JSON.parse(readFileSync(runtime, 'utf8')).cleanup);
     }
   }
-  for (const file of personal) file.after = existsSync(file.path) ? hash(file.path) : 'absent';
-  try { assert.deepEqual(profile(), profileBefore, 'personal native profile unchanged except non-Vesta usage counters'); } catch (error) { failure ||= String(error); }
-  writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'native-controls', failure, binary: built.binary, binarySha256: hash(built.binary), receipt, promptCount, commands, observations, cleanup, installedFiles, personal,
-    owners: owners.map(({ terminal, folder, ...owner }) => owner), sourceFiles: ['experiments/controls-native-e2e.ts', 'experiments/controls-acceptance.ts', 'experiments/vesta-claude/hooks/register.ts', 'experiments/codex-native-owner.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
+  for (const file of personal.filter(file => file.path !== profilePath)) file.after = existsSync(file.path) ? hash(file.path) : 'absent';
+  try { profileIntegrity.after = controlProfileSnapshot(readFileSync(profilePath)); personal.find(file => file.path === profilePath)!.after = profileIntegrity.after.sha256; verifyControlProfile(profileIntegrity.before, profileIntegrity.after); }
+  catch { failure ||= 'Personal Claude profile integrity validation failed (values redacted)'; }
+  writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'native-controls', failure, binary: built.binary, binarySha256: hash(built.binary), receipt, promptCount, maximumNativeTurns: promptCount + 6, commands, observations, cleanup, installedFiles, personal,
+    profileIntegrity, owners: owners.map(({ terminal, folder, ...owner }) => owner), sourceFiles: ['experiments/controls-native-e2e.ts', 'experiments/controls-acceptance.ts', 'experiments/controls-claude-host-fixture.ts', 'experiments/vesta-claude/hooks/register.ts', 'experiments/codex-native-owner.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
   sealEvidence(artifacts);
 }
 if (failure) throw new Error(failure + '; artifacts: ' + artifacts); verifyControls(artifacts);

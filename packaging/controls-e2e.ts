@@ -3,7 +3,7 @@
 // experiments/controls-acceptance.ts. No model calls occur in this driver.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { buildRelocated, hash, nativeBin, nodeFlags, nextReleaseVersion, releaseVersion, root, sealEvidence } from './e2e-common.ts';
@@ -105,9 +105,35 @@ try {
     const lock = join(ctx.env.VESTA_HOME, '.operation.lock'); writeFileSync(lock, JSON.stringify({ pid: process.pid }));
     try { const before = snapshot(ctx); run(ctx, 'locked-control', ['resume'], 1); assert.deepEqual(snapshot(ctx), before); } finally { rmSync(lock); }
   });
+  test('os-write-failure', () => {
+    const denied = context('write-failure'); install(denied, 'claude');
+    const second = join(denied.home, 'second-provider'); mkdirSync(second);
+    run(denied, 'install-second', ['install', '--provider', 'codex', '--config-dir', second, '--shell-file', denied.shell, '--json']);
+    const paths = [join(denied.config, 'settings.json'), join(second, 'vesta-codex.json')];
+    for (const file of paths) writeFileSync(file, JSON.stringify({ ...json(file), unrelatedControlFailureProbe: 'preserve' }));
+    const observe = () => paths.map(path => ({ path, bytes: readFileSync(path, 'utf8'), inode: statSync(path).ino, mtimeMs: statSync(path).mtimeMs }));
+    const before = observe(); writeFileSync(join(artifacts, 'os-write-before.json'), JSON.stringify(before, null, 2));
+    chmodSync(second, 0o555); let observedErrno = '';
+    try {
+      const probe = join(second, '.actual-os-write-probe');
+      try { const fd = openSync(probe, 'wx'); closeSync(fd); rmSync(probe); } catch (error: any) { observedErrno = error.code; }
+      assert.ok(['EACCES', 'EPERM', 'EROFS'].includes(observedErrno), 'OS really refuses writes in isolated second parent');
+      run(denied, 'denied-second-config', ['pause', '--provider', 'both'], 1);
+      const after = observe(); writeFileSync(join(artifacts, 'os-write-after.json'), JSON.stringify(after, null, 2));
+      assert.deepEqual(after.map(row => row.bytes), before.map(row => row.bytes), 'OS write failure leaves no selected provider partially changed');
+      writeFileSync(join(artifacts, 'os-write-observation.json'), JSON.stringify({ observedErrno, secondParentMode: statSync(second).mode & 0o777,
+        replacementsObserved: after.filter((row, i) => row.inode !== before[i]!.inode || row.mtimeMs !== before[i]!.mtimeMs).map(row => row.path),
+        limitation: 'No replacement means preflight prevention; replacement metadata can demonstrate compensation, not every transient write.' }, null, 2));
+    } finally { chmodSync(second, 0o700); }
+  });
   test('repair', () => {
     const before = inspect(ctx); run(ctx, 'repair-retention', ['repair', '--json']); const after = inspect(ctx);
     for (const provider of ['claude', 'codex']) sameControls(integration(before, provider), integration(after, provider));
+    assert.ok(after.integrations.every((row: any) => row.paused === true), 'saved pause remains separate from opt-in');
+    run(ctx, 'repair-enable-while-paused', ['repair', '--warm', '--json']); const enabled = inspect(ctx);
+    for (const provider of ['claude', 'codex']) {
+      sameControls(integration(after, provider), integration(enabled, provider)); assert.equal(integration(enabled, provider).warmConfigured, true);
+    }
   });
   test('update', () => {
     const bin = join(artifacts, 'main/bin'); copyFileSync(join(root, 'packaging/curl-fixture.zsh'), join(bin, 'curl')); chmodSync(join(bin, 'curl'), 0o755);
