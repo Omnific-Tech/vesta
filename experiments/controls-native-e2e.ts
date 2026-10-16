@@ -1,6 +1,10 @@
 // CONTROL-001 native contracts: real installed Claude/Codex + compiled candidate.
 // Failure inventory is in controls-acceptance.ts. Synthetic owner/IPC cases are
 // explicitly supplemental and never stand in for either provider's model turns.
+// Startup failure: Codex renders a loading composer before a delayed update
+// dialog. Blind Enter can execute Update now instead of submitting the prompt.
+// Require loaded model/composer evidence and dismiss only the observed update
+// dialog with Escape; unknown dialogs must never receive automated Enter.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -99,7 +103,7 @@ async function bind(owner: Owner) {
       return parseClaudeStatuses(raw).find(row => row.pluginId === 'vesta@vesta-local' && row.sessionId);
     }, 'Claude physical PTY session identity'); owner.sessionId = value.sessionId;
   } else {
-    await wait(() => existsSync(join(artifacts, owner.terminalFile)) && stripVTControlCharacters(readFileSync(join(artifacts, owner.terminalFile), 'utf8')).includes('›'), 'Codex composer');
+    await codexComposer(owner);
     await type(owner, 'Reply with exactly ' + owner.nonce + '. Do not use tools.');
     const value = await wait(() => {
       const value = snapshot(owner); if (!value?.sessionId || value.busy) return;
@@ -109,9 +113,43 @@ async function bind(owner: Owner) {
   }
   await wait(() => snapshot(owner), 'native passive status available');
 }
+async function codexComposer(owner: Owner) {
+  const file = join(artifacts, owner.terminalFile); let dismissed = -1;
+  const ready = () => {
+    if (!existsSync(file)) return;
+    const raw = readFileSync(file, 'utf8'); const plain = stripVTControlCharacters(raw);
+    const modal = plain.lastIndexOf('Update available');
+    const composer = plain.lastIndexOf('Ask Codex to do anything');
+    const footers = [...plain.matchAll(/\bGPT-[A-Za-z0-9.-]+\s+(?:default|low|medium|high|xhigh|max|ultra)\s*·/gi)];
+    const footer = footers.at(-1)?.index ?? -1;
+    if (modal > composer && modal > dismissed) {
+      const menu = plain.slice(modal);
+      assert.ok(menu.includes('Update now') && /esc\s*skip/i.test(menu), 'only exact observed native update menu may be dismissed');
+      owner.terminal.write('\x1b'); dismissed = modal;
+      observations.push({ name: 'codex-update-dismissed', ownerIndex: owner.index, terminalFile: owner.terminalFile, at: Date.now(), rawOffset: raw.length });
+      return;
+    }
+    // A model footer is rendered after initialization; the loading placeholder
+    // alone is not evidence that Enter belongs to the real native composer.
+    if (composer < 0 || footer < 0 || modal > composer || footer < dismissed) return;
+    const tail = plain.slice(Math.max(composer, footer));
+    assert.ok(!/Update now|Keep current model|\b(?:1|2)\.\s*(?:Allow|Approve)|enter\s*(?:confirm|continue)/i.test(tail), 'unknown native modal blocks automated submission');
+    return raw.length;
+  };
+  return wait(ready, 'loaded native Codex composer/model footer');
+}
 async function type(owner: Owner, text: string, model = true) {
   if (model) { promptCount++; assert.ok(promptCount <= 24, 'bounded real prompt count'); }
-  owner.terminal.write('\x1b[200~' + text + '\x1b[201~'); await sleep(300); owner.terminal.write('\r');
+  if (owner.provider === 'codex') await codexComposer(owner);
+  const paste = () => owner.terminal.write('\x15\x1b[200~' + text + '\x1b[201~');
+  paste(); await sleep(300);
+  if (owner.provider === 'codex') {
+    const before = observations.filter(row => row.name === 'codex-update-dismissed' && row.ownerIndex === owner.index).length;
+    await codexComposer(owner);
+    const after = observations.filter(row => row.name === 'codex-update-dismissed' && row.ownerIndex === owner.index).length;
+    if (after > before) { paste(); await sleep(300); await codexComposer(owner); }
+  }
+  owner.terminal.write('\r');
 }
 async function capture(owner: Owner, phase: string, predicate: (value: any) => boolean = () => true) {
   const value = await wait(() => { const value = snapshot(owner); return value && predicate(value) ? value : undefined; }, owner.provider + '/' + owner.index + ' ' + phase);
