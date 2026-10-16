@@ -48,7 +48,8 @@ const trace = (kind: string, extra: any = {}) => {
     if (capture) appendFileSync(join(artifacts, 'codex-native-trace.jsonl'), JSON.stringify(row) + '\n');
     const status = join(artifacts, 'codex-native-status.json');
     writeFileSync(status + '.tmp', JSON.stringify({ ...live, ownerId, sessionId: activeSession, warming: !observerFailed && !stopped && live.warm && !live.paused && !controlError,
-      warmConfigured: live.warm, warmEnabled: live.warm && !live.paused && !controlError, warmingSuspendedReason: controlError || (live.paused ? 'Vesta warming is paused.' : ''),
+      warmConfigured: live.warm, warmEnabled: !observerFailed && !stopped && live.warm && !live.paused && !controlError,
+      warmingSuspendedReason: observerFailed ? 'Vesta native observer failed; restart this owner before warming.' : controlError || (live.paused ? 'Vesta warming is paused.' : ''),
       minimumRuntimeVersion: '0.2.6', lastAction, resetReason, kind, state: watcher.state }), { mode: 0o600 }); renameSync(status + '.tmp', status);
   } catch { observerFailed = true; clean = false; }
 };
@@ -60,6 +61,7 @@ function readControls() {
   try {
     const next = parseControls(JSON.parse(readFileSync(value('--config')!, 'utf8'))); const signature = JSON.stringify(next);
     if (signature !== controlSignature || controlError) {
+      if (controlError && !(next.controlRevision > live.controlRevision && next.controlChangedAt >= errorAt)) errorAt = Date.now();
       live = next; controlSignature = signature; controlError = ''; settings = settingsFor(next); resetReason = 'controls';
       event({ type: 'control', config: { ...settings, threshold: settings.probeThreshold ?? settings.threshold }, enabled: live.warm && !live.paused, changedAt: settings.controlChangedAt });
     }

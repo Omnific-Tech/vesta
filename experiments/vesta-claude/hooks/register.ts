@@ -53,6 +53,12 @@ const readControls = ($, target = watcher, id = sessionId) => {
       const nextSignature = JSON.stringify([next, enabled]);
       if (nextSignature !== signature || configError) {
         const changed = signature !== '';
+        // A genuine newer CLI revision supplies its causal write time, so the
+        // first post-write prompt is usable even before the ordinary poll. A
+        // restored old file has no such proof: require input after recovery was
+        // actually observed, not input received during the failed interval.
+        if (configError && !(next.controlRevision > config.controlRevision && next.controlChangedAt >= errorAt)) errorAt = await $.clock.now();
+        if (target !== watcher || id !== sessionId) return false;
         const changedAt = Math.max(next.controlChangedAt, errorAt);
         config = next; nativeEnabled = enabled; signature = nextSignature; configError = '';
         if (changed) resetReason = 'controls';
@@ -88,10 +94,11 @@ const ensure = async $ => {
     if (owner !== watcher || ownerSession !== sessionId) return;
     await persist($, owner, ownerSession);
     timer = $.clock.every(1000, async () => {
-      if (tickBusy || owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
+      if (owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
+      // Poll even while a prior native submit is awaiting its host response.
+      if (!await readControls($, owner, ownerSession) || tickBusy || owner !== watcher || ownerSession !== sessionId) return;
       tickBusy = true;
       try {
-        if (!await readControls($, owner, ownerSession) || owner !== watcher || ownerSession !== sessionId) return;
         if (await $.session.id() !== ownerSession || owner !== watcher || ownerSession !== sessionId) return;
         const reserve = await event($, 'tick', {}, owner, ownerSession);
         if (!reserve || reserve.action !== 'reserve' || !config.warm || config.paused || !nativeEnabled) return;
@@ -100,6 +107,10 @@ const ensure = async $ => {
         if (!await readControls($, owner, ownerSession) || revision !== signature || owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
         const dispatch = await event($, 'dispatch', { reservationId: reserve.state.reservationId }, owner, ownerSession);
         if (!dispatch || dispatch.action !== 'dispatch' || owner !== watcher || ownerSession !== sessionId || owner.state.ended || revision !== signature) return;
+        // event(dispatch) awaits native clock/store APIs. Re-read after those
+        // awaits, immediately before committing the native submission.
+        if (!await readControls($, owner, ownerSession) || revision !== signature || owner !== watcher || ownerSession !== sessionId || owner.state.ended
+            || owner.state.busy || owner.state.generation !== dispatch.state.generation || owner.state.userAt !== dispatch.state.userAt) return;
         // Keep the exact old payload until native turn.start attributes it, even
         // if a later control change invalidates future warming eligibility.
         warmPending = message;
