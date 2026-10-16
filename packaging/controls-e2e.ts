@@ -100,6 +100,19 @@ try {
     const file = join(ctx.config, 'vesta-codex.json'); const good = readFileSync(file); writeFileSync(file, '{');
     const before = snapshot(ctx); run(ctx, 'malformed-second', ['resume', '--provider', 'both'], 1); assert.deepEqual(snapshot(ctx), before); writeFileSync(file, good);
     const override = snapshot(ctx); run(ctx, 'owned-path', ['pause', '--config-dir', join(ctx.home, 'foreign')], 1); assert.deepEqual(snapshot(ctx), override);
+    // Present malformed Claude containers must never be treated as absent
+    // legacy defaults or spread into replacement settings. Freeze before fix.
+    const settingsPath = join(ctx.config, 'settings.json'); const goodSettings = readFileSync(settingsPath);
+    for (const malformed of [
+      { pluginConfigs: [] }, { pluginConfigs: 'foreign' },
+      { pluginConfigs: { 'vesta@vesta-local': 'foreign' } },
+      { pluginConfigs: { 'vesta@vesta-local': { options: null } } },
+      { pluginConfigs: { 'vesta@vesta-local': { options: [] } } },
+    ]) {
+      writeFileSync(settingsPath, JSON.stringify({ ...JSON.parse(goodSettings.toString()), ...malformed }));
+      try { const before = snapshot(ctx); run(ctx, 'malformed-claude-container', ['resume', '--provider', 'both'], 1); assert.deepEqual(snapshot(ctx), before); }
+      finally { writeFileSync(settingsPath, goodSettings); }
+    }
   });
   test('lock', () => {
     const lock = join(ctx.env.VESTA_HOME, '.operation.lock'); writeFileSync(lock, JSON.stringify({ pid: process.pid }));
