@@ -1,11 +1,16 @@
 {
   "name": "vesta",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Observe native session context and optionally submit bounded idle pings",
   "author": { "name": "Vesta" },
   "userConfig": {
     "warm": { "type": "boolean", "title": "Experimental idle warming", "description": "Submit idle pings only for fresh input above 100,000 tokens; savings are unproven", "default": false },
     "idle_ms": { "type": "number", "title": "Idle interval (milliseconds)", "description": "Time between real activity or a completed response and an eligible ping", "default": 3000000, "min": 1, "max": 14400000 },
-    "budget_ms": { "type": "number", "title": "User inactivity budget (milliseconds)", "description": "Maximum time since real user activity before warming expires", "default": 14400000, "min": 1, "max": 14400000 }
+    "budget_ms": { "type": "number", "title": "User inactivity budget (milliseconds)", "description": "Maximum time since real user activity before warming expires", "default": 14400000, "min": 1, "max": 14400000 },
+    "paused": { "type": "boolean", "title": "Pause all Claude warming", "description": "Persistent pause, independent of warm opt-in", "default": false },
+    "threshold": { "type": "number", "title": "Input token threshold", "description": "Input must be strictly greater than this nonnegative integer", "default": 100000, "min": 0, "max": 9007199254740991 },
+    "message": { "type": "string", "title": "Keepalive body", "description": "Exact single-line text; install the matching K-only reply rule", "default": "VESTA_CACHE_KEEPALIVE" },
+    "control_revision": { "type": "number", "title": "Control revision", "description": "Managed by vesta pause/resume/config", "default": 0, "min": 0, "max": 9007199254740991 },
+    "control_changed_at": { "type": "number", "title": "Control change time", "description": "Control metadata only; never user activity", "default": 0, "min": 0, "max": 9007199254740991 }
   }
 }

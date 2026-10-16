@@ -1,5 +1,18 @@
 // Host-independent policy shared by the CLI and Claude's in-process mod.
 export type WatchEvent = { type: string; at: number; [key: string]: any };
+export const controlKeys = { idleMs: 'idle_ms', budgetMs: 'budget_ms', threshold: 'threshold', message: 'message', paused: 'paused', controlRevision: 'control_revision', controlChangedAt: 'control_changed_at' };
+export function controlConfig(provider: string, raw: any = {}, nativeClaude = false) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid Vesta configuration object');
+  const get = (key: string, fallback: any) => { const value = raw[nativeClaude ? controlKeys[key] ?? key : key]; return value === undefined ? fallback : value; };
+  const config = { warm: raw.warm === true, paused: get('paused', false), idleMs: get('idleMs', provider === 'claude' ? 3000000 : 1200000),
+    budgetMs: get('budgetMs', 14400000), threshold: get('threshold', 100000), message: get('message', 'VESTA_CACHE_KEEPALIVE'),
+    controlRevision: get('controlRevision', 0), controlChangedAt: get('controlChangedAt', 0) };
+  if (raw.warm !== undefined && typeof raw.warm !== 'boolean' || typeof config.paused !== 'boolean') throw new Error('Invalid Vesta configuration boolean');
+  if (![config.idleMs, config.budgetMs].every(n => Number.isSafeInteger(n) && n > 0 && n <= 14400000)) throw new Error('Configuration timings must be integer milliseconds from 1 through 14400000');
+  if (![config.threshold, config.controlRevision, config.controlChangedAt].every(n => Number.isSafeInteger(n) && n >= 0)) throw new Error('Configuration threshold/revision/change time must be nonnegative safe integers');
+  if (typeof config.message !== 'string' || !config.message.trim() || [...config.message].length > 256 || /[\p{Cc}\p{Cs}\u2028\u2029]/u.test(config.message)) throw new Error('Configuration message must be a nonempty single line of at most 256 Unicode code points without control characters');
+  return config;
+}
 export class Watcher {
   provider: string;
   defaults: { idleMs: number; budgetMs: number; threshold: number };
@@ -12,17 +25,23 @@ export class Watcher {
   private invalidatedAt = 0;
   private completedGeneration = -1;
   private activeGeneration = -1;
+  private freshRequired = false;
+  private freshAfter = 0;
+  private warmingAllowed = true;
   constructor(provider: string, config: any = {}, mode = 'normal') {
     if (!['claude', 'codex'].includes(provider)) throw new Error('provider must be claude or codex');
     if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('invalid configuration');
     this.provider = provider;
     const idleMs = config.idleMs === undefined ? (provider === 'claude' ? 3000000 : 1200000) : config.idleMs;
     const budgetMs = config.budgetMs === undefined ? 14400000 : config.budgetMs;
-    const threshold = config.probeThreshold === undefined ? 100000 : config.probeThreshold;
+    const threshold = config.probeThreshold === undefined ? config.threshold ?? 100000 : config.probeThreshold;
     if (![idleMs, budgetMs].every(n => Number.isSafeInteger(n) && n > 0 && n <= 14400000)) throw new Error('timings must be positive integer milliseconds, at most four hours');
     if (config.probeThreshold !== undefined && mode !== 'probe') throw new Error('threshold override requires explicit probe mode');
     if (!Number.isSafeInteger(threshold) || threshold < 0) throw new Error('invalid threshold');
     this.defaults = { idleMs, budgetMs, threshold };
+    this.freshAfter = config.controlChangedAt ?? 0;
+    this.warmingAllowed = config.paused !== true;
+    this.freshRequired = this.freshAfter > 0 || !this.warmingAllowed;
   }
   event(e: WatchEvent) {
     if (!Number.isSafeInteger(e.at) || e.at < 0 || e.at < this.previousAt) throw new Error('event timestamps must be monotonic nonnegative safe integers');
@@ -35,6 +54,15 @@ export class Watcher {
     if (foreign) return result('skip', 'foreign owner');
     if (s.ended) return result('ended', 'owner ended');
     if (e.type === 'exit') { s.ended = true; s.pending = false; return result('ended'); }
+    if (e.type === 'control') {
+      if (e.config) this.defaults = { idleMs: e.config.idleMs, budgetMs: e.config.budgetMs, threshold: e.config.threshold };
+      this.warmingAllowed = e.enabled === true;
+      this.freshAfter = Math.max(this.freshAfter, e.changedAt ?? e.at);
+      this.freshRequired = true;
+      s.pending = false; s.tokens = null; s.generation++; this.invalidatedAt = e.at;
+      this.completedGeneration = -1; this.activeGeneration = -1;
+      return result('cancel', 'configuration changed; fresh user prompt and reply required');
+    }
     if (e.type === 'activity') {
       if (e.source !== 'user') return result('skip', 'not verified user activity');
       const pending = s.pending;
@@ -48,7 +76,8 @@ export class Watcher {
       this.completedGeneration = -1; this.activeGeneration = -1;
       if (e.type === 'turn-start') {
         s.sessionId = e.sessionId; s.turnId = e.turnId; s.busy = true;
-        this.activeGeneration = s.generation;
+        const fresh = e.source === 'user' && Number.isSafeInteger(e.submittedAt) && e.submittedAt >= this.freshAfter;
+        if (this.warmingAllowed && (!this.freshRequired || fresh)) { this.activeGeneration = s.generation; this.freshRequired = false; }
       }
       return result(pending ? 'cancel' : 'observe', 'context invalidated');
     }
@@ -75,6 +104,7 @@ export class Watcher {
     }
     if (e.type !== 'tick' && e.type !== 'dispatch') return result('skip', 'unknown event');
     if (s.userAt !== null && e.at - s.userAt >= this.defaults.budgetMs) { s.pending = false; return result('expired', 'user inactivity budget exhausted'); }
+    if (!this.warmingAllowed) { s.pending = false; return result('skip', 'warming paused or configuration unavailable'); }
     if (s.busy) { s.pending = false; return result('busy', 'owner busy'); }
     if (s.userAt === null || s.tokens === null || s.tokens <= this.defaults.threshold || !s.sessionId || !s.turnId) {
       s.pending = false; return result('skip', 'unknown or ineligible current input');

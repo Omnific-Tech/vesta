@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { directory, prepareVersion, readJson, saveJson, sha256, version } from './assets.ts';
 import { codexHookReadiness } from '../experiments/codex-native-ipc.ts';
 import { codexRegistration, restoreNativeCodex } from '../experiments/codex-native-setup.ts';
+import { controlConfig } from '../experiments/watcher-policy.ts';
 
 export type Provider = { provider: 'claude' | 'codex'; configDir: string; shellFile: string };
 export const pluginId = 'vesta@vesta-local';
@@ -27,14 +28,15 @@ const nativeExecutable = (p: Provider) => readJson(stateFile(p))?.native ?? exec
 const installedClaude = (p: Provider) => !!readJson(join(p.configDir, 'plugins/installed_plugins.json'), {}).plugins?.[pluginId]?.some((row: any) => row.scope === 'user');
 export function providers(args: string[], root: string, operation: string): Provider[] {
   const previous = readJson(join(root, 'installation.json'));
-  const selected = value(args, '--provider'); if (selected && !['all', 'claude', 'codex'].includes(selected)) throw new Error('Unknown provider');
+  const requested = value(args, '--provider'); const selected = requested === 'both' ? 'all' : requested; if (selected && !['all', 'claude', 'codex'].includes(selected)) throw new Error('Unknown provider');
+  const ownedOnly = operation === 'repair' || operation === 'controls';
   const ownedNames = (previous?.providers ?? []).map((p: Provider) => p.provider);
-  const sourceOwned = operation === 'repair' && !previous ? ['claude', 'codex'].filter(name => {
+  const sourceOwned = ownedOnly && !previous ? ['claude', 'codex'].filter(name => {
     const config = absolute(value(args, '--config-dir') ?? (name === 'claude' ? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude') : join(homedir(), '.config/vesta')));
     return existsSync(join(config, '.vesta-setup-' + name + '.json'));
   }) : [];
-  const names = [...new Set<string>(selected ? selected === 'all' ? operation === 'repair' ? previous ? ownedNames : sourceOwned : ['claude', 'codex'] : [selected]
-    : operation === 'repair' ? previous ? ownedNames : sourceOwned
+  const names = [...new Set<string>(selected ? selected === 'all' ? ownedOnly ? previous ? ownedNames : sourceOwned : ['claude', 'codex'] : [selected]
+    : ownedOnly ? previous ? ownedNames : sourceOwned
     : previous && ['update', 'uninstall', 'status'].includes(operation) ? ownedNames
       : [...ownedNames, ...['claude', 'codex'].filter(name => executable(name))])];
   if (!names.length && !['uninstall', 'status'].includes(operation)) throw new Error(['update', 'repair'].includes(operation) ? 'No owned provider is available to ' + operation : 'No native Claude or Codex provider is available on PATH');
@@ -43,9 +45,9 @@ export function providers(args: string[], root: string, operation: string): Prov
     const owned = previous?.providers?.find((p: Provider) => p.provider === name);
     const configDir = absolute(value(args, '--config-dir') ?? owned?.configDir ?? (name === 'claude' ? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude') : join(homedir(), '.config/vesta')));
     const state = readJson(join(configDir, '.vesta-setup-' + name + '.json'));
-    const shellFile = absolute(value(args, '--shell-file') ?? owned?.shellFile ?? (operation === 'repair' ? state?.shellFile : undefined) ?? join(homedir(), '.zshrc'));
+    const shellFile = absolute(value(args, '--shell-file') ?? owned?.shellFile ?? (ownedOnly ? state?.shellFile : undefined) ?? join(homedir(), '.zshrc'));
     if (owned && (configDir !== owned.configDir || shellFile !== owned.shellFile)) throw new Error('Owned provider paths cannot be overridden: ' + name + '; use the recorded configuration and shell paths');
-    if (operation === 'repair') {
+    if (ownedOnly) {
       if (previous && !owned || state?.provider !== name || (name === 'claude' ? state.marketplaceOwned !== true : typeof state.native !== 'string' || !isAbsolute(state.native) || typeof state.block !== 'string' || !state.block.includes(start) || state.shellFile !== shellFile)) throw new Error('Valid owned provider setup required for repair: ' + name);
     }
     return { provider: name, configDir, shellFile };
@@ -196,23 +198,26 @@ function preserveClaudeCaches(root: string, selected: Provider[]) {
   } catch (error) { rmSync(directory, { recursive: true, force: true }); throw error; }
   return { retain: () => { for (const cache of caches) if (!existsSync(cache.path)) cpSync(cache.backup, cache.path, { recursive: true }); }, cleanup: () => rmSync(directory, { recursive: true, force: true }) };
 }
-export async function status(args: string[], root: string) {
+export async function status(args: string[], root: string, selected?: Provider[]) {
   const installation = readJson(join(root, 'installation.json'));
   const integrations = [];
-  for (const p of providers(args, root, 'status')) {
+  for (const p of selected ?? providers(args, root, 'status')) {
     const state = readJson(stateFile(p)); const settings = readJson(join(p.configDir, p.provider === 'claude' ? 'settings.json' : 'vesta-codex.json'), {});
     const options = p.provider === 'claude' ? settings.pluginConfigs?.[pluginId]?.options ?? {} : settings;
+    const config = controlConfig(p.provider, options, p.provider === 'claude');
     const shell = p.provider === 'codex' && existsSync(p.shellFile) ? readFileSync(p.shellFile, 'utf8') : '';
     const ready = p.provider === 'codex' && options.warm && state?.nativePluginId
       ? await codexHookReadiness(state.native, process.cwd(), state.nativeHookCommand)
       : { ready: false, reason: 'Codex warming needs registered native hooks and native /hooks trust review.' };
     const claudeReady = p.provider === 'claude' && installedClaude(p) && settings.enabledPlugins?.[pluginId] !== false;
     integrations.push({ ...p, available: !!nativeExecutable(p), owned: !!state, installed: p.provider === 'claude' ? installedClaude(p) : !!state?.block && shell.includes(state.block),
-      warmEnabled: p.provider === 'claude' ? options.warm === true && claudeReady : options.warm === true && ready.ready,
+      ...config, minimumRuntimeVersion: '0.2.6', runtimeUpgrade: 'Restart sessions running Vesta before 0.2.6 once after upgrading; live controls cannot retrofit older owners.',
+      replyRule: 'When a Vesta cache keepalive message has the exact body ' + config.message + ' (including inside the native Claude plugin-message envelope), reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.',
+      warmEnabled: !config.paused && (p.provider === 'claude' ? options.warm === true && claudeReady : options.warm === true && ready.ready),
       ...(p.provider === 'claude' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !claudeReady, warmingSuspendedReason: claudeReady ? '' : 'Install and enable the owned Vesta Claude plugin, then restart Claude.' } : {}),
       ...(p.provider === 'codex' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !ready.ready,
         warmingSuspendedReason: ready.ready ? '' : ready.reason, nativePluginId: state?.nativePluginId } : {}),
-      idleMs: options.idle_ms ?? options.idleMs ?? (p.provider === 'claude' ? 3000000 : 1200000), budgetMs: options.budget_ms ?? options.budgetMs ?? 14400000 });
+      ...(config.paused ? { warmingSuspended: true, warmingSuspendedReason: 'Vesta warming is paused; resume keeps saved opt-in unchanged.' } : {}) });
   }
   return { version, root, installation, integrations };
 }

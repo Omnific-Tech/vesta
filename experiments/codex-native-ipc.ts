@@ -32,7 +32,7 @@ export async function nativeRequest(native: string, method: 'hooks/list' | 'thre
     throw new Error('native request timed out');
   };
   try {
-    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'vesta_native', version: '0.2.5' }, capabilities: { experimentalApi: true } } }); await wait(1);
+    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'vesta_native', version: '0.2.6' }, capabilities: { experimentalApi: true } } }); await wait(1);
     send({ method: 'initialized', params: {} });
     if (lifecycle.signal?.aborted || lifecycle.authorize && !await lifecycle.authorize() || lifecycle.signal?.aborted) { const error = new Error('native request cancelled before write'); error.name = 'AbortError'; throw error; }
     send({ id: 2, method, params }); return await wait(2);
