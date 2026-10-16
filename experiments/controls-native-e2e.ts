@@ -7,6 +7,9 @@
 // automatic update checks in disposable config, verified through config/read.
 // This is fixture setup, not Vesta behavior. Loaded composer evidence is still
 // required; unexpected update/other dialogs never receive automated Enter.
+// Native store lock directories can disappear during enumeration. Inspect only
+// direct store JSON files; bounded rollout traversal tolerates ENOENT races but
+// preserves permission and other I/O failures as real verification failures.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -44,7 +47,13 @@ const owners: Owner[] = []; let failure = ''; let promptCount = 0;
 const sleep = (ms: number) => new Promise(done => setTimeout(done, ms));
 const deadline = Date.now() + 720000;
 const rows = (path: string): any[] => existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } }) : [];
-const files = (dir: string) => existsSync(dir) ? readdirSync(dir, { recursive: true, withFileTypes: true }).filter(entry => entry.isFile()).map(entry => join(entry.parentPath, entry.name)) : [];
+function entries(dir: string) {
+  try { return readdirSync(dir, { withFileTypes: true }); }
+  catch (error: any) { if (error.code === 'ENOENT') return []; throw error; }
+}
+function files(dir: string): string[] {
+  return entries(dir).flatMap(entry => entry.isFile() ? [join(dir, entry.name)] : entry.isDirectory() && !entry.name.endsWith('.lock') ? files(join(dir, entry.name)) : []);
+}
 function command(args: string[], command = built.binary, input?: string) {
   const startedAt = Date.now(); const result = spawnSync(command, args, { cwd: fixture, env, input, encoding: 'utf8', timeout: 60000 });
   const prefix = 'command-' + commands.length; writeFileSync(join(artifacts, prefix + '.stdout'), result.stdout ?? ''); writeFileSync(join(artifacts, prefix + '.stderr'), result.stderr ?? '');
@@ -80,14 +89,18 @@ function snapshot(owner: Owner): any {
     const path = join(owner.folder, 'codex-native-status.json'); if (!existsSync(path)) return;
     try { const value = JSON.parse(readFileSync(path, 'utf8')); owner.statusSource = path; return codexControlSnapshot(value); } catch { return; }
   }
-  for (const path of files(claude).filter(path => path.includes('/store/') && path.endsWith('.json'))) {
+  const storeDirectory = join(claude, 'plugins/store');
+  for (const path of entries(storeDirectory).filter(entry => entry.isFile() && entry.name.endsWith('.json')).map(entry => join(storeDirectory, entry.name))) {
     try {
       const store = JSON.parse(readFileSync(path, 'utf8'));
       for (const [key, value] of Object.entries(store) as [string, any][]) if (key.startsWith('status:') && value.pluginId === 'vesta@vesta-local' && (!owner.sessionId || value.sessionId === owner.sessionId)) {
         // The first status binds a particular PTY below; never guess among peers.
         if (owner.sessionId) { owner.statusSource = path; return value; }
       }
-    } catch {}
+    } catch (error: any) {
+      if (error.code === 'ENOENT' || error instanceof SyntaxError) continue;
+      throw error;
+    }
   }
 }
 async function bind(owner: Owner) {
