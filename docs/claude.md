@@ -32,8 +32,8 @@ resume and config never enable warming. Without a provider flag these commands
 select existing owned integrations. `both` and `all` are aliases; unowned
 providers are never adopted.
 
-Runtime 0.2.6 polls controls at least once per second and re-reads immediately
-before dispatch. Resume and effective configuration changes cancel uncommitted
+Runtime 0.2.6 uses a one-second polling timer and re-reads immediately before
+dispatch; native host or I/O delays can delay an observation. Resume and effective configuration changes cancel uncommitted
 reservations and require a new real submitted prompt and completed reply. A turn
 already running before a change cannot rearm eligibility. Controls preserve user
 activity time and budget. Missing, unreadable or invalid settings suspend warming;
@@ -79,10 +79,10 @@ the running session loads the intended plugin runtime.
 1. Native middleware observes session and turn events. A completed turn qualifies
    only when its reason is `answer`; Vesta then reads `$.session.usage()` and uses
    `context.tokens` for that current context.
-2. A native clock checks eligibility at least once per second. The session must
+2. A one-second native polling timer checks eligibility. The session must
    be idle, within its activity budget, and have a fresh qualifying measurement.
 3. Vesta reserves a submission, yields, then checks the reservation again before
-   calling `$.prompt.submit({ text: 'VESTA_CACHE_KEEPALIVE' })`.
+   calling `$.prompt.submit` with the configured body (default `VESTA_CACHE_KEEPALIVE`).
 4. Claude Code wraps the submitted body in its native plugin-message envelope.
    Vesta attributes a warm turn only to its outstanding submission and the exact
    native envelope. An observed composer/bridge origin cannot be its warm turn.

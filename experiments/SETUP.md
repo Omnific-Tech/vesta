@@ -5,8 +5,8 @@ Unreleased source 0.2.6 adds persistent `vesta pause|resume` and live
 Select `--provider claude|codex|both` (`all` is an alias), or omit it for owned
 integrations only. Controls use recorded paths and preserve opt-in and unknown
 settings. Resume/config require a fresh real prompt and reply without renewing
-the user budget. Runtime 0.2.6 polls within one second and rechecks before native
-commit; already committed messages may finish. Restart older sessions once after
+the user budget. Runtime 0.2.6 uses a one-second polling timer and rechecks before
+native commit; host/I/O delays can delay observation, and already committed messages may finish. Restart older sessions once after
 upgrading. See [Claude controls](../docs/claude.md) and
 [Codex controls](../docs/codex.md), including the custom-text reply rule.
 

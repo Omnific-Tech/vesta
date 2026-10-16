@@ -212,7 +212,7 @@ export async function status(args: string[], root: string, selected?: Provider[]
     const claudeReady = p.provider === 'claude' && installedClaude(p) && settings.enabledPlugins?.[pluginId] !== false;
     integrations.push({ ...p, available: !!nativeExecutable(p), owned: !!state, installed: p.provider === 'claude' ? installedClaude(p) : !!state?.block && shell.includes(state.block),
       ...config, minimumRuntimeVersion: '0.2.6', runtimeUpgrade: 'Restart sessions running Vesta before 0.2.6 once after upgrading; live controls cannot retrofit older owners.',
-      replyRule: 'When a Vesta cache keepalive message has the exact body ' + config.message + ' (including inside the native Claude plugin-message envelope), reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.',
+      replyRule: 'When a Vesta cache keepalive message has the exact body ' + JSON.stringify(config.message) + ' (including inside the native Claude plugin-message envelope), reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.',
       warmEnabled: !config.paused && (p.provider === 'claude' ? options.warm === true && claudeReady : options.warm === true && ready.ready),
       ...(p.provider === 'claude' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !claudeReady, warmingSuspendedReason: claudeReady ? '' : 'Install and enable the owned Vesta Claude plugin, then restart Claude.' } : {}),
       ...(p.provider === 'codex' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !ready.ready,

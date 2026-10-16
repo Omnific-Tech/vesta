@@ -27,8 +27,8 @@ owner attached so resume works live. Controls preserve saved `warm`; resume does
 not opt in a disabled integration or bypass native hook readiness. Omit the
 provider flag to select existing owned integrations; `both` and `all` are aliases.
 
-Owners poll controls at least once per second and re-read before the native queue
-write. Resume or changes invalidate old metrics/reservations without renewing
+Owners use a one-second polling timer and re-read before the native queue write;
+native host or I/O delays can delay an observation. Resume or changes invalidate old metrics/reservations without renewing
 the user clock. Submit a new real prompt and wait for its reply; completion of a
 pre-change turn cannot rearm. Missing, unreadable or invalid live config suspends
 warming, and recovery requires that same fresh prompt/reply. Input guards,
@@ -120,7 +120,8 @@ eligibility. A fresh completed reply must reestablish it.
 When eligible, Vesta reserves a ping and starts a transient native stdio client.
 That client only performs `initialize`, `initialized` and `thread/queue/add` for
 delivery; it never starts or resumes a conversation. It sends the exact body
-`VESTA_CACHE_KEEPALIVE` to the bound thread with a unique client message ID.
+configured keepalive body (default `VESTA_CACHE_KEEPALIVE`) to the bound thread
+with a unique client message ID.
 Native local queue polling delivers it, typically within ten seconds. The client
 ID attributes the resulting warm turn to the right owner. Keepalive and reply
 remain visible in the conversation.

@@ -4,7 +4,7 @@
   "description": "Observe native session context and optionally submit bounded idle pings",
   "author": { "name": "Vesta" },
   "userConfig": {
-    "warm": { "type": "boolean", "title": "Experimental idle warming", "description": "Submit idle pings only for fresh input above 100,000 tokens; savings are unproven", "default": false },
+    "warm": { "type": "boolean", "title": "Experimental idle warming", "description": "Submit idle pings only for fresh input above the configured threshold; savings are unproven", "default": false },
     "idle_ms": { "type": "number", "title": "Idle interval (milliseconds)", "description": "Time between real activity or a completed response and an eligible ping", "default": 3000000, "min": 1, "max": 14400000 },
     "budget_ms": { "type": "number", "title": "User inactivity budget (milliseconds)", "description": "Maximum time since real user activity before warming expires", "default": 14400000, "min": 1, "max": 14400000 },
     "paused": { "type": "boolean", "title": "Pause all Claude warming", "description": "Persistent pause, independent of warm opt-in", "default": false },
