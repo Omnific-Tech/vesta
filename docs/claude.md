@@ -99,8 +99,11 @@ Native settings changes may reload the plugin automatically. A reload in the
 same nonended session preserves validated user/warm timestamps and an active
 turn's binding, so configuration does not erase or renew the inactivity budget.
 It also retains attribution for an already committed configured marker. Tokens
-and pending reservations are never restored; an old turn's completion cannot
-reestablish eligibility. New or ended sessions do not inherit that metadata.
+and pending reservations are never restored. A still-active verified user turn
+started after the current control change may carry its submission time, turn
+binding and matching configuration through reload; only its actual subsequent
+completion can supply a fresh metric. Pre-change turns and warm turns cannot
+regain eligibility this way. New or ended sessions do not inherit that metadata.
 
 ## What counts as activity
 

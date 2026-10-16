@@ -17,6 +17,7 @@ let warmPending;
 let nextPromptOrigin;
 let nextUserSubmittedAt;
 let turnSource = '';
+let userTurn;
 let polling = Promise.resolve();
 let tickBusy = false;
 const envelope = message => "The vesta plugin sent a message:\n" + message + "\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above.";
@@ -24,6 +25,7 @@ const status = () => ({ ...watcher.state, ...config, pluginId: 'vesta@vesta-loca
   warmConfigured: config.warm, warmEnabled: config.warm && !config.paused && !configError && nativeEnabled,
   warmingSuspendedReason: configError || (config.paused ? 'Vesta warming is paused.' : !nativeEnabled ? 'Native Vesta plugin is disabled.' : ''),
   minimumRuntimeVersion: '0.2.6', lastAction, resetReason, turnSource,
+  ...(userTurn && watcher.activeTurnEligible() ? { activeUserTurn: userTurn } : {}),
   ...(warmPending !== undefined ? { committedMessage: warmPending } : {}) });
 const persist = async ($, target = watcher, id = sessionId) => {
   if (target !== watcher || id !== sessionId) return;
@@ -92,7 +94,7 @@ const ensure = async $ => {
     config = controlConfig('claude', configuredOptions, true);
     watcher = new Watcher('claude', config); signature = ''; configError = ''; errorAt = 0; configPath = '';
     resetReason = nextReset || (old ? 'reload' : 'start'); nextReset = ''; warmPending = undefined; nextPromptOrigin = undefined; nextUserSubmittedAt = undefined;
-    turnSource = '';
+    turnSource = ''; userTurn = undefined;
     const created = watcher;
     const now = await $.clock.now();
     if (created !== watcher || await $.session.id() !== id || created !== watcher || sessionId !== id) return;
@@ -111,6 +113,15 @@ const ensure = async $ => {
     const owner = watcher; const ownerSession = sessionId;
     await readControls($, owner, ownerSession);
     if (owner !== watcher || ownerSession !== sessionId) return;
+    const provenance = old?.activeUserTurn;
+    if (watcher.state.busy && provenance?.source === 'user' && provenance.sessionId === id && provenance.turnId === watcher.state.turnId
+        && Number.isSafeInteger(provenance.submittedAt) && provenance.submittedAt >= Math.max(config.controlChangedAt, errorAt) && provenance.submittedAt <= now
+        && provenance.controlRevision === config.controlRevision && provenance.signature === signature && !configError && config.warm && !config.paused && nativeEnabled) {
+      // Replay only an observed still-active fresh USER turn. The actual native
+      // completion must still arrive and provide its fresh usage measurement.
+      userTurn = provenance; turnSource = 'user';
+      await event($, 'turn-start', { sessionId: id, turnId: provenance.turnId, source: 'user', submittedAt: provenance.submittedAt }, owner, ownerSession);
+    }
     await persist($, owner, ownerSession);
     timer = $.clock.every(1000, async () => {
       if (owner !== watcher || ownerSession !== sessionId || owner.state.ended) return;
@@ -170,6 +181,7 @@ export function register(on, options) {
     const source = own ? 'warm' : nextPromptOrigin && ['composer', 'bridge'].includes(nextPromptOrigin.kind) ? 'user' : 'other';
     turnSource = source;
     const submittedAt = nextUserSubmittedAt; nextPromptOrigin = undefined; nextUserSubmittedAt = undefined; if (own) warmPending = undefined;
+    userTurn = source === 'user' ? { source: 'user', sessionId, turnId: e.turnId, submittedAt, controlRevision: config.controlRevision, signature } : undefined;
     await event($, 'turn-start', { sessionId, turnId: e.turnId, source, submittedAt }); return next(e);
   });
   on('turn.complete', async ($, e, next) => {

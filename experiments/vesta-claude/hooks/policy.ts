@@ -39,6 +39,7 @@ export class Watcher {
   private freshRequired = false;
   private freshAfter = 0;
   private warmingAllowed = true;
+  activeTurnEligible() { return this.state.busy && this.activeGeneration === this.state.generation; }
   constructor(provider: string, config: any = {}, mode = 'normal') {
     if (!['claude', 'codex'].includes(provider)) throw new Error('provider must be claude or codex');
     if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('invalid configuration');
