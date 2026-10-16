@@ -95,6 +95,13 @@ branch, compaction, attach/detach and plugin reload invalidate eligibility or
 replace the watcher; saved status never restores stale token eligibility.
 Session end cancels its timer.
 
+Native settings changes may reload the plugin automatically. A reload in the
+same nonended session preserves validated user/warm timestamps and an active
+turn's binding, so configuration does not erase or renew the inactivity budget.
+It also retains attribution for an already committed configured marker. Tokens
+and pending reservations are never restored; an old turn's completion cannot
+reestablish eligibility. New or ended sessions do not inherit that metadata.
+
 ## What counts as activity
 
 Claude's policy differs from Codex's submitted-prompt clock. `prompt.edit`

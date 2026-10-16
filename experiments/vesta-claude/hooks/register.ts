@@ -16,13 +16,15 @@ let nextReset = '';
 let warmPending;
 let nextPromptOrigin;
 let nextUserSubmittedAt;
+let turnSource = '';
 let polling = Promise.resolve();
 let tickBusy = false;
 const envelope = message => "The vesta plugin sent a message:\n" + message + "\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above.";
 const status = () => ({ ...watcher.state, ...config, pluginId: 'vesta@vesta-local', sessionId, storeKey: 'status:' + sessionId,
   warmConfigured: config.warm, warmEnabled: config.warm && !config.paused && !configError && nativeEnabled,
   warmingSuspendedReason: configError || (config.paused ? 'Vesta warming is paused.' : !nativeEnabled ? 'Native Vesta plugin is disabled.' : ''),
-  minimumRuntimeVersion: '0.2.6', lastAction, resetReason });
+  minimumRuntimeVersion: '0.2.6', lastAction, resetReason, turnSource,
+  ...(warmPending !== undefined ? { committedMessage: warmPending } : {}) });
 const persist = async ($, target = watcher, id = sessionId) => {
   if (target !== watcher || id !== sessionId) return;
   await $.store.set('status:' + id, status());
@@ -90,6 +92,22 @@ const ensure = async $ => {
     config = controlConfig('claude', configuredOptions, true);
     watcher = new Watcher('claude', config); signature = ''; configError = ''; errorAt = 0; configPath = '';
     resetReason = nextReset || (old ? 'reload' : 'start'); nextReset = ''; warmPending = undefined; nextPromptOrigin = undefined; nextUserSubmittedAt = undefined;
+    turnSource = '';
+    const created = watcher;
+    const now = await $.clock.now();
+    if (created !== watcher || await $.session.id() !== id || created !== watcher || sessionId !== id) return;
+    const timestamp = value => value === null || Number.isSafeInteger(value) && value >= 0 && value <= now;
+    // Native settings changes can reload the module in this same live session.
+    // Carry only validated owner/clock metadata. The new Watcher has inactive
+    // turn/completion generations, and tokens/reservations always stay empty.
+    if (old?.pluginId === 'vesta@vesta-local' && old.sessionId === id && old.ended === false
+        && timestamp(old.userAt) && timestamp(old.warmAt) && typeof old.busy === 'boolean'
+        && typeof old.turnId === 'string' && (!old.busy || old.turnId.length > 0)) {
+      Object.assign(watcher.state, { userAt: old.userAt, warmAt: old.warmAt, busy: old.busy, sessionId: id, turnId: old.turnId });
+      if (typeof old.committedMessage === 'string') {
+        try { warmPending = controlConfig('claude', { message: old.committedMessage }).message; } catch { /* malformed committed metadata never attributes a warm */ }
+      }
+    }
     const owner = watcher; const ownerSession = sessionId;
     await readControls($, owner, ownerSession);
     if (owner !== watcher || ownerSession !== sessionId) return;
@@ -115,6 +133,9 @@ const ensure = async $ => {
         // Keep the exact old payload until native turn.start attributes it, even
         // if a later control change invalidates future warming eligibility.
         warmPending = message;
+        await persist($, owner, ownerSession);
+        if (!await readControls($, owner, ownerSession) || revision !== signature || owner !== watcher || ownerSession !== sessionId || owner.state.ended
+            || owner.state.busy || owner.state.generation !== dispatch.state.generation || owner.state.userAt !== dispatch.state.userAt) { warmPending = undefined; await persist($, owner, ownerSession); return; }
         try { await $.prompt.submit({ text: message }); }
         catch { if (owner === watcher && ownerSession === sessionId) warmPending = undefined; await event($, 'submit-failed', {}, owner, ownerSession); }
       } finally { tickBusy = false; }
@@ -144,6 +165,7 @@ export function register(on, options) {
     await ensure($);
     const own = warmPending !== undefined && e.text === envelope(warmPending) && (!nextPromptOrigin || nextPromptOrigin.kind === 'plugin' && nextPromptOrigin.name === 'vesta');
     const source = own ? 'warm' : nextPromptOrigin && ['composer', 'bridge'].includes(nextPromptOrigin.kind) ? 'user' : 'other';
+    turnSource = source;
     const submittedAt = nextUserSubmittedAt; nextPromptOrigin = undefined; nextUserSubmittedAt = undefined; if (own) warmPending = undefined;
     await event($, 'turn-start', { sessionId, turnId: e.turnId, source, submittedAt }); return next(e);
   });
