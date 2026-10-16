@@ -1,10 +1,14 @@
 # One-time native CLI setup
 
-Unreleased source 0.2.6 adds persistent `vesta pause|resume` and live
+Unreleased source 0.2.6 adds persistent `vesta pause|resume|reset` and live
 `vesta config [--idle-ms N] [--budget-ms N] [--threshold N] [--message TEXT]`.
-Select `--provider claude|codex|both` (`all` is an alias), or omit it for owned
+Select `--provider claude|codex|all` (`both` remains a compatibility alias), or omit it for owned
 integrations only. Controls use recorded paths and preserve opt-in and unknown
-settings. Resume/config require a fresh real prompt and reply without renewing
+settings. `vesta reset --provider all` restores each provider's default interval,
+budget, threshold, message and unpaused state while preserving warm opt-in,
+installation, recorded paths, unknown settings and native trust/auth. Reset
+rejects malformed JSON, containers or invalid existing control values before
+writing any selected provider. Changed resume/config/reset controls require a fresh real prompt and reply without renewing
 the user budget. Runtime 0.2.6 uses a one-second polling timer and rechecks before
 native commit; host/I/O delays can delay observation, and already committed messages may finish. Restart older sessions once after
 upgrading. See [Claude controls](../docs/claude.md) and
