@@ -11,6 +11,9 @@
 // - native configuration-triggered module reload erases same-session userAt,
 //   busy/turn binding or committed old-message attribution; restoring metrics
 //   instead of metadata would incorrectly resurrect stale warming eligibility.
+// - a native reload during a verified fresh post-control user turn invalidates
+//   that legitimate turn forever. Carry only still-active verified user-turn
+//   provenance, then require its actual completion; never carry token metrics.
 // Only host APIs are simulated. This is not evidence of actual Claude execution.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -85,7 +88,7 @@ export async function claudeControlHostFixture(input: { binary: string; modulePa
     scenarios.push({ operation, stage, beforeFile: operation + '-' + stage + '-before.json', afterFile: operation + '-' + stage + '-after.json', sessionId });
   }
   const reloadScenarios: any[] = [];
-  for (const variant of ['busy', 'committed'] as const) {
+  for (const variant of ['busy', 'committed', 'fresh-user'] as const) {
     currentStage = 'reload-' + variant;
     cli(['resume']); cli(['config', '--idle-ms', '800', '--budget-ms', '1000000', '--threshold', '0', '--message', 'VESTA_OLD_HOST_BODY']);
     const store = new Map<string, any>(); const sessionId = 'host-reload-' + variant; let now = Date.now();
@@ -105,6 +108,10 @@ export async function claudeControlHostFixture(input: { binary: string; modulePa
     };
     const fire = async (name: string, event: any) => { const handler = handlers.get(name); assert.ok(handler); return handler(host, event, async (value: any) => value); };
     await register(0); await fire('session.start', {});
+    if (variant === 'fresh-user') {
+      cli(['config', '--message', 'VESTA_NEW_HOST_BODY']);
+      now = Math.max(now, Date.now()) + 1;
+    }
     await fire('prompt.submit', { text: 'seed', origin: { kind: 'composer' } });
     await fire('turn.start', { text: 'seed', turnId: 'reload-seed' });
     if (variant === 'committed') {
@@ -113,7 +120,7 @@ export async function claudeControlHostFixture(input: { binary: string; modulePa
       assert.deepEqual(submissions, [{ text: 'VESTA_OLD_HOST_BODY' }]);
     }
     const before = structuredClone(store.get('status:' + sessionId));
-    cli(['config', '--message', 'VESTA_NEW_HOST_BODY']);
+    if (variant !== 'fresh-user') cli(['config', '--message', 'VESTA_NEW_HOST_BODY']);
     // Simulate native host disposing/recreating the module after settings change.
     // Existing state has already observed the new controls, as real native proof
     // shows; the old same-session native store is the only continuity source.
@@ -123,7 +130,7 @@ export async function claudeControlHostFixture(input: { binary: string; modulePa
     const restored = structuredClone(store.get('status:' + sessionId));
     assert.equal(restored.userAt, before.userAt, 'configuration reload preserves verified user clock');
     assert.equal(restored.tokens, null); assert.equal(restored.pending, false);
-    if (variant === 'busy') {
+    if (variant === 'busy' || variant === 'fresh-user') {
       assert.equal(restored.busy, true); assert.equal(restored.turnId, before.turnId);
       await fire('turn.complete', { turnId: before.turnId, reason: 'answer' });
     } else {
@@ -133,7 +140,9 @@ export async function claudeControlHostFixture(input: { binary: string; modulePa
       assert.equal(attributed.turnSource, 'warm', 'old exact body stays attributed after configuration reload');
       await fire('turn.complete', { turnId: 'old-committed-warm', reason: 'answer' });
     }
-    const completed = structuredClone(store.get('status:' + sessionId)); assert.equal(completed.busy, false); assert.equal(completed.tokens, null); assert.equal(completed.userAt, before.userAt);
+    const completed = structuredClone(store.get('status:' + sessionId)); assert.equal(completed.busy, false);
+    assert.equal(completed.tokens, variant === 'fresh-user' ? 200000 : null, 'only actual completion of still-active verified fresh user turn may qualify');
+    assert.equal(completed.userAt, before.userAt);
     await fire('session.end', { reason: 'exit' });
     reloadScenarios.push({ variant, sessionId, before, restored, completed });
   }
