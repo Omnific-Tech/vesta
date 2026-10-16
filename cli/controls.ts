@@ -41,12 +41,15 @@ export async function controls(args: string[], root: string) {
     // Read and validate every selected provider before touching any file.
     const saved = selected.map(p => {
       const path = pathFor(p); const document = json(path); const raw = options(p, document); const config = controlConfig(p.provider, raw, p.provider === 'claude');
-      const next = { ...config, ...patch, ...(operation === 'pause' ? { paused: true } : operation === 'resume' ? { paused: false } : {}) };
+      const defaults = operation === 'reset' ? controlConfig(p.provider) : undefined;
+      const changes = defaults ? { paused: defaults.paused, idleMs: defaults.idleMs, budgetMs: defaults.budgetMs, threshold: defaults.threshold, message: defaults.message } : patch;
+      const keys = ['paused', ...Object.keys(changes)];
+      const next = { ...config, ...changes, ...(operation === 'pause' ? { paused: true } : operation === 'resume' ? { paused: false } : {}) };
       controlConfig(p.provider, next);
-      const changed = ['paused', ...Object.keys(patch)].some(key => next[key] !== config[key]);
+      const changed = keys.some(key => next[key] !== config[key]);
       if (changed && config.controlRevision === Number.MAX_SAFE_INTEGER) throw new Error('Control revision exhausted');
       if (changed) accessSync(dirname(path), constants.W_OK);
-      return { p, path, document, raw, config, next, changed, written: undefined as any };
+      return { p, path, document, raw, config, next, keys, changed, written: undefined as any };
     });
     const applied: typeof saved = [];
     try {
@@ -54,9 +57,9 @@ export async function controls(args: string[], root: string) {
         // Re-read shared native settings to preserve unrelated concurrent edits.
         const current = json(row.path); const raw = options(row.p, current);
         if (JSON.stringify(raw) !== JSON.stringify(row.raw)) throw new Error('Vesta configuration changed concurrently');
-        const next = { ...row.next, controlRevision: row.config.controlRevision + 1, controlChangedAt: Date.now() };
+        const next = { ...row.next, controlRevision: row.config.controlRevision + 1, controlChangedAt: Math.max(Date.now(), row.config.controlChangedAt) };
         const changed = { ...raw };
-        for (const key of ['paused', ...Object.keys(patch), 'controlRevision', 'controlChangedAt']) changed[row.p.provider === 'claude' ? controlKeys[key] : key] = next[key];
+        for (const key of [...row.keys, 'controlRevision', 'controlChangedAt']) changed[row.p.provider === 'claude' ? controlKeys[key] : key] = next[key];
         row.written = changed; atomic(row.path, replace(row.p, current, changed)); applied.push(row);
       }
     } catch (error) {
@@ -64,7 +67,7 @@ export async function controls(args: string[], root: string) {
       for (const row of applied.reverse()) {
         try {
           const current = json(row.path); const raw = options(row.p, current); const restored = { ...raw };
-          for (const key of ['paused', ...Object.keys(patch), 'controlRevision', 'controlChangedAt']) {
+          for (const key of [...row.keys, 'controlRevision', 'controlChangedAt']) {
             const field = row.p.provider === 'claude' ? controlKeys[key] : key;
             if (JSON.stringify(raw[field]) !== JSON.stringify(row.written[field])) throw new Error('Control ownership changed during compensation');
             if (Object.hasOwn(row.raw, field)) restored[field] = row.raw[field]; else delete restored[field];
