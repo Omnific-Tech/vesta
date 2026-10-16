@@ -1,5 +1,15 @@
 # One-time native CLI setup
 
+Unreleased source 0.2.6 adds persistent `vesta pause|resume` and live
+`vesta config [--idle-ms N] [--budget-ms N] [--threshold N] [--message TEXT]`.
+Select `--provider claude|codex|both` (`all` is an alias), or omit it for owned
+integrations only. Controls use recorded paths and preserve opt-in and unknown
+settings. Resume/config require a fresh real prompt and reply without renewing
+the user budget. Runtime 0.2.6 polls within one second and rechecks before native
+commit; already committed messages may finish. Restart older sessions once after
+upgrading. See [Claude controls](../docs/claude.md) and
+[Codex controls](../docs/codex.md), including the custom-text reply rule.
+
 Version 0.2.5 Codex warming uses native local ownership, registered hooks and
 the native durable queue. Claude is unchanged. Upgrades from v0.2.1 replace its
 previous remote wrapper. Existing source integrations preserve native pass-through

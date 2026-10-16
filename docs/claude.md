@@ -14,6 +14,36 @@ Restart Claude Code and use ordinary `claude` commands. The global instruction
 file is `~/.claude/CLAUDE.md`, or the corresponding file under `CLAUDE_CONFIG_DIR`.
 Vesta never edits that file for you.
 
+The following live controls belong to **unreleased source version 0.2.6**.
+Restart older sessions once after upgrading; running v0.2.5 owners cannot read
+these controls.
+
+```sh
+vesta pause --provider claude
+vesta resume --provider claude
+vesta config --provider claude
+vesta config --provider claude --idle-ms 3000000 --budget-ms 14400000 --threshold 100000
+vesta config --provider claude --message VESTA_CACHE_KEEPALIVE
+```
+
+Pause persists across all running and newly started supported owners using the
+selected configuration, until resume. Pause is separate from saved `warm` opt-in;
+resume and config never enable warming. Without a provider flag these commands
+select existing owned integrations. `both` and `all` are aliases; unowned
+providers are never adopted.
+
+Runtime 0.2.6 polls controls at least once per second and re-reads immediately
+before dispatch. Resume and effective configuration changes cancel uncommitted
+reservations and require a new real submitted prompt and completed reply. A turn
+already running before a change cannot rearm eligibility. Controls preserve user
+activity time and budget. Missing, unreadable or invalid settings suspend warming;
+restoration also requires fresh eligibility. Already committed messages may finish.
+
+For custom text, `config` prints the exact matching K-only reply rule. Send that
+rule in a normal prompt for current sessions; install it in the applicable global
+instruction file for future sessions. A custom keepalive contains only the saved
+text. Vesta never edits instruction files or appends instructions to its payload.
+
 The native configuration flow is `claude plugin configure vesta@vesta-local`.
 The plugin's [configuration schema](../experiments/vesta-claude/.claude-plugin/plugin.json)
 exposes:
@@ -23,9 +53,19 @@ exposes:
 | `warm` | `false` | Explicit opt-in to submit eligible keepalives |
 | `idle_ms` | `3000000` | 50-minute idle interval |
 | `budget_ms` | `14400000` | Four-hour maximum since verified user activity |
+| `paused` | `false` | Persistent pause across Claude owners |
+| `threshold` | `100000` | Input must be strictly greater than this value |
+| `message` | `VESTA_CACHE_KEEPALIVE` | Exact keepalive body |
+| `control_revision`, `control_changed_at` | `0` | CLI-managed metadata, never activity |
 
-Timers accept positive integer milliseconds up to four hours. The production
-input threshold is fixed at strictly greater than 100,000 tokens.
+Timers accept integer milliseconds from 1 through 14,400,000. Threshold is a
+nonnegative safe integer. Message is nonempty, one line, at most 256 Unicode code
+points and contains no control characters. CLI writes preserve unknown options
+and unrelated settings; identical requests preserve revision/change time. The
+operation lock and atomic per-file replacement protect changes. All selected
+providers are preflighted first; failures restore changed Vesta fields while
+preserving unrelated settings. Different owners may observe different providers'
+writes at different moments.
 
 `vesta repair --provider claude` restores owned registrations and preserves saved
 warming and timers. Add `--warm` to opt an owned integration into warming. Repair
@@ -39,7 +79,7 @@ the running session loads the intended plugin runtime.
 1. Native middleware observes session and turn events. A completed turn qualifies
    only when its reason is `answer`; Vesta then reads `$.session.usage()` and uses
    `context.tokens` for that current context.
-2. A native clock checks eligibility at most every 30 seconds. The session must
+2. A native clock checks eligibility at least once per second. The session must
    be idle, within its activity budget, and have a fresh qualifying measurement.
 3. Vesta reserves a submission, yields, then checks the reservation again before
    calling `$.prompt.submit({ text: 'VESTA_CACHE_KEEPALIVE' })`.
@@ -78,7 +118,9 @@ The shared installed package does not hold per-session status or prompts.
 
 If warming does not occur, first confirm that the session actually loaded the
 plugin and can run `/vesta-status`. Check `vesta status` for installation and
-enabled warming, restart after configuration changes, and send a normal message.
+enabled warming, pause, effective values/revision and suspension reason. Restart
+once when upgrading an older runtime; subsequent controls apply live. Send a
+normal message.
 Wait until its completed answer supplies a fresh measurement above the threshold.
 An old measurement from before resume, compaction or reload is insufficient.
 Check that subsequent edits or commands have not restarted the idle interval,

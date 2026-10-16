@@ -7,6 +7,13 @@ timer expires. Continue using ordinary `claude` and `codex` commands after setup
 Cache retention and net usage savings are **unverified**. Each keepalive is a
 real model turn and consumes usage.
 
+**Unreleased source 0.2.6:** persistent `vesta pause|resume` and live
+`vesta config --idle-ms N --budget-ms N --threshold N --message TEXT` apply to
+all selected owned sessions (`--provider claude|codex|both`). Resume preserves
+saved opt-in; changed controls require a fresh real prompt/reply. Restart older
+runtimes once after upgrading. See the [Claude](docs/claude.md) and
+[Codex](docs/codex.md) guides. Download instructions below remain published v0.2.5.
+
 **Version 0.2.5:** Codex warming uses a native local owner and registered
 lifecycle hooks. Install with `--warm`, then review and trust only Vesta's entries
 in native `/hooks`. Until those hooks are ready, ordinary `codex` calls remain

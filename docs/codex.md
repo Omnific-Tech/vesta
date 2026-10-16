@@ -9,6 +9,37 @@ session has a local physical owner rather than a shared-daemon attachment.
 Vesta uses a PTY to relay terminal traffic and observe input; keepalives enter
 the native durable queue, never as marker keystrokes.
 
+**Unreleased source version 0.2.6** adds live controls. Published v0.2.5 links
+still refer to that released version. Restart each older session once after
+upgrading; running v0.2.5 owners cannot read new controls.
+
+```sh
+vesta pause --provider codex
+vesta resume --provider codex
+vesta config --provider codex
+vesta config --provider codex --idle-ms 1200000 --budget-ms 14400000 --threshold 100000
+vesta config --provider codex --message VESTA_CACHE_KEEPALIVE
+```
+
+Pause persists across all running and newly launched supported owners using the
+selected owned configuration, until resume. An opted-in paused launch keeps its
+owner attached so resume works live. Controls preserve saved `warm`; resume does
+not opt in a disabled integration or bypass native hook readiness. Omit the
+provider flag to select existing owned integrations; `both` and `all` are aliases.
+
+Owners poll controls at least once per second and re-read before the native queue
+write. Resume or changes invalidate old metrics/reservations without renewing
+the user clock. Submit a new real prompt and wait for its reply; completion of a
+pre-change turn cannot rearm. Missing, unreadable or invalid live config suspends
+warming, and recovery requires that same fresh prompt/reply. Input guards,
+ownership leases and native trust remain authoritative. Already committed queue
+entries may run and remain attributed to their original body/client ID.
+
+`config` prints the matching K-only rule for custom text. Send the rule in a
+normal user prompt for current sessions and install it in the applicable global
+instruction file for future sessions. Vesta never edits instructions or adds
+instructions to a keepalive payload.
+
 ## Setup, trust and relaunch
 
 1. Add the [global reply rule](../README.md#1-add-the-reply-rule) to
@@ -25,11 +56,19 @@ the native durable queue, never as marker keystrokes.
    Hook approval does not retrofit a process that already started without the owner.
 
 Warming is off by default. Its saved configuration lives in
-`~/.config/vesta/vesta-codex.json`, with `warm`, `idleMs`, `budgetMs` and
-`statusDir`. Native registration follows `CODEX_HOME` or `~/.codex`.
+`~/.config/vesta/vesta-codex.json`, with `warm`, `idleMs`, `budgetMs`, `statusDir`,
+`paused`, `threshold`, `message`, `controlRevision` and `controlChangedAt`.
+The last two are CLI-managed change metadata, never user activity. Native
+registration follows `CODEX_HOME` or `~/.codex`.
 Defaults are 20 minutes idle and four hours since the last verified user-submitted
 prompt. Timers accept positive integer milliseconds up to four hours; the
-production threshold is fixed at strictly greater than 100,000 input tokens.
+default threshold is strictly greater than 100,000 input tokens. The configurable
+threshold is a nonnegative safe integer. Message is nonempty, one line and at
+most 256 Unicode code points, without control characters. Unknown fields and
+unrelated settings survive control writes. Identical requests do not advance
+the revision/change time. The CLI preflights all selected providers, uses atomic
+per-file replacement under its operation lock, and restores changed Vesta fields
+if a later write fails. Providers' writes are not observed simultaneously.
 
 `vesta status` separates `warmConfigured` from effective `warmEnabled`, and gives
 `warmingSuspendedReason` when hooks are unavailable, disabled or untrusted.
@@ -72,7 +111,8 @@ bound or that owner exits. Retained backend threads keep their leases until
 `SessionEnd` or owner exit. Unmanaged simultaneous writers and external queue
 producers for the same thread are unsupported.
 
-A completed reply must have fresh native last-turn `input_tokens` above 100,000.
+A completed reply must have fresh native last-turn `input_tokens` above the
+configured threshold (100,000 by default).
 Cached input is already included once; output and cumulative lifetime counts do
 not qualify. Resume, `/resume`, `/new`, interruption and compaction invalidate
 eligibility. A fresh completed reply must reestablish it.
