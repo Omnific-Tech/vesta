@@ -24,13 +24,23 @@ vesta resume --provider claude
 vesta config --provider claude
 vesta config --provider claude --idle-ms 3000000 --budget-ms 14400000 --threshold 100000
 vesta config --provider claude --message VESTA_CACHE_KEEPALIVE
+vesta reset --provider claude
 ```
 
 Pause persists across all running and newly started supported owners using the
 selected configuration, until resume. Pause is separate from saved `warm` opt-in;
 resume and config never enable warming. Without a provider flag these commands
-select existing owned integrations. `both` and `all` are aliases; unowned
+select existing owned integrations. Use `--provider all` for all owned providers;
+`both` remains a compatibility alias. Unowned
 providers are never adopted.
+
+`vesta reset --provider claude` restores a 50-minute idle interval, four-hour
+budget, 100,000-token threshold, `VESTA_CACHE_KEEPALIVE` and unpaused state.
+It preserves saved warm opt-in, installation, recorded paths, unknown settings,
+native trust/auth and instruction files. A changed reset requires a fresh real
+prompt and reply without renewing user activity. Identical resets preserve bytes
+and change metadata. Reset rejects malformed containers, JSON or invalid existing
+control values before writing any selected provider; it does not repair them.
 
 Runtime 0.2.6 uses a one-second polling timer and re-reads immediately before
 dispatch; native host or I/O delays can delay an observation. Resume and effective configuration changes cancel uncommitted

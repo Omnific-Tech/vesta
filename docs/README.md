@@ -35,9 +35,12 @@ Setup readiness and live attachment are different. `vesta status` reports saved
 configuration and integration readiness; it does not prove a running session
 loaded that integration. Restart after setup or updates and establish a fresh
 reply before waiting for a keepalive. Source 0.2.6 adds persistent
-`vesta pause|resume --provider claude|codex|both` and `vesta config` for live
+`vesta pause|resume|reset --provider claude|codex|all` and `vesta config` for live
 interval, budget, threshold and text changes. These commands preserve opt-in;
-resume/config require a fresh real prompt and reply. Older owners need one
+`both` remains a compatibility alias for `all`. Reset restores provider defaults
+and unpauses while preserving installation, paths and native trust. It rejects
+malformed or invalid existing configuration. Resume/config/reset changes require
+a fresh real prompt and reply. Older owners need one
 restart after upgrading. Reinstalling or repairing without `--warm` preserves
 saved preferences.
 

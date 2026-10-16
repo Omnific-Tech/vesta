@@ -19,13 +19,23 @@ vesta resume --provider codex
 vesta config --provider codex
 vesta config --provider codex --idle-ms 1200000 --budget-ms 14400000 --threshold 100000
 vesta config --provider codex --message VESTA_CACHE_KEEPALIVE
+vesta reset --provider codex
 ```
 
 Pause persists across all running and newly launched supported owners using the
 selected owned configuration, until resume. An opted-in paused launch keeps its
 owner attached so resume works live. Controls preserve saved `warm`; resume does
 not opt in a disabled integration or bypass native hook readiness. Omit the
-provider flag to select existing owned integrations; `both` and `all` are aliases.
+provider flag to select existing owned integrations. Use `--provider all` for all
+owned providers; `both` remains a compatibility alias.
+
+`vesta reset --provider codex` restores a 20-minute idle interval, four-hour
+budget, 100,000-token threshold, `VESTA_CACHE_KEEPALIVE` and unpaused state.
+It preserves saved warm opt-in, installation, recorded paths, unknown settings,
+native trust/auth and instruction files. A changed reset requires a fresh real
+prompt and reply without renewing the user clock. Identical resets preserve bytes
+and change metadata. Reset rejects malformed containers, JSON or invalid existing
+control values before writing any selected provider; it does not repair them.
 
 Owners use a one-second polling timer and re-read before the native queue write;
 native host or I/O delays can delay an observation. Resume or changes invalidate old metrics/reservations without renewing

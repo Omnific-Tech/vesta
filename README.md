@@ -9,8 +9,10 @@ real model turn and consumes usage.
 
 **Unreleased source 0.2.6:** persistent `vesta pause|resume` and live
 `vesta config --idle-ms N --budget-ms N --threshold N --message TEXT` apply to
-all selected owned sessions (`--provider claude|codex|both`). Resume preserves
-saved opt-in; changed controls require a fresh real prompt/reply. Restart older
+all selected owned sessions (`--provider claude|codex|all`; `both` remains a
+compatibility alias). `vesta reset --provider all` restores default intervals,
+budget, threshold and message, and unpauses, preserving saved warm opt-in and
+installation. Changed controls require a fresh real prompt/reply. Restart older
 runtimes once after upgrading. See the [Claude](docs/claude.md) and
 [Codex](docs/codex.md) guides. Download instructions below remain published v0.2.5.
 
