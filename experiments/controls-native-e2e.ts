@@ -5,6 +5,9 @@
 // dialog. Blind Enter can execute Update now instead of submitting the prompt.
 // Require loaded model/composer evidence and dismiss only the observed update
 // dialog with Escape; unknown dialogs must never receive automated Enter.
+// Some native key modes do not act on bare Escape. In the exact update menu,
+// select and verify the nonpersistent `2. Skip` entry before sending Enter;
+// never send Enter while `1. Update now` is the observed selection.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -114,7 +117,8 @@ async function bind(owner: Owner) {
   await wait(() => snapshot(owner), 'native passive status available');
 }
 async function codexComposer(owner: Owner) {
-  const file = join(artifacts, owner.terminalFile); let dismissed = -1;
+  const file = join(artifacts, owner.terminalFile); let dismissed = -1; let skipSelected = false;
+  let skipOffset = -1;
   const ready = () => {
     if (!existsSync(file)) return;
     const raw = readFileSync(file, 'utf8'); const plain = stripVTControlCharacters(raw);
@@ -122,11 +126,17 @@ async function codexComposer(owner: Owner) {
     const composer = plain.lastIndexOf('Ask Codex to do anything');
     const footers = [...plain.matchAll(/\bGPT-[A-Za-z0-9.-]+\s+(?:default|low|medium|high|xhigh|max|ultra)\s*·/gi)];
     const footer = footers.at(-1)?.index ?? -1;
-    if (modal > composer && modal > dismissed) {
+    if (modal > composer && !skipSelected) {
       const menu = plain.slice(modal);
       assert.ok(menu.includes('Update now') && /esc\s*skip/i.test(menu), 'only exact observed native update menu may be dismissed');
-      owner.terminal.write('\x1b'); dismissed = modal;
-      observations.push({ name: 'codex-update-dismissed', ownerIndex: owner.index, terminalFile: owner.terminalFile, at: Date.now(), rawOffset: raw.length });
+      if (skipOffset < 0) { skipOffset = raw.length; owner.terminal.write('\x1b[B'); return; }
+      const fresh = stripVTControlCharacters(raw.slice(skipOffset));
+      // Only the actual freshly rendered safe selection authorizes Enter.
+      if (!/›\s*2\.\s*Skip(?:\s|$)/.test(fresh)) return;
+      assert.ok(!/›\s*1\.\s*Update now/.test(fresh.slice(fresh.lastIndexOf('›'))), 'Update now remains forbidden');
+      skipSelected = true; dismissed = modal;
+      observations.push({ name: 'codex-update-dismissed', ownerIndex: owner.index, terminalFile: owner.terminalFile, at: Date.now(), rawOffset: raw.length, selectionOffset: skipOffset, action: 'verified-2-Skip' });
+      owner.terminal.write('\r');
       return;
     }
     // A model footer is rendered after initialization; the loading placeholder
