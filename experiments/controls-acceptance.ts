@@ -21,6 +21,14 @@
 //   become present despite a permitted non-Vesta native usage-counter update;
 // - a synthetic model response, authored success flag, mutable source checkout or
 //   unclean personal/native profile is presented as real native evidence.
+// RESET-001 failure enumeration, frozen before reset implementation:
+// - reset changes opt-in, install ownership, native trust/auth, paths or unknowns;
+// - selective reset changes another provider, or all uses one provider's idle;
+// - reset preserves pause/custom values, rewinds revision/time or writes a no-op;
+// - mutation flags, invalid existing controls, malformed selections or locks
+//   permit partial reset writes; reset must reject rather than repair corruption;
+// - running owners retain an old metric, renew user activity/budget, restart or
+//   dispatch another automatic turn after actual compiled reset restores defaults.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -78,6 +86,10 @@ export function integration(value: any, provider: string) {
 export function sameControls(a: any, b: any) {
   assert.deepEqual(Object.fromEntries(controlFields.map(key => [key, a[key]])), Object.fromEntries(controlFields.map(key => [key, b[key]])));
 }
+export function resetDefaults(value: any, provider: string) {
+  assert.equal(value.paused, false); assert.equal(value.idleMs, provider === 'claude' ? 3000000 : 1200000);
+  assert.equal(value.budgetMs, 14400000); assert.equal(value.threshold, 100000); assert.equal(value.message, 'VESTA_CACHE_KEEPALIVE');
+}
 export function verifyControls(directory: string) {
   const e = JSON.parse(readFileSync(join(directory, 'summary.json'), 'utf8'));
   assert.equal(e.schema, 1); assert.equal(e.failure, '');
@@ -90,7 +102,7 @@ export function verifyControls(directory: string) {
   for (const file of e.personal) if (file.path !== e.profileIntegrity?.path) assert.equal(file.after, file.before, 'personal file unchanged: ' + file.path);
   for (const file of e.sourceFiles) assert.equal(digest(file.path), file.sha256, 'contract and source identity');
   if (e.kind === 'compiled-controls') {
-    for (const name of ['defaults', 'validation', 'selection', 'idempotence', 'revision-burst', 'custom-rule', 'preservation', 'unowned', 'preflight', 'lock', 'os-write-failure', 'repair', 'update', 'compensation', 'source-owned']) {
+    for (const name of ['defaults', 'validation', 'selection', 'idempotence', 'revision-burst', 'custom-rule', 'preservation', 'unowned', 'preflight', 'lock', 'os-write-failure', 'repair', 'update', 'compensation', 'source-owned', 'reset-selected', 'reset-all', 'reset-warm', 'reset-clock', 'reset-validation']) {
       const c = e.cases.find((row: any) => row.name === name); assert.ok(c, 'executed CLI case: ' + name);
       assert.ok(c.commandIndexes.length > 0); for (const index of c.commandIndexes) assert.ok(e.commands[index]);
     }
@@ -116,7 +128,7 @@ export function verifyControls(directory: string) {
       assert.ok(owner.pid > 0); assert.equal(owner.exited, true); assert.ok(owner.sessionId);
       assert.ok(readFileSync(join(directory, owner.terminalFile), 'utf8').length);
       const snapshots = rawRows(owner.snapshotsFile);
-      for (const phase of ['paused', 'resumed', 'configured', 'fresh', 'expired']) assert.ok(snapshots.some((s: any) => s.phase === phase), provider + ' native snapshot ' + phase);
+      for (const phase of ['paused', 'resumed', 'configured', 'fresh', 'expired', 'continuity', 'reset-before', 'reset']) assert.ok(snapshots.some((s: any) => s.phase === phase), provider + ' native snapshot ' + phase);
       const paused = snapshots.find((s: any) => s.phase === 'paused');
       for (const snapshot of snapshots) {
         const raw = JSON.parse(readFileSync(join(directory, snapshot.rawFile), 'utf8'));
@@ -135,6 +147,14 @@ export function verifyControls(directory: string) {
       const expired = snapshots.find((s: any) => s.phase === 'expired'); assert.equal(expired.value.userAt, fresh.value.userAt);
       assert.ok(expired.at - expired.value.userAt >= expired.value.budgetMs);
       assert.equal(expired.value.lastAction, 'expired', 'actual policy budget gate observed');
+      const continuity = snapshots.find((s: any) => s.phase === 'continuity');
+      const beforeReset = snapshots.find((s: any) => s.phase === 'reset-before');
+      const reset = snapshots.find((s: any) => s.phase === 'reset'); resetDefaults(reset.value, provider);
+      assert.equal(beforeReset.value.paused, true); assert.ok(reset.at >= beforeReset.at);
+      assert.ok(reset.value.controlRevision > beforeReset.value.controlRevision);
+      assert.equal(reset.value.tokens, null); assert.equal(reset.value.userAt, continuity.value.userAt);
+      assert.equal(reset.value.sessionId, continuity.value.sessionId); assert.equal(reset.value.turnId, continuity.value.turnId);
+      assert.equal(reset.value.userAt, beforeReset.value.userAt, 'reset never offsets the user inactivity clock');
       const transcript = rawRows(owner.rolloutFile);
       if (provider === 'claude') {
         const users = transcript.filter((row: any) => row.type === 'user');

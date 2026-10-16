@@ -7,7 +7,7 @@ import { chmodSync, closeSync, copyFileSync, existsSync, mkdirSync, openSync, re
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { buildRelocated, hash, nativeBin, nodeFlags, nextReleaseVersion, releaseVersion, root, sealEvidence } from './e2e-common.ts';
-import { controlMessage, integration, sameControls, verifyControls } from '../experiments/controls-acceptance.ts';
+import { controlMessage, integration, resetDefaults, sameControls, verifyControls } from '../experiments/controls-acceptance.ts';
 
 const flag = process.argv.indexOf('--artifacts');
 const artifacts = resolve(flag < 0 ? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/controls-cli', 'artifacts') : process.argv[flag + 1]!);
@@ -170,11 +170,78 @@ try {
     const row = integration(run(source, 'source-inspect', ['config', '--provider', 'codex', '--config-dir', source.config, '--shell-file', source.shell]), 'codex'); assert.equal(row.paused, true);
     assert.ok(!existsSync(join(source.env.VESTA_HOME, 'installation.json')), 'controls do not silently install/adopt source provider');
   });
+  const reset = context('reset'); install(reset);
+  const configured = () => { run(reset, 'reset-customize', ['config', '--provider', 'all', '--idle-ms', '12345', '--budget-ms', '65432', '--threshold', '0', '--message', controlMessage]); run(reset, 'reset-pause', ['pause', '--provider', 'all']); };
+  const changedAt = (provider: string) => provider === 'claude' ? json(join(reset.config, 'settings.json')).pluginConfigs['vesta@vesta-local'].options.control_changed_at : json(join(reset.config, 'vesta-codex.json')).controlChangedAt;
+  const stablePaths = [reset.shell, join(reset.env.VESTA_HOME, 'installation.json'), join(reset.config, '.vesta-setup-claude.json'), join(reset.config, '.vesta-setup-codex.json'), join(reset.home, '.codex/config.toml'), join(reset.home, '.codex/auth.json'), join(reset.home, '.claude.json')];
+  // Native auth/trust are inert sentinel bytes in this compiled, model-free run.
+  writeFileSync(join(reset.home, '.codex/auth.json'), '{"fixture":"auth-preserved"}\n');
+  writeFileSync(join(reset.home, '.claude.json'), '{"projects":{"fixture":{"hasTrustDialogAccepted":true}}}\n');
+  const stable = () => Object.fromEntries(stablePaths.map(path => [path, existsSync(path) ? readFileSync(path, 'utf8') : '<absent>']));
+  test('reset-selected', () => {
+    configured(); const before = inspect(reset); const files = snapshot(reset); const preserved = stable();
+    const output = run(reset, 'reset-claude', ['reset', '--provider', 'claude']);
+    resetDefaults(integration(output, 'claude'), 'claude');
+    assert.equal(integration(output, 'claude').controlRevision, integration(before, 'claude').controlRevision + 1);
+    sameControls(integration(before, 'codex'), integration(inspect(reset), 'codex'));
+    assert.equal(snapshot(reset)['vesta-codex.json'], files['vesta-codex.json']); assert.deepEqual(stable(), preserved);
+  });
+  test('reset-all', () => {
+    configured(); const settingsPath = join(reset.config, 'settings.json'); const codexPath = join(reset.config, 'vesta-codex.json');
+    const settings = json(settingsPath); settings.unrelated = { retain: ['native'] }; settings.pluginConfigs['vesta@vesta-local'].options.unknownFutureOption = 'retain';
+    writeFileSync(settingsPath, JSON.stringify(settings)); writeFileSync(codexPath, JSON.stringify({ ...json(codexPath), unknownFutureOption: 'retain' }));
+    const before = inspect(reset); const preserved = stable(); const paths = ['settings.json', 'vesta-codex.json'].map(name => join(reset.config, name));
+    const statusDirs = paths.map((path, i) => i === 0 ? json(path).pluginConfigs['vesta@vesta-local'].options.status_dir : json(path).statusDir);
+    const timestamps = ['claude', 'codex'].map(changedAt);
+    const output = run(reset, 'reset-all', ['reset', '--provider', 'all']);
+    for (const [i, provider] of ['claude', 'codex'].entries()) {
+      const row = integration(output, provider); resetDefaults(row, provider); assert.equal(row.warmConfigured, false);
+      assert.equal(row.controlRevision, integration(before, provider).controlRevision + 1); assert.ok(changedAt(provider) >= timestamps[i]!);
+    }
+    assert.deepEqual(stable(), preserved); assert.deepEqual(json(settingsPath).unrelated, settings.unrelated);
+    assert.equal(json(settingsPath).pluginConfigs['vesta@vesta-local'].options.unknownFutureOption, 'retain'); assert.equal(json(codexPath).unknownFutureOption, 'retain');
+    assert.deepEqual(paths.map((path, i) => i === 0 ? json(path).pluginConfigs['vesta@vesta-local'].options.status_dir : json(path).statusDir), statusDirs);
+    const noop = snapshot(reset); run(reset, 'reset-noop', ['reset']); assert.deepEqual(snapshot(reset), noop, 'default reset preserves exact bytes, revision and timestamp');
+  });
+  test('reset-warm', () => {
+    run(reset, 'reset-enable-warm', ['repair', '--warm', '--json']); configured(); const preserved = stable();
+    const output = run(reset, 'reset-warm-default-selection', ['reset']);
+    for (const provider of ['claude', 'codex']) { resetDefaults(integration(output, provider), provider); assert.equal(integration(output, provider).warmConfigured, true); }
+    assert.deepEqual(stable(), preserved);
+    run(reset, 'reset-both-compatibility', ['reset', '--provider', 'both']);
+  });
+  test('reset-clock', () => {
+    configured(); const file = join(reset.config, 'vesta-codex.json'); const future = Date.now() + 3600000;
+    writeFileSync(file, JSON.stringify({ ...json(file), controlChangedAt: future }));
+    const before = integration(inspect(reset), 'codex'); const output = run(reset, 'reset-future-stamp', ['reset', '--provider', 'codex']);
+    resetDefaults(integration(output, 'codex'), 'codex'); assert.equal(integration(output, 'codex').controlRevision, before.controlRevision + 1);
+    assert.equal(changedAt('codex'), future, 'reset preserves a future causal barrier rather than moving its timestamp backwards');
+    const noop = snapshot(reset); run(reset, 'reset-future-noop', ['reset', '--provider', 'codex']); assert.deepEqual(snapshot(reset), noop);
+    run(reset, 'pause-future-stamp', ['pause', '--provider', 'codex']); assert.equal(changedAt('codex'), future, 'shared controls writer keeps timestamps monotonic');
+  });
+  test('reset-validation', () => {
+    for (const args of [['reset', '--idle-ms', '1000'], ['reset', '--budget-ms', '1000'], ['reset', '--threshold', '0'], ['reset', '--message', controlMessage], ['reset', '--warm'], ['reset', '--wat'], ['reset', '--provider', 'missing'], ['reset', '--provider', 'claude', '--provider', 'codex'], ['reset', '--config-dir', join(reset.home, 'foreign')]]) {
+      const before = snapshot(reset); run(reset, 'reset-invalid-option', args, 1); assert.deepEqual(snapshot(reset), before);
+    }
+    const empty = context('reset-unowned'); const emptyBefore = snapshot(empty); run(empty, 'reset-unowned', ['reset'], 1); assert.deepEqual(snapshot(empty), emptyBefore);
+    const only = context('reset-only-codex'); install(only, 'codex'); const onlyBefore = snapshot(only);
+    run(only, 'reset-selected-unowned', ['reset', '--provider', 'claude'], 1); assert.deepEqual(snapshot(only), onlyBefore);
+    configured(); const file = join(reset.config, 'vesta-codex.json'); const good = readFileSync(file);
+    for (const bytes of ['{', JSON.stringify({ ...JSON.parse(good.toString()), idleMs: 0 }), JSON.stringify({ ...JSON.parse(good.toString()), controlRevision: Number.MAX_SAFE_INTEGER })]) {
+      writeFileSync(file, bytes); const before = snapshot(reset);
+      try { run(reset, 'reset-invalid-selected-preflight', ['reset', '--provider', 'all'], 1); assert.deepEqual(snapshot(reset), before); } finally { writeFileSync(file, good); }
+    }
+    const settingsPath = join(reset.config, 'settings.json'); const goodSettings = readFileSync(settingsPath);
+    writeFileSync(settingsPath, JSON.stringify({ ...JSON.parse(goodSettings.toString()), pluginConfigs: [] }));
+    try { const before = snapshot(reset); run(reset, 'reset-malformed-container', ['reset', '--provider', 'all'], 1); assert.deepEqual(snapshot(reset), before); } finally { writeFileSync(settingsPath, goodSettings); }
+    const lock = join(reset.env.VESTA_HOME, '.operation.lock'); writeFileSync(lock, JSON.stringify({ pid: process.pid }));
+    try { const before = snapshot(reset); run(reset, 'reset-locked', ['reset', '--provider', 'all'], 1); assert.deepEqual(snapshot(reset), before); } finally { rmSync(lock); }
+  });
 } catch (error) { failure = String(error); }
 finally {
   for (const file of personal) file.after = existsSync(file.path) ? hash(file.path) : 'absent';
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'compiled-controls', failure, commands, cases, personal, binary: built.binary, binarySha256: hash(built.binary), version: releaseVersion,
-    sourceFiles: ['packaging/controls-e2e.ts', 'experiments/controls-acceptance.ts', 'cli/main.ts', 'cli/manage.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
+    sourceFiles: ['packaging/controls-e2e.ts', 'experiments/controls-acceptance.ts', 'cli/main.ts', 'cli/manage.ts', 'cli/controls.ts', 'experiments/watcher-policy.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
   sealEvidence(artifacts);
 }
 if (failure) throw new Error(failure + '; artifacts: ' + artifacts); verifyControls(artifacts);

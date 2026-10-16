@@ -21,7 +21,7 @@ import * as pty from 'node-pty';
 import { buildRelocated, hash, nativeBin, nodeFlags, root, sealEvidence } from '../packaging/e2e-common.ts';
 import { verifyBuildReceipt } from '../packaging/release-acceptance.ts';
 import { nativeRequest } from './codex-native-ipc.ts';
-import { controlMessage, controlFileError, codexControlSnapshot, controlProfileSnapshot, verifyControlProfile, integration, sameControls, verifyControls } from './controls-acceptance.ts';
+import { controlMessage, controlFileError, codexControlSnapshot, controlProfileSnapshot, verifyControlProfile, integration, resetDefaults, sameControls, verifyControls } from './controls-acceptance.ts';
 import { claudeControlHostFixture } from './controls-claude-host-fixture.ts';
 import { parseClaudeStatuses } from './setup-acceptance.ts';
 
@@ -256,6 +256,21 @@ try {
     const since = Date.now(); await type(owner, 'What nonce did I ask you to remember? Reply with exactly that nonce. Do not use tools.');
     await capture(owner, 'continuity', value => !value.busy && value.tokens > 0 && value.userAt >= since);
   }
+  // RESET-001: the same six native owners must invalidate old metrics without
+  // inventing activity, restarting, or consuming another real model turn.
+  command(['pause', '--provider', 'all']);
+  const resetBefore = new Map<Owner, any>();
+  for (const owner of owners) resetBefore.set(owner, await capture(owner, 'reset-before', value => value.paused === true && value.tokens === null));
+  const resetPaths = [join(claude, 'settings.json'), join(config, 'vesta-codex.json')];
+  const resetOutput = command(['reset', '--provider', 'all']);
+  for (const provider of ['claude', 'codex']) { const row = integration(resetOutput, provider); resetDefaults(row, provider); assert.equal(row.warmConfigured, true); }
+  for (const owner of owners) {
+    const before = resetBefore.get(owner);
+    const value = await capture(owner, 'reset', value => !value.paused && value.controlRevision > before.controlRevision && value.tokens === null && value.threshold === 100000 && value.message === 'VESTA_CACHE_KEEPALIVE');
+    resetDefaults(value, owner.provider); assert.equal(value.userAt, before.userAt); assert.equal(value.sessionId, before.sessionId); assert.equal(value.turnId, before.turnId);
+    assert.equal(warms(owner), 1, 'reset creates no additional automatic model turn');
+  }
+  assert.ok(resetPaths.every(existsSync), 'reset keeps existing native settings paths');
   // Fingerprint the actual installed immutable assets against compiled receipt.
   for (const [file, assetPath] of [
     [join(plugin.installPath, 'hooks/register.ts'), 'app/experiments/vesta-claude/hooks/register.ts'],
@@ -324,7 +339,7 @@ finally {
   try { profileIntegrity.after = controlProfileSnapshot(readFileSync(profilePath)); personal.find(file => file.path === profilePath)!.after = profileIntegrity.after.sha256; verifyControlProfile(profileIntegrity.before, profileIntegrity.after); }
   catch { failure ||= 'Personal Claude profile integrity validation failed (values redacted)'; }
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'native-controls', failure, binary: built.binary, binarySha256: hash(built.binary), receipt, promptCount, maximumNativeTurns: promptCount + 6, commands, observations, cleanup, installedFiles, personal,
-    profileIntegrity, owners: owners.map(({ terminal, folder, ...owner }) => owner), sourceFiles: ['experiments/controls-native-e2e.ts', 'experiments/controls-acceptance.ts', 'experiments/controls-claude-host-fixture.ts', 'experiments/vesta-claude/hooks/register.ts', 'experiments/codex-native-owner.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
+    profileIntegrity, owners: owners.map(({ terminal, folder, ...owner }) => owner), sourceFiles: ['experiments/controls-native-e2e.ts', 'experiments/controls-acceptance.ts', 'experiments/controls-claude-host-fixture.ts', 'experiments/vesta-claude/hooks/register.ts', 'experiments/codex-native-owner.ts', 'cli/main.ts', 'cli/manage.ts', 'cli/controls.ts', 'experiments/watcher-policy.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
   sealEvidence(artifacts);
 }
 if (failure) throw new Error(failure + '; artifacts: ' + artifacts); verifyControls(artifacts);
