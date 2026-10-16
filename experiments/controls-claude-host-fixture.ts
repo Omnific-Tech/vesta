@@ -8,6 +8,9 @@
 // - stale pre-change response rearms after the cancelled reservation.
 // - dispatch-status store.set awaits after the last fresh control read and a
 //   real CLI write during that await is missed by in-memory signature checks.
+// - native configuration-triggered module reload erases same-session userAt,
+//   busy/turn binding or committed old-message attribution; restoring metrics
+//   instead of metadata would incorrectly resurrect stale warming eligibility.
 // Only host APIs are simulated. This is not evidence of actual Claude execution.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -81,6 +84,59 @@ export async function claudeControlHostFixture(input: { binary: string; modulePa
     await fire('session.end', { reason: 'exit' });
     scenarios.push({ operation, stage, beforeFile: operation + '-' + stage + '-before.json', afterFile: operation + '-' + stage + '-after.json', sessionId });
   }
-  const summary = { kind: 'simulated-native-host-actual-shipped-claude-module', binary: input.binary, binarySha256: digest(input.binary), modulePath: input.modulePath, moduleSha256: digest(input.modulePath), logFile: 'host.jsonl', scenarios };
+  const reloadScenarios: any[] = [];
+  for (const variant of ['busy', 'committed'] as const) {
+    currentStage = 'reload-' + variant;
+    cli(['resume']); cli(['config', '--idle-ms', '800', '--budget-ms', '1000000', '--threshold', '0', '--message', 'VESTA_OLD_HOST_BODY']);
+    const store = new Map<string, any>(); const sessionId = 'host-reload-' + variant; let now = Date.now();
+    let handlers = new Map<string, Function>(); const timers: { callback: Function; cancelled: boolean }[] = []; const submissions: any[] = [];
+    const host = {
+      plugin: { root: join(input.modulePath, '../..'), name: 'vesta' }, env: { get: async (name: string) => input.env[name] },
+      fs: { read: async (path: string) => readFileSync(path, 'utf8') }, settings: { read: async () => JSON.parse(readFileSync(settingsPath, 'utf8')) },
+      session: { id: async () => sessionId, usage: async () => ({ context: { tokens: 200000 } }) }, command: { register: async () => undefined },
+      store: { get: async (key: string) => store.get(key), set: async (key: string, value: any) => { store.set(key, structuredClone(value)); record('reload-store', { variant, value }); } },
+      clock: { now: async () => now, sleep: async () => undefined, every: (_ms: number, callback: Function) => { const row = { callback, cancelled: false }; timers.push(row); return { cancel: () => { row.cancelled = true; } }; } },
+      prompt: { submit: async (value: any) => { submissions.push(value); record('reload-submit', { variant, value }); } },
+    };
+    const register = async (generation: number) => {
+      handlers = new Map();
+      const module = await import(pathToFileURL(input.modulePath).href + '?reload=' + variant + '-' + generation);
+      module.register((name: string, handler: Function) => handlers.set(name, handler), JSON.parse(readFileSync(settingsPath, 'utf8')).pluginConfigs['vesta@vesta-local'].options);
+    };
+    const fire = async (name: string, event: any) => { const handler = handlers.get(name); assert.ok(handler); return handler(host, event, async (value: any) => value); };
+    await register(0); await fire('session.start', {});
+    await fire('prompt.submit', { text: 'seed', origin: { kind: 'composer' } });
+    await fire('turn.start', { text: 'seed', turnId: 'reload-seed' });
+    if (variant === 'committed') {
+      await fire('turn.complete', { turnId: 'reload-seed', reason: 'answer' }); now += 1000;
+      await Promise.all(timers.filter(row => !row.cancelled).map(row => row.callback()));
+      assert.deepEqual(submissions, [{ text: 'VESTA_OLD_HOST_BODY' }]);
+    }
+    const before = structuredClone(store.get('status:' + sessionId));
+    cli(['config', '--message', 'VESTA_NEW_HOST_BODY']);
+    // Simulate native host disposing/recreating the module after settings change.
+    // Existing state has already observed the new controls, as real native proof
+    // shows; the old same-session native store is the only continuity source.
+    await Promise.all(timers.filter(row => !row.cancelled).map(row => row.callback()));
+    for (const timer of timers) timer.cancelled = true;
+    await register(1); await fire('session.start', {});
+    const restored = structuredClone(store.get('status:' + sessionId));
+    assert.equal(restored.userAt, before.userAt, 'configuration reload preserves verified user clock');
+    assert.equal(restored.tokens, null); assert.equal(restored.pending, false);
+    if (variant === 'busy') {
+      assert.equal(restored.busy, true); assert.equal(restored.turnId, before.turnId);
+      await fire('turn.complete', { turnId: before.turnId, reason: 'answer' });
+    } else {
+      const oldEnvelope = "The vesta plugin sent a message:\nVESTA_OLD_HOST_BODY\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above.";
+      await fire('turn.start', { text: oldEnvelope, turnId: 'old-committed-warm' });
+      const attributed = store.get('status:' + sessionId); assert.equal(attributed.userAt, before.userAt);
+      assert.equal(attributed.turnSource, 'warm', 'old exact body stays attributed after configuration reload');
+      await fire('turn.complete', { turnId: 'old-committed-warm', reason: 'answer' });
+    }
+    const completed = structuredClone(store.get('status:' + sessionId)); assert.equal(completed.busy, false); assert.equal(completed.tokens, null); assert.equal(completed.userAt, before.userAt);
+    await fire('session.end', { reason: 'exit' });
+    reloadScenarios.push({ variant, sessionId, before, restored, completed });
+  }
+  const summary = { kind: 'simulated-native-host-actual-shipped-claude-module', binary: input.binary, binarySha256: digest(input.binary), modulePath: input.modulePath, moduleSha256: digest(input.modulePath), logFile: 'host.jsonl', scenarios, reloadScenarios };
   writeFileSync(join(input.directory, 'summary.json'), JSON.stringify(summary, null, 2)); return summary;
 }

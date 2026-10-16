@@ -199,6 +199,15 @@ export function verifyControls(directory: string) {
     assert.equal(rows.filter((row: any) => row.kind === 'prompt-submit').length, 0);
     assert.notEqual(readFileSync(join(hostDirectory, scenario.beforeFile), 'utf8'), readFileSync(join(hostDirectory, scenario.afterFile), 'utf8'));
   }
+  assert.deepEqual(host.reloadScenarios.map((row: any) => row.variant), ['busy', 'committed']);
+  for (const scenario of host.reloadScenarios) {
+    const values = hostRows.filter((row: any) => row.kind === 'reload-store' && row.variant === scenario.variant).map((row: any) => row.value);
+    for (const value of [scenario.before, scenario.restored, scenario.completed]) assert.ok(values.some((raw: any) => JSON.stringify(raw) === JSON.stringify(value)), 'reload assertion tied to actual module store call');
+    assert.equal(scenario.restored.userAt, scenario.before.userAt); assert.equal(scenario.restored.tokens, null); assert.equal(scenario.restored.pending, false);
+    if (scenario.variant === 'busy') { assert.equal(scenario.restored.busy, true); assert.equal(scenario.restored.turnId, scenario.before.turnId); }
+    else assert.ok(values.some((value: any) => value.turnSource === 'warm' && value.turnId === 'old-committed-warm'));
+    assert.equal(scenario.completed.userAt, scenario.before.userAt); assert.equal(scenario.completed.busy, false); assert.equal(scenario.completed.tokens, null);
+  }
   for (const name of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input', 'delayed-prerecovery-input']) {
     const observation = e.observations.find((row: any) => row.name === name); assert.equal(observation.synthetic, true);
     const trace = rawRows(observation.traceFile); assert.ok(trace.some((row: any) => row.kind === 'response-complete'));
