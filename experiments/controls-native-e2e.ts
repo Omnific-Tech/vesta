@@ -14,6 +14,7 @@ import { verifyBuildReceipt } from '../packaging/release-acceptance.ts';
 import { nativeRequest } from './codex-native-ipc.ts';
 import { controlMessage, controlFileError, codexControlSnapshot, controlProfileSnapshot, verifyControlProfile, integration, sameControls, verifyControls } from './controls-acceptance.ts';
 import { claudeControlHostFixture } from './controls-claude-host-fixture.ts';
+import { parseClaudeStatuses } from './setup-acceptance.ts';
 
 const flag = process.argv.indexOf('--artifacts');
 const artifacts = resolve(flag < 0 ? join(process.env.TELOS_RUN_DIR ?? 'harness/runs/controls-native', 'artifacts') : process.argv[flag + 1]!);
@@ -92,9 +93,10 @@ async function bind(owner: Owner) {
     }, 'Claude native composer');
     await type(owner, '/vesta-status', false);
     const value = await wait(() => {
-      const text = stripVTControlCharacters(readFileSync(join(artifacts, owner.terminalFile), 'utf8'));
-      const line = text.match(/VESTA_STATUS (\{[^\r\n]+\})/); if (!line) return;
-      try { return JSON.parse(line[1]!); } catch { return; }
+      // Native AX output soft-wraps JSON inside keys/numbers at terminal width;
+      // balance the untouched native frame with the existing proven parser.
+      const raw = readFileSync(join(artifacts, owner.terminalFile), 'utf8');
+      return parseClaudeStatuses(raw).find(row => row.pluginId === 'vesta@vesta-local' && row.sessionId);
     }, 'Claude physical PTY session identity'); owner.sessionId = value.sessionId;
   } else {
     await wait(() => existsSync(join(artifacts, owner.terminalFile)) && stripVTControlCharacters(readFileSync(join(artifacts, owner.terminalFile), 'utf8')).includes('›'), 'Codex composer');
