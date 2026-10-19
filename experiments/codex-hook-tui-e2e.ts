@@ -19,7 +19,11 @@ const identity = (pid: number, kind: string) => { const row = { pid, birth: birt
 const ps = (pid: number, field: string) => execFileSync('/bin/ps', ['-ww', '-p', String(pid), '-o', field + '='], { encoding: 'utf8' }).trim();
 function daemonReceipts(home: string, folder: string) {
   for (const name of ['daemon.pid', 'daemon-updater.pid']) for (const file of namedFiles(home, name)) {
-    const record = json(file); if (!record.pid || !birth(record.pid)) continue;
+    let record: any; const raw = readFileSync(file, 'utf8');
+    try { record = JSON.parse(raw); } catch { const evidence = join(folder, name + '.starting.json'); if (!existsSync(evidence)) save(evidence, { path: file, at: Date.now(), raw, reason: 'native Starting record is not complete JSON yet' }); continue; }
+    if (!Number.isSafeInteger(record.pid) || record.pid <= 0 || !birth(record.pid)) continue;
+    let executable: string; try { executable = realpathSync(ps(record.pid, 'comm')); } catch { continue; }
+    if (sha(executable) !== vendorSha256) throw new Error('fixture daemon executable does not match recorded vendor');
     if (!owned.some(row => row.pid === record.pid)) { const row = identity(record.pid, 'backend'); save(join(folder, name + '.json'), { path: file, record, identity: row, command: ps(record.pid, 'args') }); }
   }
 }
@@ -90,6 +94,12 @@ try {
   save(join(artifacts, 'tui-evidence.json'), { npm, vendorSha256, homes, notifyOverride: 'notify-override/evidence.json', foreign: { code: callbacks[0].code, sha256: sha(foreign), statusCount: statuses(join(artifacts, 'foreign/status')).length } });
 } catch (error) { failure = String(error); }
 finally {
+  // A startup failure may precede the first complete PID record. Discover only
+  // valid records under these explicit fixture homes, with exact executable hash.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    for (const account of ['a', 'b']) { const home = join(shared, 'account-' + account); const folder = join(artifacts, 'account-' + account); if (existsSync(home)) { mkdirSync(folder, { recursive: true }); daemonReceipts(home, folder); } }
+    await sleep(100);
+  }
   for (const terminal of terminals) { const row = owned.find(row => row.kind === 'tui' && row.pid === terminal.pid); if (row && alive(row)) terminal.kill('SIGTERM'); }
   for (const row of owned) if (alive(row)) { try { process.kill(row.pid, 'SIGTERM'); } catch {} }
   if (server) await new Promise<void>(done => server!.close(() => done())); await sleep(500);

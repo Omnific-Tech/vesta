@@ -70,6 +70,14 @@ override argv, proves its native embedded choice, executes the override and chec
 that configured notify did not run for that turn. Vesta must not force a daemon
 or rewrite caller arguments to hide native launch policy.
 
+Native daemon PID files have an empty/partial Starting state. The initial
+`dist/codex-hook-tui-notify-policy` run exposed this transition. The fixture retains
+the first partial bytes, waits for complete JSON within its existing deadline,
+and records a positive PID, process birth and exact vendor executable hash before
+considering a process owned or signaling it. Failure cleanup performs bounded
+rechecks only in the two explicitly created fixture homes; an incomplete record
+never authorizes a signal.
+
 The test-only filesystem preload throws once *after* a real owned-block removal.
 It is not a production fault API. The native proxy likewise fails once after an
 actual native registry mutation. All injected files and processes are fixture-owned.
