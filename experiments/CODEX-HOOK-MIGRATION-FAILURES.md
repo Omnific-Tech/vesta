@@ -60,6 +60,16 @@ assets through the actual default npm/shared TUI in two isolated homes. Mock mod
 responses and token usage are synthetic; Codex, hooks, process topology and queue
 delivery are real. No cache retention or billing claim follows from these tests.
 
+Native 0.163's `codex-rs/tui/src/daemon_startup.rs:97` `config_exclusion`
+accepts only a limited override allowlist; `notify` is excluded (allowlist at
+lines 103–116). The first actual TUI run retained in
+`dist/codex-hook-tui-alias-fixed` demonstrated a legitimate embedded backend for
+`-c notify=...`. Shared-backend proof therefore uses a configured native notify
+command without CLI overrides. A separate actual npm TUI keeps the exact notify
+override argv, proves its native embedded choice, executes the override and checks
+that configured notify did not run for that turn. Vesta must not force a daemon
+or rewrite caller arguments to hide native launch policy.
+
 The test-only filesystem preload throws once *after* a real owned-block removal.
 It is not a production fault API. The native proxy likewise fails once after an
 actual native registry mutation. All injected files and processes are fixture-owned.

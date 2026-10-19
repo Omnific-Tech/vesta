@@ -52,6 +52,7 @@ export function verifyMigration(path: string) {
       assert.equal(h.nativeConfigBefore, h.nativeConfigAfter); assert.equal(h.authPresent, false); assert.equal(json(join(accountFolder, 'home-files.json')).includes('auth.json'), false); assert.ok(lines(join(path, h.notify)).length > 0, 'native notify override executed');
     }
     const foreignCallbacks = json(join(path, 'foreign-callbacks.json')); assert.ok(foreignCallbacks.length >= 2); for (const callback of foreignCallbacks) { assert.equal(callback.code, 0); assert.equal(callback.stdout, ''); assert.equal(callback.stderr, ''); }
+    const override = json(join(path, e.notifyOverride)); assert.equal(override.command, e.npm); assert.deepEqual(override.argv, override.suppliedArgv); assert.ok(override.argv.includes('-c') && override.argv.some((a: string) => a.startsWith('notify='))); assert.equal(override.backendParent, override.tui.pid); assert.equal(override.baselineBefore, override.baselineAfter); assert.ok(lines(join(path, override.overrideNotify)).length, 'native CLI notify override executed');
     assert.equal(e.foreign.code, 0); assert.equal(e.foreign.statusCount, 0, 'different same-name executable rejected'); assert.notEqual(e.foreign.sha256, e.vendorSha256);
     const build = json(join(path, 'compiled/build-receipt.json')); assert.equal(build.fixture, true); assert.ok(build.assets.some((a: any) => a.path === 'app/experiments/codex-hook-watcher.ts'));
   }
