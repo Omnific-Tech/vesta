@@ -86,6 +86,12 @@ the loaded composer and model/effort footer, rejecting update/approval modals,
 following the existing native controls E2E gate. This changes fixture timing,
 not native policy, hook trust or any product acceptance requirement.
 
+The loaded-composer run at `dist/codex-hook-tui-composer-fixed` retained its prompt
+as a draft: native burst-input handling did not submit a text-plus-Enter write.
+Fixture submission now uses the existing native controls driver's bracketed paste,
+300 ms delay and separate Enter. There are no automatic prompt retries, extra
+model turns or changes to product input handling.
+
 The test-only filesystem preload throws once *after* a real owned-block removal.
 It is not a production fault API. The native proxy likewise fails once after an
 actual native registry mutation. All injected files and processes are fixture-owned.

@@ -36,6 +36,7 @@ function daemonReceipts(home: string, folder: string) {
   }
 }
 async function stop(row: any, signal: NodeJS.Signals) { assert.ok(alive(row), 'only exact live fixture identity can be signaled'); process.kill(row.pid, signal); await until(() => !alive(row), 'fixture-owned ' + row.kind + ' exit', 15000); }
+async function submit(terminal: pty.IPty, text: string) { terminal.write('\x15\x1b[200~' + text + '\x1b[201~'); await sleep(300); terminal.write('\r'); }
 try {
   const build = json(built.receipt); for (const file of ['codex-hook-watcher.ts', 'codex-hook-state.ts']) assert.ok(build.assets.some((a: any) => a.path === 'app/experiments/' + file), 'missing packaged hook dependency: ' + file);
   server = createServer(async (req, res) => {
@@ -63,7 +64,7 @@ try {
     const terminal = pty.spawn(npm, argv, { cwd: workspace, env, name: 'xterm-256color', cols: 100, rows: 35 }); terminals.push(terminal); const tui = identity(terminal.pid, 'tui'); let output = ''; terminal.onData(data => { output += data; appendFileSync(join(folder, 'terminal.txt'), data); if (data.includes('\x1b[6n')) terminal.write('\x1b[1;1R'); });
     save(join(folder, 'launch.json'), { command: npm, argv, ...tui, wrapperVariables: Object.keys(env).filter(k => k.startsWith('VESTA_')), tty: true });
     await until(() => { daemonReceipts(home, folder); return loadedComposer(output); }, 'loaded native shared TUI composer and model footer', 30000);
-    terminal.write('PRIVATE_TUI_FIXTURE_PROMPT\r');
+    await submit(terminal, 'PRIVATE_TUI_FIXTURE_PROMPT');
     const statusDir = json(controls).statusDir; let current: any = await until(() => statuses(statusDir).find(s => s.row.nativeHome === home && s.row.integrationMode === 'hook')?.row, 'retained packaged hook observer', 20000);
     const backend = owned.find(row => row.kind === 'backend' && row.pid === current.nativePid); assert.ok(backend, 'native backend identity came from isolated native daemon receipt');
     const executable = realpathSync(ps(backend.pid, 'comm')); assert.equal(sha(executable), vendorSha256); save(join(folder, 'identities.json'), { tui, backend: { ...backend, executable, binarySha256: sha(executable) } });
@@ -73,7 +74,7 @@ try {
     const deaths: string[] = [];
     for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
       current = await until(() => statuses(statusDir).find(s => s.row.sessionId === session && alive({ pid: s.row.diagnostics.pid, birth: s.row.diagnostics.birth }))?.row, 'live TUI observer'); const worker = identity(current.diagnostics.pid, 'watcher'); await stop(worker, signal);
-      const file = join(folder, signal + '.json'); save(file, { worker, workerBirthObserved: birth(worker.pid), tuiBirthObserved: birth(tui.pid), backendBirthObserved: birth(backend.pid) }); deaths.push(relative(artifacts, file)); const after = Date.now(); terminal.write('PRIVATE_FRESH_AFTER_' + signal + '\r');
+      const file = join(folder, signal + '.json'); save(file, { worker, workerBirthObserved: birth(worker.pid), tuiBirthObserved: birth(tui.pid), backendBirthObserved: birth(backend.pid) }); deaths.push(relative(artifacts, file)); const after = Date.now(); await submit(terminal, 'PRIVATE_FRESH_AFTER_' + signal);
       await until(() => statuses(statusDir).some(s => s.row.sessionId === session && s.row.diagnostics.pid !== worker.pid && alive({ pid: s.row.diagnostics.pid, birth: s.row.diagnostics.birth }) && s.row.state.userAt >= after && !s.row.state.busy && s.row.diagnostics.lastMeasurement?.current), 'fresh completed native turn after observer ' + signal, 20000);
     }
     const finalStatus: any = await until(() => statuses(statusDir).find(s => s.row.sessionId === session && alive({ pid: s.row.diagnostics.pid, birth: s.row.diagnostics.birth }))?.row, 'fresh final observer'); const finalWorker = identity(finalStatus.diagnostics.pid, 'watcher'); await stop(backend, 'SIGTERM'); await until(() => !alive(finalWorker), 'backend death stops hook observer');
@@ -86,7 +87,7 @@ try {
   const overrideArgv = ['--no-alt-screen', '-a', 'never', '-s', 'read-only', '-C', overrideWorkspace, '-c', 'notify=' + JSON.stringify([bundledNode, join(here, 'codex-hook-notify-fixture.mjs'), overrideNotify])];
   const overrideEnv = fixtureEnvironment(shared, { CODEX_HOME: overrideHome, PATH: dirname(bundledNode) + ':/usr/bin:/bin:/usr/sbin:/sbin' });
   const overridden = pty.spawn(npm, overrideArgv, { cwd: overrideWorkspace, env: overrideEnv, name: 'xterm-256color', cols: 100, rows: 35 }); terminals.push(overridden); const overrideTui = identity(overridden.pid, 'tui'); let overrideOutput = ''; overridden.onData(data => { overrideOutput += data; appendFileSync(join(overrideFolder, 'terminal.txt'), data); if (data.includes('\x1b[6n')) overridden.write('\x1b[1;1R'); });
-  await until(() => loadedComposer(overrideOutput), 'loaded notify override native composer and model footer', 30000); const submittedAt = Date.now(); overridden.write('PRIVATE_NOTIFY_OVERRIDE_FIXTURE\r');
+  await until(() => loadedComposer(overrideOutput), 'loaded notify override native composer and model footer', 30000); const submittedAt = Date.now(); await submit(overridden, 'PRIVATE_NOTIFY_OVERRIDE_FIXTURE');
   const overrideStatus: any = await until(() => statuses(json(join(config, 'vesta-codex.json')).statusDir).find(s => s.row.nativeHome === overrideHome && s.row.state.userAt >= submittedAt && !s.row.state.busy && s.row.diagnostics.lastMeasurement?.current)?.row, 'native override completed reply', 20000);
   const overrideWorker = identity(overrideStatus.diagnostics.pid, 'watcher'); const embedded = identity(overrideStatus.nativePid, 'embedded'); assert.equal(Number(ps(embedded.pid, 'ppid')), overrideTui.pid, 'native override chose direct embedded backend');
   await until(() => lines(overrideNotify).length, 'notify override executed'); assert.equal(lines(baselineNotify).length, baselineCount, 'CLI notify override replaces configured notify for this turn');
