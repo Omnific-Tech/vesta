@@ -6,6 +6,7 @@ import { directory, prepareVersion, readJson, saveJson, sha256, version } from '
 import { codexHookReadiness } from '../experiments/codex-native-ipc.ts';
 import { codexRegistration, restoreNativeCodex } from '../experiments/codex-native-setup.ts';
 import { controlConfig, claudeControlOptions } from '../experiments/watcher-policy.ts';
+import { runtimeOwners } from '../experiments/codex-runtime-status.ts';
 
 export type Provider = { provider: 'claude' | 'codex'; configDir: string; shellFile: string };
 export const pluginId = 'vesta@vesta-local';
@@ -216,7 +217,7 @@ export async function status(args: string[], root: string, selected?: Provider[]
       warmEnabled: !config.paused && (p.provider === 'claude' ? options.warm === true && claudeReady : options.warm === true && ready.ready),
       ...(p.provider === 'claude' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !claudeReady, warmingSuspendedReason: claudeReady ? '' : 'Install and enable the owned Vesta Claude plugin, then restart Claude.' } : {}),
       ...(p.provider === 'codex' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !ready.ready,
-        warmingSuspendedReason: ready.ready ? '' : ready.reason, nativePluginId: state?.nativePluginId } : {}),
+        warmingSuspendedReason: ready.ready ? '' : ready.reason, nativePluginId: state?.nativePluginId, runtimeOwners: runtimeOwners(options.statusDir) } : {}),
       ...(config.paused ? { warmingSuspended: true, warmingSuspendedReason: 'Vesta warming is paused; resume keeps saved opt-in unchanged.' } : {}) });
   }
   return { version, root, installation, integrations };

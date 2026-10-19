@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codexHookReadiness } from './codex-native-ipc.ts';
 import { installNativeCodex, uninstallNativeCodex } from './codex-native-setup.ts';
+import { runtimeOwners } from './codex-runtime-status.ts';
 
 const args = process.argv.slice(2); const operation = args[0];
 const value = (flag: string) => { const i = args.indexOf(flag); if (i < 0) return undefined; if (!args[i + 1] || args[i + 1]!.startsWith('--')) throw new Error('Missing value: ' + flag); return args[i + 1]!; };
@@ -54,7 +55,7 @@ async function handle(selected: 'claude' | 'codex') {
   const result: any = { operation, provider: selected, configDir, pluginId: selected === 'claude' ? pluginId : undefined, installed,
     warmEnabled: selected === 'claude' ? options.warm === true && installed && settings.enabledPlugins?.[pluginId] !== false : codexConfig.warm === true && readiness.ready,
     ...(selected === 'codex' ? { warmConfigured: codexConfig.warm === true, warmingSuspended: codexConfig.warm === true && !readiness.ready,
-      warmingSuspendedReason: readiness.ready ? '' : readiness.reason, nativePluginId: state?.nativePluginId } : {}),
+      warmingSuspendedReason: readiness.ready ? '' : readiness.reason, nativePluginId: state?.nativePluginId, runtimeOwners: runtimeOwners(codexConfig.statusDir) } : {}),
     idleMs: selected === 'claude' ? options.idle_ms ?? 3000000 : codexConfig.idleMs ?? 1200000,
     budgetMs: selected === 'claude' ? options.budget_ms ?? 14400000 : codexConfig.budgetMs ?? 14400000, threshold: 100000 };
   if (operation === 'status') return result;
