@@ -62,7 +62,7 @@ export function runtimeOwners(statusDir: unknown) {
       if (row.diagnostics === undefined) { report.owners.push({ ...base, liveness: 'legacy', reason: 'legacy-diagnostics-unavailable', warmEnabled: false }); continue; }
       try {
         const d = diagnostics(row.diagnostics); const current = processBirth(d.pid); const live = current !== '' && current === d.birth;
-        report.owners.push({ ...base, pid: d.pid, birth: d.birth, observedAt: d.observedAt, liveness: live ? 'live' : 'stale', reason: live ? 'owner-live' : current ? 'owner-birth-mismatch' : 'owner-dead',
+        report.owners.push({ ...base, integrationMode: row.integrationMode === 'hook' ? 'hook' : 'legacy-terminal', ...(row.integrationMode === 'hook' && integer(row.nativePid) && birthText(row.nativeBirth) ? { nativePid: row.nativePid, nativeBirth: row.nativeBirth } : {}), pid: d.pid, birth: d.birth, observedAt: d.observedAt, liveness: live ? 'live' : 'stale', reason: live ? 'owner-live' : current ? 'owner-birth-mismatch' : 'owner-dead',
           warmEnabled: live && row.warmEnabled === true && !['ambiguous', 'conflict'].includes(d.ownership.state) && d.lastDecision.reason !== 'owner-ended',
           ...(id(row.sessionId) ? { sessionId: row.sessionId } : {}), ...(id(row.state?.turnId) ? { turnId: row.state.turnId } : {}), ...(typeof row.state?.busy === 'boolean' ? { busy: row.state.busy } : {}), diagnostics: d });
       } catch { report.owners.push({ ...base, liveness: 'malformed', reason: 'malformed-status', warmEnabled: false }); }

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { codexHookReadiness } from './codex-native-ipc.ts';
 import { installNativeCodex, uninstallNativeCodex } from './codex-native-setup.ts';
 import { runtimeOwners } from './codex-runtime-status.ts';
+import { handleHookSetup } from './codex-hook-setup.ts';
 
 const args = process.argv.slice(2); const operation = args[0];
 const value = (flag: string) => { const i = args.indexOf(flag); if (i < 0) return undefined; if (!args[i + 1] || args[i + 1]!.startsWith('--')) throw new Error('Missing value: ' + flag); return args[i + 1]!; };
@@ -36,6 +37,7 @@ const removeBlock = (text: string) => {
 async function handle(selected: 'claude' | 'codex') {
   const configDir = value('--config-dir') ?? (selected === 'claude' ? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude') : join(homedir(), '.config/vesta'));
   const statePath = join(configDir, '.vesta-setup-' + selected + '.json'); const state = read(statePath, null);
+  if (selected === 'codex') return handleHookSetup({ operation, configDir, shell: value('--shell-file') ?? state?.shellFile ?? join(homedir(), '.zshrc'), native: state?.native ?? process.env.VESTA_RECORDED_NATIVE ?? executable('codex'), node: managedNode, warm: args.includes('--warm'), ownedOnly: args.includes('--owned-homes') });
   const settingsPath = join(configDir, 'settings.json'); const settings = selected === 'claude' ? read(settingsPath) : {};
   const registry = selected === 'claude' ? read(join(configDir, 'plugins/installed_plugins.json')).plugins?.[pluginId]?.find((p: any) => p.scope === 'user') : null;
   const shellFile = value('--shell-file') ?? state?.shellFile ?? join(homedir(), '.zshrc');

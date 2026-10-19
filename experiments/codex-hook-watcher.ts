@@ -14,6 +14,13 @@ const sleep = (ms: number) => new Promise(done => setTimeout(done, ms));
 const self = fileURLToPath(import.meta.url);
 async function ingress() {
   let raw = ''; for await (const chunk of process.stdin) { raw += chunk; if (Buffer.byteLength(raw) > 1024 * 1024) return; }
+  const legacyOwner = process.env.VESTA_CODEX_OWNER_ID; const legacyChannel = process.env.VESTA_CODEX_CHANNEL;
+  if (legacyOwner || legacyChannel) {
+    if (!safeId(legacyOwner) || !legacyChannel || !isAbsolute(legacyChannel)) return;
+    const st = lstatSync(legacyChannel); if (!st.isFile() || st.isSymbolicLink() || process.getuid && st.uid !== process.getuid()) return;
+    const row = JSON.parse(raw); const packet = envelope(row, { pid: process.pid, birth: birth(process.pid) }, Date.now());
+    append(legacyChannel, { at: packet.at, ownerId: legacyOwner, input: packet.input }); return;
+  }
   const configPath = realpathSync(value('--config')!); const native = realpathSync(value('--native')!); const config = json(configPath); controlConfig('codex', config);
   if (typeof config.statusDir !== 'string') return;
   const nativeHome = realpathSync(resolve(process.env.CODEX_HOME ?? join(homedir(), '.codex'))); const engine = engineAncestor(native);

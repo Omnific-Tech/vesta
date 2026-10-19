@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { executableHash, nativeIdentity } from './codex-native-identity.ts';
 export const digest = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 32);
 export const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 export const safeId = (text: any) => typeof text === 'string' && /^[a-zA-Z0-9:_-]{1,128}$/.test(text);
@@ -33,12 +34,12 @@ export function append(path: string, row: any) {
   try { const st = fstatSync(fd); if (!st.isFile() || st.size > 4 * 1024 * 1024 || process.getuid && st.uid !== process.getuid()) throw new Error('unsafe journal'); writeFileSync(fd, JSON.stringify(row) + '\n'); fsyncSync(fd); } finally { closeSync(fd); }
 }
 export function engineAncestor(native: string) {
-  const target = realpathSync(native); let pid = process.ppid;
+  const target = realpathSync(native); const allowed = nativeIdentity(native); let pid = process.ppid;
   for (let depth = 0; depth < 4 && pid > 1; depth++) {
     const originalBirth = birth(pid); if (!originalBirth) break;
     const ps = (field: string) => execFileSync('/bin/ps', ['-ww', '-p', String(pid), '-o', field + '='], { encoding: 'utf8', timeout: 1000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     const executable = ps('comm'); const args = ps('args');
-    let exact = false; try { exact = realpathSync(executable) === target; } catch {}
+    let exact = false; try { const candidate = realpathSync(executable); exact = candidate === allowed.binary || executableHash(candidate) === allowed.sha256; } catch {}
     // Explicit configured Node engine scripts are used by isolated process contracts.
     if (!exact && target.endsWith('.mjs')) {
       try { exact = realpathSync(executable) === realpathSync(process.execPath) && args.startsWith(executable + ' ' + target + ' '); } catch {}
