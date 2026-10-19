@@ -14,13 +14,11 @@ native commit; host/I/O delays can delay observation, and already committed mess
 upgrading. See [Claude controls](../docs/claude.md) and
 [Codex controls](../docs/codex.md), including the custom-text reply rule.
 
-Version 0.2.6 Codex warming uses native local ownership, registered hooks and
-the native durable queue. Upgrades from v0.2.1 replace its
-previous remote wrapper. Existing source integrations preserve native pass-through
-until installed native hooks are registered and reviewed. Exit an older wrapped
-session, run `source ~/.zshrc` in your existing terminal (or open a new terminal),
-and relaunch after setup. See the
-[v0.2.6 release notes](../docs/releases/v0.2.6.md) for upgrade instructions.
+Unreleased source uses detached native hook watchers and the durable queue.
+Migration removes the exactly owned shell wrapper; open a new terminal or run
+`unfunction codex` in existing zsh after setup. Sourcing alone does not remove an
+already defined function. Published 0.2.6 retains its earlier terminal owner;
+see its historical [release notes](../docs/releases/v0.2.6.md).
 
 The CLI also accepts `setup` as an alias for `install`. To restore
 an existing integration, run `vesta repair`, or use
@@ -87,7 +85,7 @@ or CODEX_HOME overlay. Published 0.2.6 keeps its earlier local terminal owner.
 | --- | --- |
 | Bare interactive launch, `--yolo`, `-m`, `-C`, `-a`, `-s`, `--no-alt-screen` | Native launch unchanged; trusted hooks can attach a backend watcher |
 | `--yolo` combined with `-a` | Existing native command rejects the conflicting approval flag, with unchanged error/exit behavior |
-| `exec`, `review`, utilities, or non-TTY stdin/stdout | Existing native command, unchanged argv/stdin/stdout/stderr/cwd/exit; no warming |
+| `exec`, `review`, utilities, or non-TTY stdin/stdout | Native behavior unchanged; warming requires live session hooks and qualifying completion, not invocation-shape inference |
 | CLI resume UUID/`--last`/picker, `/resume`, `/new` | Native selection and permissions; a fresh real reply is required before warming |
 | Positional prompts, profiles, worktrees, explicit remote, explicit `--no-daemon`, config overrides, long value aliases and unknown flags | Native validates and selects its backend; Vesta adds no argument filter |
 
@@ -118,19 +116,18 @@ measurement, idle deadline, bounded decision history and suspension reasons.
 PID/birth liveness does not guarantee a fresh heartbeat: inspect `observedAt`.
 The read-only scanner uses configured `statusDir` only, caps snapshots at 256 KiB
 and output at 64 owners, labels stale/legacy/malformed records, and reports
-`truncated` when bounds are exceeded. Account launchers invoking the binary
-directly can bypass the managed zsh owner. See [Codex diagnostics](../docs/codex.md)
-for fields and launch limits.
+`truncated` when bounds are exceeded. Direct account launchers can trigger trusted
+native hooks without a Vesta wrapper. See [Codex diagnostics](../docs/codex.md)
+for fields and ownership limits.
 
 Defaults remain Claude 50 minutes idle, Codex 20 minutes idle, and a four-hour
-user inactivity budget. Codex measures that budget from the last verified
-user-submitted prompt; typing, scrolling, pointer movement and focus do not renew
-it. Each completed reply also starts a fresh idle interval. Vertical wheel and
-no-button pointer movement preserve reply eligibility; draft/navigation input
-still suspends warming. Claude's activity policy is unchanged.
+user inactivity budget. Source Codex measures that budget from the latest verified
+non-Vesta submission, including another tool's submitted message. Typing, drafts,
+scrolling and navigation are not observed. Each successful completed reply starts
+a fresh idle interval. Claude's activity policy is unchanged.
 Only fresh native last-response input strictly above
 100,000 tokens qualifies; cache input counts once, output and cumulative counts
-do not qualify. A busy, stale, disconnected, or unknown owner skips. Local input
+do not qualify. A busy, stale, ended or unknown backend skips. Native submission
 observed before dispatch cancels a pending ping. Native queue removal after
 dispatch is not guaranteed. The submitted body is exactly
 `VESTA_CACHE_KEEPALIVE`; session/reservation IDs stay in metadata and Claude adds
@@ -141,19 +138,18 @@ retention and net usage savings remain unproven. Codex submits through a transie
 current-native stdio client that only initializes and adds a durable queued
 message; it never resumes or starts the conversation. Native local queue polling
 delivers it, typically within ten seconds. The exact client message ID binds the
-warm turn to its physical owner. Pre-write cancellation checks run again after
-client initialization. A draft entered after queue commitment stays a draft and
-prevents future eligibility until another real submitted reply.
+warm turn to its exact backend thread. Pre-write cancellation checks run again
+after client initialization. Drafts remain native and are not observed by Vesta.
 
-Known managed owners of the same thread skip warming through metadata leases.
-Leases cover retained native backend threads until SessionEnd or process exit.
-A managed picker or navigation with an unknown target suspends other producers
-until exact submitted-thread binding or process exit, so idle saved history alone
-cannot establish an owner.
+Canonical transcript claims coordinate known managed writers sharing one Vesta
+configuration/statusDir across account homes. Claims last until SessionEnd or
+backend exit. Idle saved history alone cannot establish a current submission or
+qualifying completion. A shared backend may outlive its terminal.
 Unknown/stale ownership, incomplete rollout measurements and observer failures
 skip safely while the native TUI remains usable. Unmanaged concurrent same-thread
-writers and unrelated external queue producers are unsupported. A leftover unknown
-claim file also skips warming; Vesta does not steal it from another process.
+writers remain unsupported. Other tools' submissions count as non-Vesta activity;
+they are not assumed to originate from a human. Unsafe claim metadata skips
+warming rather than stealing another process's ownership.
 
 The installer never edits global instruction files. The old rule matching a ping
 "asking for exactly K" does not cover the marker-only body. After updating that
@@ -172,9 +168,9 @@ Uninstall removes owned native plugin/marketplace entries and the exact owned zs
 block. It preserves unrelated configuration and later shell edits. An edited
 managed block produces an ownership conflict instead of silently removing it.
 Externally edited Codex configuration is retained. Native hook trust preferences
-and immutable Vesta Codex assets remain for running owners. An already sourced
-shell function falls back to the native command after uninstall; opening a new
-terminal also removes that function from the shell.
+and immutable Vesta Codex assets remain for running owners. Open a new terminal
+or explicitly run `unfunction codex` to remove a legacy function already defined
+in an existing zsh.
 Removing all providers removes the CLI link and current activation. Removing
 one selected provider retains other integrations and their activation.
 Immutable version assets and

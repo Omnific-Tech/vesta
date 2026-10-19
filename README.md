@@ -22,17 +22,12 @@ observer without a shell wrapper, PTY or argument changes. Status separates nati
 home registration/readiness from actual runtime eligibility. Published 0.2.6 and
 already running owners retain their earlier integration until explicitly upgraded.
 
-**Since version 0.2.5:** Codex warming uses a native local owner and registered
-lifecycle hooks. Install with `--warm`, then review and trust only Vesta's entries
-in native `/hooks`. Until those hooks are ready, ordinary `codex` calls remain
-native and saved warming preferences stay inactive. Existing source installs need
-this registration step before warming resumes. Exit an older wrapped Codex session
-and relaunch; running sessions retain their existing integration. Claude is unchanged.
-Codex's inactivity budget follows the last verified user-submitted prompt.
-Scrolling, pointer movement, focus and terminal reports preserve reply eligibility
-without renewing that clock. Typing and navigation still suspend warming to
-protect drafts, but do not renew the submission clock. Each completed response
-also starts a fresh idle interval.
+Source Codex warming counts every non-Vesta submission as activity; drafts and
+keystrokes are not observed. Each successful completed reply starts a fresh idle
+interval. Native hook registration, warm opt-in and explicit `/hooks` trust remain
+separate requirements. Running legacy owners keep their existing behavior until
+they exit. The earlier terminal-input policy is documented in historical release
+notes; Claude's activity policy is unchanged.
 
 Upgrading from v0.2.1 replaces its earlier Codex wrapper. Version 0.2.5 introduced
 CLI resume and `/resume` with a fresh completed reply before warming. See the
@@ -141,7 +136,8 @@ K-only reply rule. Send it as a normal prompt to current sessions and add it to
 the applicable global instruction file for future sessions before warming.
 
 Upgrading from v0.2.1 or later: run `vesta update`, or download v0.2.6 above and run
-`install` again. Reload your shell with `source ~/.zshrc` (or open a new terminal),
+`install` again. Open a new terminal after a published-release upgrade.
+Source migration requires a new terminal or `unfunction codex` in existing zsh;
 review Vesta's Codex entries in native `/hooks` if prompted, and restart older
 Claude/Codex sessions once. Send a fresh normal prompt and wait for a qualifying
 reply; setup readiness alone does not prove live attachment. Upgrading from v0.2.0 requires
@@ -153,7 +149,7 @@ Existing warming settings are preserved unless you explicitly enable them with
 
 See the [provider guides](docs/README.md) for the
 [Claude Code plugin](docs/claude.md) and
-[Codex native owner](docs/codex.md), including activity clocks, configuration and
+[Codex native hook watcher](docs/codex.md), including activity clocks, configuration and
 live-session troubleshooting.
 
 Claude Code loads a native Vesta plugin. Its watcher belongs to the open session;
@@ -161,8 +157,6 @@ Vesta does not reopen ended conversations. Source Codex integration follows nati
 backend threads through trusted hooks and preserves native launch arguments,
 notifications and lifecycle. A shared backend can outlive its terminal; see the
 [Codex guide](docs/codex.md) for activity clocks and ownership limits.
-Ordinary shared-daemon agent listing and remote attachment do not manage these
-local owners.
 
 Warming starts only after a fresh model reply reports more than 100,000 input
 tokens in the current context. Cached input counts once. Output tokens and
@@ -177,15 +171,16 @@ compacting a session requires a fresh reply before warming can resume.
 | Maximum time since user activity (Codex: last submitted prompt) | 4 hours |
 
 Busy, stale and ended sessions are skipped. Keepalives do not extend the
-user inactivity budget. Draft input can cancel a pending ping before dispatch;
-once submitted to a native queue, retraction is not guaranteed.
+user inactivity budget. A submitted message can cancel a pending Codex ping before
+dispatch; once submitted to a native queue, retraction is not guaranteed. Source
+hook mode does not observe draft input.
 
-Codex warming supports bare interactive launches, `--yolo`, the short model,
-directory, approval and sandbox flags, and CLI resume by UUID, `--last`, or picker.
-`/new` and `/resume` cancel previous eligibility; the next real reply must provide
-fresh input usage. Keepalives enter the exact thread's native durable queue and
-receive `K` in that conversation. Vesta never types marker keys into the terminal.
-Utilities, noninteractive calls and unverified options remain native pass-through.
+Codex selects and validates all launch options itself. Vesta has no argument
+filter; warming requires a live native backend with trusted session hooks and a
+fresh qualifying completion. Utilities that produce no such session remain ordinary
+native commands. Resume and compaction require fresh eligibility. Keepalives enter
+the exact thread's native durable queue and receive `K` in that conversation;
+Vesta never types marker keys into a terminal.
 Status separates `warmConfigured` from effective `warmEnabled` and reports why
 warming is suspended. See the [setup reference](experiments/SETUP.md).
 
@@ -196,8 +191,9 @@ appears, inspect `vesta status`, open a new supported session, and send a normal
 message. The next reply must meet the input threshold before the idle timer can
 produce a keepalive. Claude's `vesta-status` command also reports watcher state.
 For Codex, review Vesta's native `/hooks` entries if status reports missing trust.
-Conflicting managed owners of the same saved thread skip warming. Unmanaged
-simultaneous writers or external queue producers for that same thread are unsupported.
+Conflicting managed writers of the same saved thread skip warming. Unmanaged
+simultaneous writers remain unsupported. Other tools' submitted messages count
+as non-Vesta activity; native hooks cannot establish human provenance.
 
 Keepalives and replies remain in the conversation. Models may add text or use
 tools despite the reply rule. Cache savings, Claude subagent isolation, broader
