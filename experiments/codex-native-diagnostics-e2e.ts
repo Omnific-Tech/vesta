@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +32,10 @@ const birth = (pid: number) => { try { return execFileSync('/bin/ps', ['-p', Str
 const alive = (row: any) => !!row?.birth && birth(row.pid) === row.birth;
 async function wait(get: () => any, label: string, timeout = 6000) { const end = Date.now() + timeout; while (Date.now() < end) { const result = get(); if (result) return result; await sleep(15); } throw new Error('fixture timeout: ' + label); }
 const privateWords = ['PRIVATE_PROMPT_SENTINEL', 'PRIVATE_ASSISTANT_SENTINEL', 'PRIVATE_TOKEN_BODY_SENTINEL', 'PRIVATE_AUTH_SENTINEL', 'PRIVATE_ACCOUNT_SENTINEL', 'PRIVATE_MESSAGE_SENTINEL', 'PRIVATE_UNKNOWN_SENTINEL'];
+const evidenceLinks = ['cli-live-stale-legacy-malformed', 'cli-pid-reuse-bounds'].flatMap(name => [
+  { path: name + '/sessions/linked', target: name + '/outside' },
+  { path: name + '/sessions/linked-file/codex-native-status.json', target: name + '/outside/codex-native-status.json' },
+]);
 function privacy(value: any) { const text = JSON.stringify(value); for (const word of privateWords) assert.ok(!text.includes(word), 'metadata privacy: ' + word); }
 function metadata(d: any) {
   assert.equal(d?.schema, 1, 'missing diagnostics.schema=1');
@@ -56,6 +60,17 @@ function verify(directory: string) {
   const check = (label: string, run: () => void) => { try { run(); } catch (error) { failures.push(label + ': ' + (error instanceof Error ? error.message : String(error))); } };
   check('runner', () => assert.equal(summary.failure, '', 'fixture execution failed'));
   check('case coverage', () => assert.deepEqual(summary.cases.map((row: any) => row.name), required));
+  check('sealed symlink evidence', () => {
+    const manifest = json(join(directory, 'operational-symlinks.json'));
+    assert.equal(manifest.schema, 1); assert.deepEqual(manifest.links, evidenceLinks);
+    assert.ok(summary.artifactFiles.some(file => file.path === 'operational-symlinks.json'), 'manifest fingerprinted');
+    for (const link of manifest.links) {
+      const target = resolve(directory, link.target); assert.ok(target.startsWith(resolve(directory) + '/'), 'target inside artifacts');
+      assert.ok(realpathSync(target).startsWith(realpathSync(directory) + '/'), 'resolved target inside artifacts');
+      if (lstatSync(target).isDirectory()) assert.ok(readdirSync(target).length); else readFileSync(target);
+    }
+    const visit = (path: string) => { for (const entry of readdirSync(path, { withFileTypes: true })) { assert.equal(entry.isSymbolicLink(), false, 'unsealed evidence symlink'); if (entry.isDirectory()) visit(join(path, entry.name)); } }; visit(directory);
+  });
   for (const scenario of summary.cases) check(scenario.name, () => {
     assert.equal(scenario.failure, '', 'fixture execution: ' + scenario.failure);
     const snapshots = scenario.snapshots.map((row: any) => ({ ...row, status: json(join(directory, row.file)) }));
@@ -243,7 +258,10 @@ else {
         const before = JSON.stringify(tree(statusDir)); const args = [...(entrypoint === 'normal' ? [] : [...flags, join(root, 'experiments/setup.ts')]), 'status', '--provider', 'codex', '--config-dir', configDir, '--shell-file', shellFile, '--json'];
         const result = spawnSync(entrypoint === 'normal' ? normalCli : process.execPath, args, { cwd: temp, env: { ...process.env, HOME: temp, CODEX_HOME: row.home, VESTA_HOME: join(temp, 'installation'), VESTA_DIAGNOSTIC_FIXTURE: folder }, encoding: 'utf8', timeout: 15000 });
         const file = join(folder, entrypoint + '-' + phase + '.json'); writeFileSync(file, result.stdout); writeFileSync(file + '.stderr', result.stderr);
-        s.cli.push({ entrypoint, file: retain(file), code: result.status, before, after: JSON.stringify(tree(statusDir)), expected, truncated: name === 'cli-pid-reuse-bounds' });
+        const after = JSON.stringify(tree(statusDir)); assert.equal(before, after, 'scanner inputs unchanged before sealing');
+        const output = JSON.parse(result.stdout); const report = (entrypoint === 'normal' ? output.integrations[0] : output).runtimeOwners;
+        assert.ok(!report.owners.some(owner => ['linked', 'linked-file'].includes(owner.directory)), 'scanner ignored live synthetic links');
+        s.cli.push({ entrypoint, file: retain(file), code: result.status, before, after, expected, truncated: name === 'cli-pid-reuse-bounds' });
       };
       const common = [{ directory: 'legacy', liveness: 'legacy', reason: 'legacy-diagnostics-unavailable' }, { directory: 'malformed', liveness: 'malformed', reason: 'malformed-status' }, { directory: 'pid-reuse', liveness: 'stale', reason: 'owner-birth-mismatch' }];
       for (const entrypoint of ['normal', 'source']) invoke(entrypoint, 'live', [...common, { directory: 'actual', liveness: 'live', reason: 'owner-live' }]);
@@ -254,6 +272,19 @@ else {
   finally {
     // Writer subprocesses are owned only when recorded by this isolated fixture.
     const collectWriters = (path: string) => { for (const name of readdirSync(path)) { const file = join(path, name); if (lstatSync(file).isDirectory()) collectWriters(file); else if (name === 'writers.jsonl') for (const row of jsonl(file)) if (alive(row)) { try { process.kill(row.pid, 'SIGTERM'); } catch {} } } }; collectWriters(directory);
+    // Seal only fixture-created links after live scanner checks and owned cleanup.
+    // Artifact-relative targets remain verifiable when Telos relocates evidence.
+    const links: { path: string; target: string }[] = [];
+    for (const expected of evidenceLinks) {
+      const file = join(directory, expected.path);
+      try {
+        if (!lstatSync(file).isSymbolicLink()) continue;
+        const target = relative(directory, resolve(dirname(file), readlinkSync(file)));
+        assert.equal(target, expected.target, 'only expected fixture link target');
+        links.push({ path: expected.path, target }); unlinkSync(file); // Never follow or remove the target.
+      } catch (error: any) { if (error.code !== 'ENOENT') throw error; }
+    }
+    writeFileSync(join(directory, 'operational-symlinks.json'), JSON.stringify({ schema: 1, links }, null, 2) + '\n');
     const artifactFiles: any[] = []; const collect = (path: string) => { for (const name of readdirSync(path)) { const file = join(path, name); if (lstatSync(file).isSymbolicLink()) continue; if (lstatSync(file).isDirectory()) collect(file); else artifactFiles.push({ path: retain(file), sha256: hash(file) }); } }; collect(directory);
     writeFileSync(join(directory, 'summary.json'), JSON.stringify({ schema: 1, kind: 'codex-native-diagnostics', failure, cases, sourceFiles: sourcePaths().map(path => ({ path, sha256: hash(join(root, path)) })), artifactFiles }, null, 2));
     rmSync(temp, { recursive: true, force: true });

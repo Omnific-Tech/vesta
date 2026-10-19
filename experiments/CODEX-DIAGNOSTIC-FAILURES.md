@@ -51,6 +51,14 @@ the fixture stops that process, the same snapshot must report `owner-dead`.
 The stale-phase oracle corrects its former contradictory mismatch expectation;
 the live-phase mismatch assertion remains unchanged.
 
+Scanner symlinks remain live during every CLI check and input-tree comparison.
+After owned cleanup, the runner unlinks only its four exact synthetic links
+without following or removing targets, retaining artifact-relative path/target
+metadata in hashed `operational-symlinks.json`. Independent replay requires the
+exact two links per CLI scenario, readable targets within the retained artifacts,
+and no remaining evidence symlinks. This seals evidence for Telos archival;
+it preserves the scanner symlink behavior tests and their byte comparisons.
+
 Evidence includes source hashes, phase status/lease copies, native/owner/peer PID/birth metadata, real process cleanup, queue ledgers, CLI stdout/stderr, input-tree hashes and summary. `--verify` checks actual retained evidence against static required cases and predicates; runner never writes authoritative passed booleans. Baseline execution should fail specifically on absent diagnostics/runtime-owner reporting while retaining evidence for every reachable case.
 
 Source fingerprints deterministically include every `.ts` file directly under `cli/` and every `experiments/codex-*.ts`, plus the named policy/setup/input/fixture/contract sources. Replay compares the complete expected source-path set, so adding a diagnostics helper requires fresh evidence rather than silently escaping source hashing.
