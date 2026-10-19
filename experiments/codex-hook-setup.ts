@@ -26,7 +26,7 @@ export function legacyShell(state: any, shell: string) {
 }
 export async function preflightHookSetup(native: string, state: any, shell: string, operation: string, selectedHome = currentNativeHome()) {
   legacyShell(state, shell); const homes = ownedNativeHomes(state);
-  for (const row of homes) await codexRegistration(native, row, row.nativeCodexHome);
+  for (const row of homes) { if (!existsSync(row.nativeCodexHome)) throw new Error('Recorded owned native home unavailable; refusing partial registration changes'); await codexRegistration(native, row, row.nativeCodexHome); }
   if (operation === 'install' && !homes.some(row => row.nativeCodexHome === selectedHome)) await codexRegistration(native, null, selectedHome);
   return homes;
 }
@@ -73,7 +73,7 @@ async function mutateHookSetup(options: SetupOptions) {
   for (const row of targets) registrySnapshots.push({ before: await codexRegistration(native, row.nativePluginId ? row : null, row.nativeCodexHome), state: row });
   let removedShell = false; const expected = new Map<string, string | null>();
   const content = (path: string) => existsSync(path) ? readFileSync(path, 'utf8') : null;
-  const unrelatedNative = (text: string | null) => (text ?? '').replace(/^\[plugins\."?vesta@vesta-local"?\][\s\S]*?(?=^\[|$(?![\s\S]))/gm, '').trim();
+  const unrelatedNative = (text: string | null) => (text ?? '').replace(/^\[(?:plugins\."?vesta@vesta-local"?|marketplaces\."?vesta-local"?)\][\s\S]*?(?=^\[|$(?![\s\S]))/gm, '').trim();
   try {
     const nextHomes = [...homes];
     if (operation === 'install') {
