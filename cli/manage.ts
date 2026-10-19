@@ -275,6 +275,7 @@ export async function install(args: string[], root: string, repairing = false) {
       }
       return { version, root, installed: selected.map(p => p.provider), restartClaude: selected.some(p => p.provider === 'claude'), activate: 'Open a new terminal, or explicitly run unfunction codex in an existing zsh; review Vesta in native /hooks.' };
     } catch (error) {
+      if (String(error).includes('concurrent') && String(error).includes('ambiguous')) throw error;
       let rollbackError: unknown;
       try {
         caches.retain();

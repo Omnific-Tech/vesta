@@ -1,5 +1,5 @@
 // Owned native hook setup. Shared controls, explicit canonical homes, exact legacy migration.
-import { constants, existsSync, lstatSync, mkdirSync, openSync, closeSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync, closeSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { codexHookReadiness, nativeRequest } from './codex-native-ipc.ts';
@@ -7,6 +7,7 @@ import { codexRegistration, installNativeCodex, restoreNativeCodex, uninstallNat
 import { runtimeOwners } from './codex-runtime-status.ts';
 import { controlConfig } from './watcher-policy.ts';
 import { nativeIdentity } from './codex-native-identity.ts';
+import { alive, birth } from './codex-hook-state.ts';
 const start = '# >>> Vesta managed Codex >>>'; const end = '# <<< Vesta managed Codex <<<';
 const read = (path: string, fallback: any = null) => existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : fallback;
 const save = (path: string, row: any) => { mkdirSync(dirname(path), { recursive: true, mode: 0o700 }); writeFileSync(path, JSON.stringify(row, null, 2) + '\n', { mode: 0o600 }); };
@@ -48,7 +49,16 @@ export async function hookSetupStatus(configDir: string, native: string, state: 
     warmingSuspended: controls.warm && !currentRow.warmEnabled, warmingSuspendedReason: controls.paused ? 'Vesta warming is paused.' : currentRow.reason, nativePluginId: 'vesta@vesta-local', ...controls,
     runtimeOwners: runtimeOwners(config.statusDir), activate: 'Open a new terminal, or explicitly run unfunction codex in an existing zsh; review Vesta in native /hooks.' };
 }
-export async function handleHookSetup(options: { operation: string; configDir: string; shell: string; native: string; node: string; warm: boolean; ownedOnly?: boolean }) {
+type SetupOptions = { operation: string; configDir: string; shell: string; native: string; node: string; warm: boolean; ownedOnly?: boolean };
+export async function handleHookSetup(options: SetupOptions) {
+  if (['status', 'plan'].includes(options.operation)) return mutateHookSetup(options);
+  mkdirSync(options.configDir, { recursive: true, mode: 0o700 }); const lock = join(options.configDir, '.codex-hook-operation.lock'); let fd: number | undefined;
+  try {
+    try { fd = openSync(lock, 'wx', 0o600); } catch { const row = read(lock); if (!row?.pid || !row?.birth || alive(row)) throw new Error('Codex setup operation lock unavailable'); rmSync(lock); fd = openSync(lock, 'wx', 0o600); }
+    writeFileSync(fd, JSON.stringify({ pid: process.pid, birth: birth(process.pid) })); return await mutateHookSetup(options);
+  } finally { if (fd !== undefined) { closeSync(fd); rmSync(lock, { force: true }); } }
+}
+async function mutateHookSetup(options: SetupOptions) {
   const { operation, configDir, shell, native, node, warm } = options; const statePath = join(configDir, '.vesta-setup-codex.json'); const configPath = join(configDir, 'vesta-codex.json'); const state = read(statePath);
   if (operation === 'status') return { operation, provider: 'codex', configDir, ...(await hookSetupStatus(configDir, native, state)) };
   const selectedHome = currentNativeHome();
@@ -61,7 +71,9 @@ export async function handleHookSetup(options: { operation: string; configDir: s
   const targets = operation === 'uninstall' || options.ownedOnly ? homes : [homes.find(row => row.nativeCodexHome === selectedHome) ?? { nativeCodexHome: selectedHome }];
   const registrySnapshots: any[] = []; const changed: any[] = [];
   for (const row of targets) registrySnapshots.push({ before: await codexRegistration(native, row.nativePluginId ? row : null, row.nativeCodexHome), state: row });
-  let removedShell = false;
+  let removedShell = false; const expected = new Map<string, string | null>();
+  const content = (path: string) => existsSync(path) ? readFileSync(path, 'utf8') : null;
+  const unrelatedNative = (text: string | null) => (text ?? '').replace(/^\[plugins\."?vesta@vesta-local"?\][\s\S]*?(?=^\[|$(?![\s\S]))/gm, '').trim();
   try {
     const nextHomes = [...homes];
     if (operation === 'install') {
@@ -72,14 +84,20 @@ export async function handleHookSetup(options: { operation: string; configDir: s
         const row = { ...registration, nativeCodexHome: target.nativeCodexHome }; changed.push(row); const index = nextHomes.findIndex(h => h.nativeCodexHome === row.nativeCodexHome); if (index < 0) nextHomes.push(row); else nextHomes[index] = row;
       }
       const existing = read(configPath); const config = existing ?? { warm: false, idleMs: 1200000, budgetMs: 14400000, statusDir: join(configDir, 'sessions') };
-      controlConfig('codex', config); if (!existing || warm && !config.warm) save(configPath, { ...config, ...(warm ? { warm: true } : {}) });
+      controlConfig('codex', config); if (!existing || warm && !config.warm) save(configPath, { ...config, ...(warm ? { warm: true } : {}) }); expected.set(configPath, content(configPath));
       save(statePath, { ...state, provider: 'codex', integrationMode: 'hook', native, shellFile: shell, block: '', createdConfig: state?.createdConfig ?? read(configPath), nativeHomes: nextHomes, ...nativeIdentity(native), native });
+      expected.set(statePath, content(statePath));
     } else { for (const row of homes) { await uninstallNativeCodex(native, row); changed.push(row); } rmSync(statePath, { force: true }); }
     if (migration.removed) { removedShell = true; writeFileSync(shell, migration.remaining); }
     return { operation, provider: 'codex', configDir, ...(await hookSetupStatus(configDir, native, read(statePath))) };
   } catch (error) {
     let compensation: any;
     try {
+      for (const [path, bytes] of snapshots) {
+        const current = content(path); const before = bytes?.toString() ?? null;
+        if (path.endsWith('/config.toml')) { if (unrelatedNative(current) !== unrelatedNative(before)) throw new Error('concurrent unrelated native configuration edit; compensation ambiguous'); }
+        else if (path !== shell && current !== (expected.has(path) ? expected.get(path) : before)) throw new Error('concurrent owned configuration edit; compensation ambiguous');
+      }
       for (const previous of registrySnapshots) { const current = changed.find(row => row.nativeCodexHome === previous.state.nativeCodexHome) ?? previous.state; if (current.nativePluginId) await restoreNativeCodex(native, current, previous.before); }
       for (const [path, bytes] of snapshots) {
         if (path === shell && removedShell) { const current = readFileSync(shell, 'utf8'); if (current !== migration.remaining && current !== migration.text) throw new Error('concurrent shell edit makes compensation ambiguous'); }

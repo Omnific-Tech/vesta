@@ -11,7 +11,8 @@ export function nativeIdentity(command: string) {
     if (metadata.name !== '@openai/codex' || !/^\d+\.\d+\.\d+/.test(metadata.version)) throw new Error('unrecognized npm Codex launcher');
     if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('unsupported native package target');
     const platform = join(root, 'node_modules/@openai/codex-darwin-arm64'); const pkg = JSON.parse(readFileSync(join(platform, 'package.json'), 'utf8'));
-    if (pkg.name !== '@openai/codex-darwin-arm64' || pkg.version !== metadata.version) throw new Error('native vendor package mismatch');
+    const alias = metadata.optionalDependencies?.['@openai/codex-darwin-arm64'];
+    if (alias !== 'npm:@openai/codex@' + metadata.version + '-darwin-arm64' || pkg.name !== '@openai/codex' || pkg.version !== metadata.version + '-darwin-arm64') throw new Error('native vendor package mismatch');
     binary = realpathSync(join(platform, 'vendor/aarch64-apple-darwin/bin/codex'));
   }
   if (!existsSync(binary)) throw new Error('native executable unavailable');
