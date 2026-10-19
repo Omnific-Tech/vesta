@@ -49,7 +49,7 @@ async function observe() {
   let rawConfig = json(configPath); let live = controlConfig('codex', rawConfig); const statusDir = directory(resolve(rawConfig.statusDir));
   let signature = JSON.stringify(live); let controlError = false; let errorAt = 0; let failed = false; let closing = false;
   const claims = new TranscriptClaims(statusDir, engineKey, engine); const slots = new Map<string, Slot>(); const identity = { pid: process.pid, birth: birth(process.pid) };
-  const journal = join(folder, 'events.jsonl'); const ledgerPath = join(folder, 'dispatches.jsonl'); const ledger = new Map<string, any>(); const abort = new AbortController(); const writers = new Set<Promise<any>>();
+  const journal = join(folder, 'events.jsonl'); const ledgerPath = join(folder, 'dispatches.jsonl'); const ledger = new Map<string, any>(); const abort = new AbortController(); const writers = new Set<Promise<any>>(); const readinessTasks = new Set<Promise<void>>();
   let offset = Number(value('--offset')); let journalInode: number | undefined; let journalDevice: number | undefined;
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('invalid observer offset');
   if (existsSync(ledgerPath)) for (const line of read(ledgerPath, 4 * 1024 * 1024).trim().split('\n').filter(Boolean)) {
@@ -153,13 +153,13 @@ async function observe() {
     if (s.readinessTask) return s.readinessTask;
     if (!force && (s.ready || Date.now() - s.readinessAt < (live.idleMs < 1000 ? 1000 : 10000))) return Promise.resolve();
     const cwd = s.cwd; s.readinessAt = Date.now();
-    const task = codexHookReadiness(native, cwd).then(result => {
+    const task = codexHookReadiness(native, cwd, undefined, { signal: abort.signal }).then(result => {
       if (closing || failed || slots.get(s.session) !== s || s.cwd !== cwd) return;
       const changed = s.readinessKnown && s.ready !== result.ready;
       s.readinessKnown = true; s.ready = result.ready;
       if (changed || !result.ready) { event(s, 'control', { config: live, enabled: result.ready && live.warm && !live.paused && !controlError, changedAt: Date.now() }); s.diagnostics.freshRequired = true; }
-    }).finally(() => { s.readinessTask = undefined; });
-    s.readinessTask = task; return task;
+    }).finally(() => { s.readinessTask = undefined; readinessTasks.delete(task); });
+    s.readinessTask = task; readinessTasks.add(task); return task;
   }
   function gate(s: Slot) {
     if (closing || s.ended) return 'owner-ended'; if (failed) return 'observer-failed'; if (!s.ready) return 'observer-failed'; if (controlError) return 'configuration-unavailable'; if (!live.warm) return 'warming-disabled'; if (live.paused) return 'warming-paused';
@@ -192,7 +192,7 @@ async function observe() {
       await sleep(live.idleMs < 1000 ? 100 : 1000);
     }
   } finally {
-    closing = true; abort.abort(); await Promise.allSettled([...writers]);
+    closing = true; abort.abort(); await Promise.allSettled([...writers, ...readinessTasks]);
     for (const s of slots.values()) { event(s, 'exit'); s.diagnostics.record('ended', 'owner-ended'); try { snapshot(s); } catch {} }
     claims.close(); const workerPath = join(folder, 'worker.json'); try { const row = json(workerPath); if (row.pid === process.pid && row.birth === identity.birth) rmSync(workerPath); } catch {}
   }

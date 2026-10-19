@@ -65,8 +65,9 @@ export function transcript(path: string, session: string, turn: string) {
     const header = head.toString().split('\n').slice(0, -1).map(line => JSON.parse(line)).find(row => row.type === 'session_meta');
     if (header?.payload?.id !== session) throw new Error('native transcript session mismatch');
     const length = Math.min(st.size, 8 * 1024 * 1024); const buffer = Buffer.alloc(length); readSync(fd, buffer, 0, length, st.size - length);
-    let text = buffer.toString(); let position = st.size - length;
-    if (st.size > length) { const skipped = text.indexOf('\n') + 1; position += Buffer.byteLength(text.slice(0, skipped)); text = text.slice(skipped); }
+    let bytes = buffer; let position = st.size - length;
+    if (st.size > length) { const skipped = bytes.indexOf(0x0a) + 1; position += skipped; bytes = bytes.subarray(skipped); }
+    const text = bytes.toString();
     const raw = text.split('\n'); raw.pop(); const positions: number[] = [];
     const rows = raw.map(line => { positions.push(position); position += Buffer.byteLength(line) + 1; return JSON.parse(line); });
     const start = rows.findLastIndex(row => row.type === 'turn_context' && row.payload?.turn_id === turn); if (start < 0) return undefined;
