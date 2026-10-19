@@ -12,7 +12,7 @@ Keep existing status fields. Add `diagnostics` with schema `1`, `pid`, `birth`, 
 
 Keep at most the last 32 decision transitions. Consecutive equal action/reason pairs coalesce; repeated polling does not flood history or replace lastSkip with unrelated observations. Reasons are stable codes, not exception strings. Record the guard actually reached, preserving existing guard ordering and all dispatch/lease/policy behavior. No extra calls to `conflict` or `ambiguous`: these methods mutate cleanup/first-seen state. No background probe or status command may mutate leases.
 
-Expected codes: `owner-unbound`, `owner-busy`, `input-ineligible`, `terminal-input-pending`, `queue-preparing`, `submission-unresolved`, `completion-unresolved`, `warm-limit-reached`, `warm-pending`, `ownership-ambiguous`, `lease-conflict`, `idle-wait`, `reserve-eligible`, `dispatch-committed`, `warming-paused`, `warming-disabled`, `configuration-unavailable`, `input-measurement-unavailable`, `input-below-threshold`, `inactivity-expired`, `observer-failed`, `owner-ended`, `fresh-response-required`, `queue-cancelled`. Higher-priority existing guards can supersede lower ones; fixture phases explicitly isolate tested gates.
+Expected codes: `owner-unbound`, `owner-busy`, `input-ineligible`, `terminal-input-pending`, `queue-preparing`, `submission-unresolved`, `completion-unresolved`, `warm-limit-reached`, `warm-pending`, `ownership-ambiguous`, `lease-conflict`, `idle-wait`, `reserve-eligible`, `dispatch-committed`, `warming-paused`, `warming-disabled`, `configuration-unavailable`, `input-measurement-unavailable`, `input-below-threshold`, `inactivity-expired`, `observer-failed`, `owner-ended`, `fresh-response-required`, `queue-cancelled`, `queue-failed`. Higher-priority existing guards can supersede lower ones; fixture phases explicitly isolate tested gates. A real transport failure is `queue-failed`; only aborted authorization/transport is `queue-cancelled`.
 
 ## CLI runtime owners
 
@@ -28,6 +28,7 @@ Read only configured `statusDir` immediate child directories' `codex-native-stat
 - `dirty-input`: draft bytes invalidate measurement; last accepted measurement retained but no longer current.
 - `decoder-pending`: incomplete terminal report blocks dispatch without fabricating user activity.
 - `queue-preparing`: delayed real writer initialization visible before authorization.
+- `queue-failed`: a real isolated writer exits with code 23 during initialization; no native queue, no retry, retained historical metric invalidated, and failure never mislabeled cancellation.
 - `submission-unresolved`: native submission hook lacking transcript binding remains unresolved.
 - `completion-unresolved`: Stop lacking a completed usable measurement remains pending.
 - `missing-metric`: expired completion cannot invent tokens or deadline.
@@ -43,6 +44,12 @@ Read only configured `statusDir` immediate child directories' `codex-native-stat
 - `observer-failure`: native channel replacement suspends runtime; status never advertises healthy warming.
 - `cli-live-stale-legacy-malformed`: both CLI entrypoints label real live/stale owner and synthetic legacy/corrupt snapshots honestly, preserve readiness, emit no raw fields and do not change input bytes.
 - `cli-pid-reuse-bounds`: exact birth mismatch is stale; oversized, symlink and excess candidates bounded; privacy sentinels never appear in owner summaries; configured directory only.
+
+The CLI birth-mismatch snapshot uses the live fixture owner's PID with a different
+birth: while that PID lives its reason must be `owner-birth-mismatch`. After
+the fixture stops that process, the same snapshot must report `owner-dead`.
+The stale-phase oracle corrects its former contradictory mismatch expectation;
+the live-phase mismatch assertion remains unchanged.
 
 Evidence includes source hashes, phase status/lease copies, native/owner/peer PID/birth metadata, real process cleanup, queue ledgers, CLI stdout/stderr, input-tree hashes and summary. `--verify` checks actual retained evidence against static required cases and predicates; runner never writes authoritative passed booleans. Baseline execution should fail specifically on absent diagnostics/runtime-owner reporting while retaining evidence for every reachable case.
 

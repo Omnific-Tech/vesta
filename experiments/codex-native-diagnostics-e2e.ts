@@ -14,10 +14,10 @@ const thread = '11111111-1111-4111-8111-111111111111';
 const flags = ['--disable-warning=ExperimentalWarning', '--experimental-strip-types'];
 const sources = ['experiments/codex-native-diagnostics-e2e.ts', 'experiments/codex-native-diagnostics-fixture.mjs', 'experiments/CODEX-DIAGNOSTIC-FAILURES.md', 'experiments/codex-native-owner.ts', 'experiments/codex-native-state.ts', 'experiments/codex-native-ipc.ts', 'experiments/codex-terminal-input.ts', 'experiments/watcher-policy.ts', 'experiments/setup.ts', 'cli/manage.ts', 'cli/main.ts'];
 const sourcePaths = () => [...new Set([...sources, ...readdirSync(join(root, 'cli')).filter(name => name.endsWith('.ts')).map(name => 'cli/' + name), ...readdirSync(here).filter(name => name.startsWith('codex-') && name.endsWith('.ts')).map(name => 'experiments/' + name)])].sort();
-const required = ['unbound', 'clean-wait-dispatch', 'busy', 'dirty-input', 'decoder-pending', 'queue-preparing', 'submission-unresolved', 'completion-unresolved', 'missing-metric', 'warm-limit', 'warm-pending', 'pause-control-ring', 'threshold-budget', 'unknown-owner-recovery', 'competing-owner-recovery', 'native-term', 'wrapper-term', 'abrupt-relaunch', 'malformed-claim', 'observer-failure', 'cli-live-stale-legacy-malformed', 'cli-pid-reuse-bounds'];
+const required = ['unbound', 'clean-wait-dispatch', 'busy', 'dirty-input', 'decoder-pending', 'queue-preparing', 'queue-failed', 'submission-unresolved', 'completion-unresolved', 'missing-metric', 'warm-limit', 'warm-pending', 'pause-control-ring', 'threshold-budget', 'unknown-owner-recovery', 'competing-owner-recovery', 'native-term', 'wrapper-term', 'abrupt-relaunch', 'malformed-claim', 'observer-failure', 'cli-live-stale-legacy-malformed', 'cli-pid-reuse-bounds'];
 const reasons: Record<string, string[]> = {
   unbound: ['owner-unbound'], 'clean-wait-dispatch': ['idle-wait', 'dispatch-committed'], busy: ['owner-busy'], 'dirty-input': ['input-ineligible'],
-  'decoder-pending': ['terminal-input-pending'], 'queue-preparing': ['queue-preparing', 'queue-cancelled'], 'submission-unresolved': ['submission-unresolved'],
+  'decoder-pending': ['terminal-input-pending'], 'queue-preparing': ['queue-preparing', 'queue-cancelled'], 'queue-failed': ['queue-failed'], 'submission-unresolved': ['submission-unresolved'],
   'completion-unresolved': ['completion-unresolved'], 'missing-metric': ['input-measurement-unavailable'], 'warm-limit': ['warm-limit-reached'],
   'warm-pending': ['warm-pending'], 'pause-control-ring': ['warming-paused', 'configuration-unavailable', 'fresh-response-required', 'warming-disabled'],
   'threshold-budget': ['input-below-threshold', 'inactivity-expired'], 'unknown-owner-recovery': ['ownership-ambiguous', 'dispatch-committed'],
@@ -72,6 +72,11 @@ function verify(directory: string) {
     for (const reason of reasons[scenario.name] ?? []) assert.ok(snapshots.some((row: any) => row.reason === reason), 'phase evidence for ' + reason);
     const queues = scenario.queues.flatMap((file: string) => jsonl(join(directory, file)));
     if (scenario.noQueue) assert.equal(queues.length, 0, 'fail-closed queue');
+    if (scenario.name === 'queue-failed') {
+      const failures = jsonl(join(directory, 'queue-failed/owner/transport-failures.jsonl'));
+      assert.equal(failures.length, 1, 'actual isolated transport failure'); assert.equal(failures[0].exitCode, 23); assert.equal(failures[0].method, 'initialize');
+      assert.ok(snapshots.every(row => !row.status.diagnostics.decisions.some(item => item.reason === 'queue-cancelled')), 'transport failure is not cancellation');
+    }
     if (scenario.dispatch) { assert.equal(queues.length, 1, 'one real native queue request'); const phase = snapshots.find((row: any) => row.reason === 'idle-wait'); if (phase) assert.ok(queues[0].at >= phase.status.diagnostics.idleDeadline, 'never queues early'); }
     if (scenario.name === 'pause-control-ring') { assert.equal(snapshots.at(-1).status.diagnostics.decisions.length, 32, 'ring retains last32'); }
     if (scenario.blocker) { const row = snapshots.find((item: any) => item.suspended); assert.equal(row.status.diagnostics.ownership.blocker.pid, scenario.blocker.pid); assert.equal(row.status.diagnostics.ownership.blocker.birth, scenario.blocker.birth); }
@@ -169,6 +174,7 @@ else {
     await run('dirty-input', async (s, folder) => { const row = await owner(join(folder, 'owner')); await seed(row); row.terminal.write('PRIVATE_PROMPT_SENTINEL'); await snapshot(s, row, 'input-ineligible', { invalidated: true }); s.noQueue = true; });
     await run('decoder-pending', async (s, folder) => { const row = await owner(join(folder, 'owner')); await seed(row); row.terminal.write('\x1b[1;'); await snapshot(s, row, 'terminal-input-pending', { delay: 65 }); s.noQueue = true; });
     await run('queue-preparing', async (s, folder) => { const row = await owner(join(folder, 'owner'), { writerDelay: 800 }); await seed(row); await wait(() => trace(row).some(event => event.kind === 'queue-process'), 'writer spawned'); await snapshot(s, row, 'queue-preparing'); row.terminal.write('PRIVATE_PROMPT_SENTINEL'); await wait(() => trace(row).some(event => event.kind === 'queue-cancelled'), 'real writer authorization cancelled'); await snapshot(s, row, 'queue-cancelled'); s.noQueue = true; });
+    await run('queue-failed', async (s, folder) => { const row = await owner(join(folder, 'owner'), { mode: 'queue-failure' }); await seed(row); await wait(() => trace(row).some(event => event.kind === 'queue-failed'), 'real writer transport failed'); await snapshot(s, row, 'queue-failed', { delay: 0, invalidated: true }); s.noQueue = true; });
     await run('submission-unresolved', async (s, folder) => { const row = await owner(join(folder, 'owner'), { mode: 'missing-submission' }); row.terminal.write('seed\r'); await sleep(300); await snapshot(s, row, 'submission-unresolved'); s.noQueue = true; });
     await run('completion-unresolved', async (s, folder) => { const row = await owner(join(folder, 'owner'), { mode: 'completion-pending' }); await seed(row, false); await sleep(250); await snapshot(s, row, 'completion-unresolved'); s.noQueue = true; });
     await run('missing-metric', async (s, folder) => { const row = await owner(join(folder, 'owner'), { mode: 'missing-metric' }); await seed(row, false); await wait(() => trace(row).some(event => event.kind === 'unknown-metric'), 'metric timeout'); await snapshot(s, row, 'input-measurement-unavailable'); s.noQueue = true; });
@@ -242,7 +248,7 @@ else {
       const common = [{ directory: 'legacy', liveness: 'legacy', reason: 'legacy-diagnostics-unavailable' }, { directory: 'malformed', liveness: 'malformed', reason: 'malformed-status' }, { directory: 'pid-reuse', liveness: 'stale', reason: 'owner-birth-mismatch' }];
       for (const entrypoint of ['normal', 'source']) invoke(entrypoint, 'live', [...common, { directory: 'actual', liveness: 'live', reason: 'owner-live' }]);
       await stop(row);
-      for (const entrypoint of ['normal', 'source']) invoke(entrypoint, 'stale', [...common, { directory: 'actual', liveness: 'stale', reason: 'owner-dead' }]);
+      for (const entrypoint of ['normal', 'source']) invoke(entrypoint, 'stale', [...common.map(expected => expected.directory === 'pid-reuse' ? { ...expected, reason: 'owner-dead' } : expected), { directory: 'actual', liveness: 'stale', reason: 'owner-dead' }]);
     });
   } catch (error) { failure = String(error); }
   finally {

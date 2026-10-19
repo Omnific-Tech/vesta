@@ -23,6 +23,7 @@ if (process.argv.includes('--lease-peer')) {
     while (buffer.includes('\n')) {
       const end = buffer.indexOf('\n'); const row = JSON.parse(buffer.slice(0, end)); buffer = buffer.slice(end + 1);
       const reply = result => process.stdout.write(JSON.stringify({ id: row.id, result }) + '\n');
+      if (row.method === 'initialize' && process.env.VESTA_DIAGNOSTIC_MODE === 'queue-failure') { log('transport-failures.jsonl', { pid: process.pid, method: row.method, exitCode: 23 }); process.exit(23); }
       if (row.method === 'initialize') setTimeout(() => reply({}), Number(process.env.VESTA_DIAGNOSTIC_WRITER_DELAY ?? 0));
       if (row.method === 'hooks/list') reply({ data: [{ hooks: ['sessionStart', 'sessionEnd', 'userPromptSubmit', 'stop', 'interrupt', 'postCompact'].map(eventName => ({ eventName, pluginId: 'vesta@vesta-local', enabled: true, trustStatus: 'trusted', command: 'fixture-hook' })) }] });
       if (row.method === 'thread/queue/add') { log('queue.jsonl', { row }); reply({ queuedSubmission: { id: 'fixture-queue' } }); }
