@@ -66,10 +66,16 @@ try {
   await run('foreign-parent', async (r, m) => { const child = spawn(process.execPath, [...flags, runtime, '--hook', '--config', r.config, '--native', fixture], { env: fixtureEnvironment(r.home), stdio: ['pipe', 'ignore', 'ignore'] }); child.stdin.end(JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: thread, turn_id: 'foreign', transcript_path: join(r.nativeHome, 'foreign.jsonl') })); await new Promise(done => child.on('exit', done)); await sleep(1200); assert.deepEqual(r.states(), [], 'unverified native ancestor has no observer'); await observe(r, m, 'blocked'); });
   await run('shared-transcript', async (r, m) => {
     const shared = join(r.nativeHome, 'sessions'); const peer = await engine(join(r.folder, 'peer'), {}, { FIXTURE_TRANSCRIPT_ROOT: shared }, { config: r.config, statusDir: r.statusDir });
-    try { await r.command({ kind: 'submit', session: thread }); await peer.command({ kind: 'submit', session: thread }); await r.worker(); await peer.worker(); await sleep(1400); const mark = await observe(r, m, 'blocked'); mark.peerQueues = peer.queues(); mark.peerStates = peer.states(); }
+    try {
+      const firstTurn = await r.command({ kind: 'submit', session: thread, complete: false }); const peerTurn = await peer.command({ kind: 'submit', session: thread, complete: false });
+      await r.worker(); await peer.worker();
+      await until(() => r.states().some(s => s.sessionId === thread && s.state.busy) && peer.states().some(s => s.sessionId === thread && s.state.busy), 'both conflicting native submissions bound busy before completion');
+      await r.command({ kind: 'complete', ...firstTurn }); await peer.command({ kind: 'complete', ...peerTurn });
+      await sleep(1400); const mark = await observe(r, m, 'blocked'); mark.peerQueues = peer.queues(); mark.peerStates = peer.states();
+    }
     finally { for (const s of peer.states()) owned.push({ pid: s.diagnostics.pid, birth: s.diagnostics.birth, kind: 'watcher' }); if (alive(peer.identity)) peer.child.kill('SIGTERM'); }
   });
-  await run('malformed-journal', async (r, m) => { await r.command({ kind: 'submit', session: thread }); await r.worker(); const journal: any = await until(() => namedFiles(r.statusDir, 'events.jsonl')[0], 'actual ingress journal'); appendFileSync(journal, 'INVALID_JOURNAL_SENTINEL\n'); await sleep(1400); await observe(r, m, 'blocked'); });
+  await run('malformed-journal', async (r, m) => { const turn = await r.command({ kind: 'submit', session: thread, complete: false }); await r.worker(); await until(() => r.states().some(s => s.sessionId === thread && s.state.busy), 'bound busy before journal corruption'); const journal: any = await until(() => namedFiles(r.statusDir, 'events.jsonl')[0], 'actual ingress journal'); appendFileSync(journal, 'INVALID_JOURNAL_SENTINEL\n'); await r.command({ kind: 'complete', ...turn }); await sleep(1400); await observe(r, m, 'blocked'); });
   await run('native-exit', async (r, m) => { await r.command({ kind: 'submit', session: thread }); const worker = await r.worker(); r.child.kill('SIGTERM'); await until(() => !alive(r.identity), 'native fixture exited'); const ended = await observe(r, m, 'ended'); await until(() => !alive(worker), 'watcher follows native exit'); await sleep(1200); const mark = await observe(r, m, 'exited'); mark.workerAlive = alive(worker); assert.equal(mark.queues.length, ended.queues.length); });
   for (const mode of ['untrusted', 'disabled']) await run('hooks-' + mode, async (r, m) => { mkdirSync(r.nativeHome, { recursive: true }); writeFileSync(join(r.nativeHome, 'hooks-mode'), mode); await r.command({ kind: 'submit', session: thread }); await sleep(1400); await observe(r, m, 'blocked'); });
 } catch (error) { failure = String(error); }
