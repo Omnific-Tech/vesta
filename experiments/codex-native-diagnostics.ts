@@ -1,6 +1,7 @@
 // Observations only: never consult leases, advance policy, or authorize dispatch.
 export type LeaseBlocker = { ownerId: string; pid: number; birth: string; kind: string };
 export const diagnosticReasons = new Set(['owner-unbound', 'owner-busy', 'input-ineligible', 'terminal-input-pending', 'queue-preparing', 'submission-unresolved', 'completion-unresolved', 'warm-limit-reached', 'warm-pending', 'ownership-ambiguous', 'lease-conflict', 'idle-wait', 'reserve-eligible', 'dispatch-committed', 'warming-paused', 'warming-disabled', 'configuration-unavailable', 'input-measurement-unavailable', 'input-below-threshold', 'inactivity-expired', 'observer-failed', 'owner-ended', 'fresh-response-required', 'queue-cancelled']);
+diagnosticReasons.add('queue-failed');
 type Decision = { at: number; action: string; reason: string };
 type Measurement = { at: number; inputTokens: number; sessionId: string; turnId: string; generation: number; current: boolean };
 export class NativeDiagnostics {

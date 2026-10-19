@@ -56,7 +56,7 @@ const trace = (kind: string, extra: any = {}) => {
       warmConfigured: live.warm, warmEnabled: enabled,
       warmingSuspendedReason: stopped ? 'owner-ended' : observerFailed ? 'observer-failed' : controlError ? 'configuration-unavailable' : live.paused ? 'warming-paused' : !live.warm ? 'warming-disabled' : diagnostics.ambiguous ? 'ownership-ambiguous' : diagnostics.conflict ? 'lease-conflict' : !activeSession ? 'owner-unbound' : '',
       minimumRuntimeVersion: '0.2.6', lastAction, resetReason, kind, state: watcher.state, diagnostics: diagnostics.snapshot(watcher.state, watcher.defaults.idleMs, activeSession) }), { mode: 0o600 }); renameSync(status + '.tmp', status);
-  } catch { observerFailed = true; clean = false; }
+  } catch { observerFailed = true; clean = false; diagnostics.invalidate(); diagnostics.record('skip', 'observer-failed'); }
 };
 const event = (row: any) => {
   try { const result = watcher.event({ at: Date.now(), ...row }); lastAction = result.action;
@@ -68,7 +68,7 @@ const event = (row: any) => {
       diagnostics.record(result.action, reason, result.at);
     }
     trace('policy', { row: result }); return result; }
-  catch { observerFailed = true; clean = false; return { action: 'skip', state: watcher.state }; }
+  catch { observerFailed = true; clean = false; diagnostics.invalidate(); diagnostics.record('skip', 'observer-failed'); trace('observer-failed'); return { action: 'skip', state: watcher.state }; }
 };
 function readControls() {
   try {
@@ -225,7 +225,8 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
       .catch(error => {
         queued.consumed = true;
         if (!stopped && error.name !== 'AbortError') { event({ type: 'submit-failed' }); invalidate(); }
-        diagnostics.record('cancel', 'queue-cancelled'); trace(error.name === 'AbortError' ? 'queue-cancelled' : 'queue-failed');
+        const reason = error.name === 'AbortError' ? 'queue-cancelled' : 'queue-failed';
+        diagnostics.record('cancel', reason); trace(reason);
       }).finally(() => { preparing = false; writers.delete(writer); });
     writers.add(writer);
   })().catch(() => { observerFailed = true; clean = false; diagnostics.invalidate(); diagnostics.record('skip', 'observer-failed'); trace('observer-failed'); }).finally(() => { tickBusy = false; });
@@ -235,5 +236,5 @@ terminal.onExit(exit => { void (async () => {
   if (process.stdin.isTTY) process.stdin.setRawMode(!!originalRaw); process.stdin.pause(); abort.abort(); await Promise.allSettled([...writers]); lease.close(); rmSync(channel, { force: true });
   diagnostics.invalidate(); diagnostics.record('ended', 'owner-ended'); trace('owner-ended');
   writeFileSync(join(artifacts, 'codex-native-runtime.json'), JSON.stringify({ managed: true, ownerId, originalArgv, nativeArgv, nativePid: terminal.pid,
-    warmEnabled: !observerFailed, mode: probe ? 'probe' : 'normal', defaults: watcher.defaults, warms, cleanup: [{ pid: terminal.pid, owned: true, exited: true }, ...writerCleanup] }, null, 2)); process.exitCode = exit.exitCode;
+    warmEnabled: false, mode: probe ? 'probe' : 'normal', defaults: watcher.defaults, warms, cleanup: [{ pid: terminal.pid, owned: true, exited: true }, ...writerCleanup] }, null, 2)); process.exitCode = exit.exitCode;
 })().catch(() => { process.exitCode = exit.exitCode; }); });
