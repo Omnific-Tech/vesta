@@ -65,8 +65,10 @@ export function transcript(path: string, session: string, turn: string) {
     const header = head.toString().split('\n').slice(0, -1).map(line => JSON.parse(line)).find(row => row.type === 'session_meta');
     if (header?.payload?.id !== session) throw new Error('native transcript session mismatch');
     const length = Math.min(st.size, 8 * 1024 * 1024); const buffer = Buffer.alloc(length); readSync(fd, buffer, 0, length, st.size - length);
-    let text = buffer.toString(); if (st.size > length) text = text.slice(text.indexOf('\n') + 1);
-    const raw = text.split('\n'); raw.pop(); const rows = raw.map(line => JSON.parse(line));
+    let text = buffer.toString(); let position = st.size - length;
+    if (st.size > length) { const skipped = text.indexOf('\n') + 1; position += Buffer.byteLength(text.slice(0, skipped)); text = text.slice(skipped); }
+    const raw = text.split('\n'); raw.pop(); const positions: number[] = [];
+    const rows = raw.map(line => { positions.push(position); position += Buffer.byteLength(line) + 1; return JSON.parse(line); });
     const start = rows.findLastIndex(row => row.type === 'turn_context' && row.payload?.turn_id === turn); if (start < 0) return undefined;
     const next = rows.findIndex((row, i) => i > start && row.type === 'turn_context'); const interval = rows.slice(start, next < 0 ? undefined : next);
     const submission = interval.find(row => row.type === 'event_msg' && row.payload?.type === 'item_completed' && row.payload.thread_id === session && row.payload.turn_id === turn && row.payload.item?.type === 'UserMessage');
@@ -75,7 +77,7 @@ export function transcript(path: string, session: string, turn: string) {
     const complete = interval.findLast(row => row.type === 'event_msg' && ['task_complete', 'turn_complete'].includes(row.payload?.type) && row.payload.turn_id === turn);
     const tokens = metric?.payload.info.last_token_usage.input_tokens;
     const fresh = final && metric && complete && !complete.payload.error && Date.parse(metric.timestamp) >= Date.parse(final.timestamp) && Date.parse(complete.timestamp) >= Date.parse(metric.timestamp) && Number.isSafeInteger(tokens) && tokens >= 0;
-    return { path: realpathSync(path), clientId: submission?.payload.item.client_id, order: st.size - length + Buffer.byteLength(rows.slice(0, start).map(row => JSON.stringify(row)).join('\n')), complete: !!fresh,
+    return { path: realpathSync(path), clientId: submission?.payload.item.client_id, order: positions[start], complete: !!fresh,
       completedAt: complete ? Date.parse(complete.timestamp) : undefined, raw: fresh ? { tokenUsage: { last: { inputTokens: tokens } } } : null };
   } finally { closeSync(fd); }
 }

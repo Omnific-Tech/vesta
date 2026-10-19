@@ -9,6 +9,47 @@ session has a local physical owner rather than a shared-daemon attachment.
 Vesta uses a PTY to relay terminal traffic and observe input; keepalives enter
 the native durable queue, never as marker keystrokes.
 
+The source checkout also contains an experimental hook-only runtime in
+[`codex-hook-watcher.ts`](../experiments/codex-hook-watcher.ts). Default installation
+still uses the launch path described above; the runtime stage does not migrate
+installed registrations or shell configuration. Its native hooks can bootstrap a
+detached observer without a wrapper, terminal relay, keystroke interception or
+notify override. This stage accepts an explicit native binary. Resolving npm
+launchers and separately managed daemon executables, and verifying default native
+TUI launch, remain prerequisites for switching the default installation.
+
+Hook-only mode follows native **backend threads**. It stops scheduling a thread on
+SessionEnd and stops its worker when the backend exits or its PID birth changes;
+terminating the worker leaves native Codex running. Native v0.163 can retain a
+thread for 30 minutes after its terminal disconnects. A 20-minute keepalive may
+extend that residency until the four-hour submission budget expires. Immediate
+terminal-exit detection is not provided by these hook payloads.
+
+Every non-Vesta submitted message counts as activity in this mode, including
+messages submitted by other tools: native hooks do not prove human origin.
+Drafts and keystrokes are not observed. A durable client UUID identifies Vesta's
+own messages, which never renew the user budget; identical text submitted through
+another client still counts as activity. A matching successful persisted native
+turn completion and fresh last-turn input usage establish eligibility. Stop alone
+does not, because another hook can continue that turn. Interruption, compaction,
+changed controls and restored hook trust require a fresh submission and reply.
+
+Observers coordinate canonical transcript claims across account homes sharing
+one Vesta configuration and `statusDir`; unrelated Vesta installations do not
+share that coordination. A worker bounds observation to 64 threads, 1,024 bound
+turns per thread, 8,192 dispatch identities and 4 MiB metadata journals. Unsafe or
+exhausted metadata suspends warming. Normal polling is once per second; explicitly
+configured idle intervals below one second use faster polling for isolated E2E
+fixtures. Metadata snapshots label `integrationMode: "hook"` and identify the
+backend and observer separately. The current CLI continues to expose its generic
+runtime-owner projection; default migration will add hook-specific presentation.
+
+The [preimplementation contracts](../experiments/CODEX-HOOK-WATCHER-FAILURES.md)
+distinguish synthetic process faults from real native hooks, rollout and queue
+delivery against a localhost fake Responses provider. These checks do not measure
+provider cache retention, billing savings or actual TUI integration. Queue entries
+already committed can still execute after a later submission or control change.
+
 **Version 0.2.6** adds live controls. Restart each older session once after
 upgrading; running v0.2.5 owners cannot read new controls.
 
