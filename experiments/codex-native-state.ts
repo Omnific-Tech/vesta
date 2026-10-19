@@ -6,7 +6,7 @@ const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const birth = (pid: number) => { try { return execFileSync('/bin/ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8' }).trim(); } catch { return ''; } };
 export class NativeLease {
   conflictBlocker: any = null; ambiguousBlocker: any = null;
-  blocker(row: any, kind: string) { return row && typeof row.ownerId === 'string' && Number.isSafeInteger(row.pid) && row.pid > 0 && typeof row.birth === 'string' ? { ownerId: row.ownerId, pid: row.pid, birth: row.birth, kind } : null; }
+  blocker(row: any, kind: string) { return row && typeof row.ownerId === 'string' && /^[a-zA-Z0-9:_-]{1,128}$/.test(row.ownerId) && Number.isSafeInteger(row.pid) && row.pid > 0 && typeof row.birth === 'string' && row.birth.length > 0 && row.birth.length <= 128 && !/[\p{Cc}\p{Cs}]/u.test(row.birth) ? { ownerId: row.ownerId, pid: row.pid, birth: row.birth, kind } : null; }
   directory: string; owner: { pid: number; birth: string; ownerId: string }; held = new Set<string>(); seen = new Set<string>();
   constructor(home: string, ownerId: string) { this.directory = join(home, 'vesta-owner-leases'); mkdirSync(this.directory, { recursive: true, mode: 0o700 }); this.owner = { pid: process.pid, birth: birth(process.pid), ownerId }; this.unknown(true); }
   unknown(value: boolean) {

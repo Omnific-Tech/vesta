@@ -114,6 +114,18 @@ Vesta's native `/hooks` entries; it never bypasses global hook trust. Status rep
 Native registration/asset ownership is recorded independently of shell ownership.
 Retained runtime/hook assets keep running owners valid through native cache removal.
 
+Unreleased source status also exposes a separate `runtimeOwners` report for
+Codex. Restart source owners to publish the new metadata; published 0.2.6 and
+already running owners remain legacy. Integration `warmEnabled` means setup
+readiness. Owner diagnostics explain observed attachment, current/historical
+measurement, idle deadline, bounded decision history and suspension reasons.
+PID/birth liveness does not guarantee a fresh heartbeat: inspect `observedAt`.
+The read-only scanner uses configured `statusDir` only, caps snapshots at 256 KiB
+and output at 64 owners, labels stale/legacy/malformed records, and reports
+`truncated` when bounds are exceeded. Account launchers invoking the binary
+directly can bypass the managed zsh owner. See [Codex diagnostics](../docs/codex.md)
+for fields and launch limits.
+
 Defaults remain Claude 50 minutes idle, Codex 20 minutes idle, and a four-hour
 user inactivity budget. Codex measures that budget from the last verified
 user-submitted prompt; typing, scrolling, pointer movement and focus do not renew

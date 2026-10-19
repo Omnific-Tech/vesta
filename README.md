@@ -16,6 +16,12 @@ installation. Changed controls require a fresh real prompt/reply. Restart older
 runtimes once after upgrading. See the [Claude](docs/claude.md) and
 [Codex](docs/codex.md) guides and [v0.2.6 release notes](docs/releases/v0.2.6.md).
 
+Unreleased source adds [Codex runtime diagnostics](docs/codex.md): status lists
+observed owners separately from setup readiness, with decision reasons and
+current/historical measurements. Restart source owners to use it; published
+0.2.6 and already running owners do not gain diagnostics automatically. Account
+launchers that run the native binary directly can bypass Vesta's shell owner.
+
 **Since version 0.2.5:** Codex warming uses a native local owner and registered
 lifecycle hooks. Install with `--warm`, then review and trust only Vesta's entries
 in native `/hooks`. Until those hooks are ready, ordinary `codex` calls remain

@@ -85,6 +85,25 @@ if a later write fails. Providers' writes are not observed simultaneously.
 **`warmEnabled` means setup is ready; it does not prove a running TUI is attached.**
 Confirm the live owner before spending an idle interval waiting for a ping.
 
+The unreleased source adds separately labeled `runtimeOwners` to CLI and source
+setup status. Restart a source owner to get these diagnostics; existing owners
+and the published 0.2.6 binary do not gain them automatically. Each snapshot
+reports owner PID/birth, observation time, current thread/turn and busy state,
+the last decision and skip, and up to 32 coalesced decision transitions.
+`idleDeadline` exists only for a valid completed current measurement; a retained
+measurement marked `current:false` is historical and cannot authorize warming.
+Reasons such as `ownership-ambiguous`, `lease-conflict`, `input-ineligible`,
+`idle-wait`, `warming-paused` and `observer-failed` explain the observed guard.
+Runtime `warmEnabled` is suspended for observed ownership/control/observer
+failures and exit; integration `warmEnabled` continues to describe setup readiness.
+
+Status reads only the configured `statusDir`, without modifying owner files or
+leases. It bounds files to 256 KiB and output to 64 owners, setting `truncated`
+when bounds are exceeded. Rows label live, stale, legacy and malformed evidence.
+Live means the process PID and birth match; inspect `observedAt` for snapshot
+age because a matching process may be stalled. Diagnostics contain metadata,
+not prompt, reply, keepalive, account or credential bodies.
+
 `vesta repair --provider codex` restores owned registrations or complete missing
 shell blocks, preserving warming and timers. `repair --warm` opts the selected
 owned provider into warming. Repair uses recorded native/shell paths, supports
@@ -110,6 +129,11 @@ or unready invocations execute the recorded native command directly. Vesta adds
 no remote endpoint, permission rewrite, CODEX_HOME overlay or utility-output banner.
 Ordinary shared-daemon agent listing and remote attachment do not manage Vesta's
 local owners.
+
+An account launcher that resolves and executes the Codex binary directly can
+bypass the zsh function and its Vesta owner. Setup readiness cannot prove that
+such a launch attached. Vesta diagnostics do not switch accounts or retrofit
+already running processes; relaunch through the owned supported shell path.
 
 ## Ownership, measurement and delivery
 
