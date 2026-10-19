@@ -102,8 +102,9 @@ bounded cleanup. This is fixture cleanup, never product control of user children
 
 `dist/codex-hook-tui-cleanup-fixed/account-*/native-config-{before,after}.toml`
 retains the next native-only initialization difference: the TUI appended
-`screen_reader_detection_done = true` and model availability NUX value 1 for
-`gpt-6.1-sol`. The fixture pre-seeds exactly these observed first-run fields before
+`screen_reader_detection_done = true` and model availability NUX for
+`gpt-6.1-sol`. The fixture pre-seeds these first-run fields at native
+MAX_SHOW_COUNT (4, where native stops writing) with native table spacing, before
 trust review and before taking its config hash. Full before/after byte equality
 remains required; notify, provider, hook trust and other user settings are not
 excluded from comparison.
