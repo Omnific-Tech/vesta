@@ -78,6 +78,14 @@ considering a process owned or signaling it. Failure cleanup performs bounded
 rechecks only in the two explicitly created fixture homes; an incomplete record
 never authorizes a signal.
 
+The first valid shared-daemon startup run retained at
+`dist/codex-hook-tui-pid-fixed` had no native submission or localhost request;
+the loose loading-placeholder gate sent Enter before the native composer was
+ready. The fixture now retains terminal output as it arrives and requires both
+the loaded composer and model/effort footer, rejecting update/approval modals,
+following the existing native controls E2E gate. This changes fixture timing,
+not native policy, hook trust or any product acceptance requirement.
+
 The test-only filesystem preload throws once *after* a real owned-block removal.
 It is not a production fault API. The native proxy likewise fails once after an
 actual native registry mutation. All injected files and processes are fixture-owned.

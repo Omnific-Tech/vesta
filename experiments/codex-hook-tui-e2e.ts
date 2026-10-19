@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { appendFileSync, chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, join, relative, resolve } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import * as pty from 'node-pty';
 import { buildRelocated, releaseVersion } from '../packaging/e2e-common.ts';
 import { alive, argument, birth, directory, fixtureEnvironment, flags, here, json, lines, namedFiles, productMetadata, root, save, sha, sleep, statuses, until } from './codex-hook-contract.ts';
@@ -17,6 +18,13 @@ mkdirSync(join(artifacts, 'compiled')); const built = buildRelocated(join(artifa
 const owned: any[] = []; const terminals: any[] = []; const homes: any[] = []; let failure = ''; let server: ReturnType<typeof createServer> | undefined;
 const identity = (pid: number, kind: string) => { const row = { pid, birth: birth(pid), kind }; assert.ok(row.birth); owned.push(row); return row; };
 const ps = (pid: number, field: string) => execFileSync('/bin/ps', ['-ww', '-p', String(pid), '-o', field + '='], { encoding: 'utf8' }).trim();
+function loadedComposer(output: string) {
+  const plain = stripVTControlCharacters(output); const composer = plain.lastIndexOf('Ask Codex to do anything');
+  const footer = [...plain.matchAll(/\b(?:GPT-[A-Za-z0-9.-]+|gpt-[A-Za-z0-9.-]+)\s+(?:default|low|medium|high|xhigh|max|ultra)\s*·/g)].at(-1)?.index ?? -1;
+  if (composer < 0 || footer < 0) return false;
+  const tail = plain.slice(Math.max(composer, footer)); assert.ok(!/Update now|Keep current model|\b(?:1|2)\.\s*(?:Allow|Approve)|enter\s*(?:confirm|continue)/i.test(tail), 'native modal blocks automated fixture submission');
+  assert.ok(plain.lastIndexOf('Update available') < composer, 'native update dialog blocks fixture'); return true;
+}
 function daemonReceipts(home: string, folder: string) {
   for (const name of ['daemon.pid', 'daemon-updater.pid']) for (const file of namedFiles(home, name)) {
     let record: any; const raw = readFileSync(file, 'utf8');
@@ -52,9 +60,9 @@ try {
     const controls = join(config, 'vesta-codex.json'); save(controls, { ...json(controls), idleMs: 100, budgetMs: 30000, threshold: 100000 }); const nativeConfigBefore = sha(join(home, 'config.toml')); copyFileSync(join(home, 'config.toml'), join(folder, 'native-config-before.toml'));
     const argv = ['--no-alt-screen', '-a', 'never', '-s', 'read-only', '-C', workspace];
     const env = fixtureEnvironment(shared, { CODEX_HOME: home, PATH: dirname(bundledNode) + ':/usr/bin:/bin:/usr/sbin:/sbin' });
-    const terminal = pty.spawn(npm, argv, { cwd: workspace, env, name: 'xterm-256color', cols: 100, rows: 35 }); terminals.push(terminal); const tui = identity(terminal.pid, 'tui'); let output = ''; terminal.onData(data => { output += data; if (data.includes('\x1b[6n')) terminal.write('\x1b[1;1R'); });
+    const terminal = pty.spawn(npm, argv, { cwd: workspace, env, name: 'xterm-256color', cols: 100, rows: 35 }); terminals.push(terminal); const tui = identity(terminal.pid, 'tui'); let output = ''; terminal.onData(data => { output += data; appendFileSync(join(folder, 'terminal.txt'), data); if (data.includes('\x1b[6n')) terminal.write('\x1b[1;1R'); });
     save(join(folder, 'launch.json'), { command: npm, argv, ...tui, wrapperVariables: Object.keys(env).filter(k => k.startsWith('VESTA_')), tty: true });
-    await until(() => { daemonReceipts(home, folder); return output.includes('gpt-5.4') && /[›❯>]|Ask Codex/.test(output); }, 'native shared TUI composer', 30000);
+    await until(() => { daemonReceipts(home, folder); return loadedComposer(output); }, 'loaded native shared TUI composer and model footer', 30000);
     terminal.write('PRIVATE_TUI_FIXTURE_PROMPT\r');
     const statusDir = json(controls).statusDir; let current: any = await until(() => statuses(statusDir).find(s => s.row.nativeHome === home && s.row.integrationMode === 'hook')?.row, 'retained packaged hook observer', 20000);
     const backend = owned.find(row => row.kind === 'backend' && row.pid === current.nativePid); assert.ok(backend, 'native backend identity came from isolated native daemon receipt');
@@ -77,8 +85,8 @@ try {
   const bundledNode = join(ownedRoot, 'current/runtime/bin/node'); const overrideNotify = join(overrideFolder, 'notify.jsonl'); const baselineNotify = join(artifacts, 'account-a/notify.jsonl'); const baselineCount = lines(baselineNotify).length;
   const overrideArgv = ['--no-alt-screen', '-a', 'never', '-s', 'read-only', '-C', overrideWorkspace, '-c', 'notify=' + JSON.stringify([bundledNode, join(here, 'codex-hook-notify-fixture.mjs'), overrideNotify])];
   const overrideEnv = fixtureEnvironment(shared, { CODEX_HOME: overrideHome, PATH: dirname(bundledNode) + ':/usr/bin:/bin:/usr/sbin:/sbin' });
-  const overridden = pty.spawn(npm, overrideArgv, { cwd: overrideWorkspace, env: overrideEnv, name: 'xterm-256color', cols: 100, rows: 35 }); terminals.push(overridden); const overrideTui = identity(overridden.pid, 'tui'); let overrideOutput = ''; overridden.onData(data => { overrideOutput += data; if (data.includes('\x1b[6n')) overridden.write('\x1b[1;1R'); });
-  await until(() => overrideOutput.includes('gpt-5.4'), 'notify override native composer', 30000); const submittedAt = Date.now(); overridden.write('PRIVATE_NOTIFY_OVERRIDE_FIXTURE\r');
+  const overridden = pty.spawn(npm, overrideArgv, { cwd: overrideWorkspace, env: overrideEnv, name: 'xterm-256color', cols: 100, rows: 35 }); terminals.push(overridden); const overrideTui = identity(overridden.pid, 'tui'); let overrideOutput = ''; overridden.onData(data => { overrideOutput += data; appendFileSync(join(overrideFolder, 'terminal.txt'), data); if (data.includes('\x1b[6n')) overridden.write('\x1b[1;1R'); });
+  await until(() => loadedComposer(overrideOutput), 'loaded notify override native composer and model footer', 30000); const submittedAt = Date.now(); overridden.write('PRIVATE_NOTIFY_OVERRIDE_FIXTURE\r');
   const overrideStatus: any = await until(() => statuses(json(join(config, 'vesta-codex.json')).statusDir).find(s => s.row.nativeHome === overrideHome && s.row.state.userAt >= submittedAt && !s.row.state.busy && s.row.diagnostics.lastMeasurement?.current)?.row, 'native override completed reply', 20000);
   const overrideWorker = identity(overrideStatus.diagnostics.pid, 'watcher'); const embedded = identity(overrideStatus.nativePid, 'embedded'); assert.equal(Number(ps(embedded.pid, 'ppid')), overrideTui.pid, 'native override chose direct embedded backend');
   await until(() => lines(overrideNotify).length, 'notify override executed'); assert.equal(lines(baselineNotify).length, baselineCount, 'CLI notify override replaces configured notify for this turn');
