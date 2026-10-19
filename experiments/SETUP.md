@@ -74,32 +74,28 @@ plugin’s native data store. The shared installed package does not store sessio
 configuration, prompts, measurements, or status files. Native first-load type
 declaration generation may initialize the package before this immutability check.
 
-Codex adds one owned `codex` function block to `~/.zshrc`. Open a new terminal, or
-run `source ~/.zshrc` once to activate it in the current terminal. It preserves the
-existing PATH executable, including an existing cmux wrapper; it does not replace
-a binary. This integration targets macOS zsh and embedded Node 22.17.1 with native
-`process.execve`; other shells/platforms have not been verified. Warming off,
-unsupported arguments, missing registration or untrusted hooks execute the native
-command directly. Ready warming uses that native TUI with original arguments plus
-`--no-daemon`. Its trusted hooks inherit invocation-local ownership metadata;
-terminal input cancels old eligibility immediately. Permissions, model selection,
-native history and resume remain native. No `--remote` or CODEX_HOME overlay is
-added. Local owners are outside ordinary shared-daemon agent listing and remote
-attachment.
+Unreleased source registers Codex native hooks without a shell wrapper. Fresh
+installation leaves shell bytes untouched; migration removes only the exact owned
+legacy block. Open a new terminal or run `unfunction codex` in an existing zsh;
+sourcing the edited file alone does not remove a previously defined function.
+Launch the native executable directly with its original arguments and account
+environment. Trusted hooks bootstrap the detached backend observer. Vesta takes
+no PTY, intercepts no input and adds no `--no-daemon`, `--remote`, notify override
+or CODEX_HOME overlay. Published 0.2.6 keeps its earlier local terminal owner.
 
 | Native Codex form | Behavior |
 | --- | --- |
-| Bare interactive launch, `--yolo`, `-m`, `-C`, `-a`, `-s`, `--no-alt-screen` | Ready opt-in warming uses native local ownership; original option values remain native |
+| Bare interactive launch, `--yolo`, `-m`, `-C`, `-a`, `-s`, `--no-alt-screen` | Native launch unchanged; trusted hooks can attach a backend watcher |
 | `--yolo` combined with `-a` | Existing native command rejects the conflicting approval flag, with unchanged error/exit behavior |
 | `exec`, `review`, utilities, or non-TTY stdin/stdout | Existing native command, unchanged argv/stdin/stdout/stderr/cwd/exit; no warming |
 | CLI resume UUID/`--last`/picker, `/resume`, `/new` | Native selection and permissions; a fresh real reply is required before warming |
-| Positional prompts, profiles, worktrees, explicit remote, explicit `--no-daemon`, config overrides, long value aliases and unknown flags | Existing native command directly; no warming |
+| Positional prompts, profiles, worktrees, explicit remote, explicit `--no-daemon`, config overrides, long value aliases and unknown flags | Native validates and selects its backend; Vesta adds no argument filter |
 
-Native pass-through does not add a Vesta banner to JSON or utility output. An
-installed shell function reads its runtime path on each launch. Source-checkout
-installs therefore pick up code changes on their next invocation; an existing
-running session keeps its current owner until it exits. Registration and trust
-remain separate explicit setup steps.
+Native commands receive no Vesta banner. Retained immutable hook assets include
+their complete runtime dependencies; changed hooks require native trust review.
+Existing legacy owners retain their original callbacks. Registration, opt-in and
+trust remain separate setup states. See the [Codex guide](../docs/codex.md) for
+per-home ownership, submission clocks, backend lifetime and queue-race limits.
 
 Warming is off by default. First add the required global marker rule in
 [reply rule](../README.md#1-add-the-reply-rule), then opt in

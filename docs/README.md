@@ -5,18 +5,19 @@ does not reopen ended conversations. Each keepalive consumes model usage;
 cache retention and net savings remain unverified.
 
 These guides describe **version 0.2.6**, including persistent live controls and
-Codex's native local owner.
+the unreleased source Codex hook watcher. Published 0.2.6 retains its native
+terminal owner; source migration is described in the Codex guide.
 Upgrades from v0.2.1 replace the older wrapper and require native hook trust
 review and new sessions. Start with the root
 [installation guide](../README.md#install) and [release notes](releases/v0.2.6.md),
 then read your provider's guide:
 
 - [Claude Code](claude.md): an in-process native plugin and session watcher.
-- [Codex](codex.md): a managed native local owner, trusted hooks and durable queue.
+- [Codex](codex.md): a detached backend watcher, trusted hooks and durable queue.
 
 | Behavior | Claude Code | Codex |
 | --- | --- | --- |
-| Integration | Native plugin middleware | Managed zsh function launches native TUI with `--no-daemon` |
+| Integration | Native plugin middleware | Native hooks bootstrap a detached observer; Codex launches directly |
 | Delivery | Native `$.prompt.submit` with plugin-message envelope | Native `thread/queue/add` with exact marker body |
 | Default idle interval | 50 minutes | 20 minutes |
 | Four-hour budget renews on | Prompt edits and composer/bridge commands or submissions | Last verified user-submitted prompt only |
@@ -40,8 +41,8 @@ interval, budget, threshold and text changes. These commands preserve opt-in;
 and unpauses while preserving installation, paths and native trust. It rejects
 malformed or invalid existing configuration. Resume/config/reset changes require
 a fresh real prompt and reply. Older owners need one
-restart after upgrading. Load the Codex shell function with `source ~/.zshrc` in
-your existing terminal, or open a new terminal. Reinstalling or repairing without `--warm` preserves
+restart after upgrading. Source migration removes the Codex shell block; open a
+new terminal or run `unfunction codex` in existing zsh. Reinstalling or repairing without `--warm` preserves
 saved preferences.
 
 For advanced setup, ownership and test commands, see the

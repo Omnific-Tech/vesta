@@ -16,11 +16,11 @@ installation. Changed controls require a fresh real prompt/reply. Restart older
 runtimes once after upgrading. See the [Claude](docs/claude.md) and
 [Codex](docs/codex.md) guides and [v0.2.6 release notes](docs/releases/v0.2.6.md).
 
-Unreleased source adds [Codex runtime diagnostics](docs/codex.md): status lists
-observed owners separately from setup readiness, with decision reasons and
-current/historical measurements. Restart source owners to use it; published
-0.2.6 and already running owners do not gain diagnostics automatically. Account
-launchers that run the native binary directly can bypass Vesta's shell owner.
+Unreleased source uses [Codex native hook watchers](docs/codex.md): launch native
+Codex directly, including through account launchers. Trusted hooks start a detached
+observer without a shell wrapper, PTY or argument changes. Status separates native
+home registration/readiness from actual runtime eligibility. Published 0.2.6 and
+already running owners retain their earlier integration until explicitly upgraded.
 
 **Since version 0.2.5:** Codex warming uses a native local owner and registered
 lifecycle hooks. Install with `--warm`, then review and trust only Vesta's entries
@@ -101,8 +101,9 @@ hooks. Codex warming becomes ready after native hook trust review. Source setup:
 node --experimental-strip-types experiments/setup.ts install --provider codex --warm
 ```
 
-Run `source ~/.zshrc` in your existing terminal to load the managed Codex function,
-or open a new terminal. Start new Claude/Codex sessions after installation.
+For the published release, open a new terminal after installation. Source migration
+removes the owned Codex function block; open a new terminal or explicitly run
+`unfunction codex` in an existing zsh. Start new Claude/Codex sessions after setup.
 Put `~/.local/bin` on your PATH to use `vesta` directly:
 
 ```sh
@@ -156,10 +157,10 @@ See the [provider guides](docs/README.md) for the
 live-session troubleshooting.
 
 Claude Code loads a native Vesta plugin. Its watcher belongs to the open session;
-Vesta does not reopen ended conversations. Codex's reversible zsh function uses
-the recorded native executable. When warming is configured and trusted hooks are
-ready, it adds `--no-daemon` and observes that local owner's native lifecycle.
-It preserves model, directory and permission arguments and adds no remote endpoint.
+Vesta does not reopen ended conversations. Source Codex integration follows native
+backend threads through trusted hooks and preserves native launch arguments,
+notifications and lifecycle. A shared backend can outlive its terminal; see the
+[Codex guide](docs/codex.md) for activity clocks and ownership limits.
 Ordinary shared-daemon agent listing and remote attachment do not manage these
 local owners.
 
