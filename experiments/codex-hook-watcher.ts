@@ -81,7 +81,7 @@ async function observe() {
       if (nextSignature !== signature || controlError) {
         if (next.controlRevision <= live.controlRevision || next.controlChangedAt < live.controlChangedAt) errorAt = Date.now();
         live = next; signature = nextSignature; controlError = false;
-        for (const s of slots.values()) { event(s, 'control', { config: live, enabled: live.warm && !live.paused && s.ready, changedAt: Math.max(live.controlChangedAt, errorAt) }); s.diagnostics.freshRequired = true; }
+        for (const s of slots.values()) { event(s, 'control', { config: live, enabled: live.warm && !live.paused, changedAt: Math.max(live.controlChangedAt, errorAt) }); s.diagnostics.freshRequired = true; }
       }
     } catch {
       if (!controlError) { controlError = true; errorAt = Date.now(); for (const s of slots.values()) { event(s, 'control', { enabled: false, changedAt: errorAt }); s.diagnostics.freshRequired = true; } }
