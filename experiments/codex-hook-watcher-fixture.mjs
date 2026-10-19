@@ -41,7 +41,7 @@ if (process.argv.includes('app-server')) {
   const record = (session, row) => { mkdirSync(dirname(transcript(session)), { recursive: true }); appendFileSync(transcript(session), JSON.stringify({ timestamp: new Date().toISOString(), ...row }) + '\n'); };
   const hook = async (event, session, turn, extra = {}) => {
     const input = { session_id: session, transcript_path: transcript(session), cwd: resolve(process.env.FIXTURE_CWD ?? folder), hook_event_name: event, ...(turn ? { turn_id: turn } : {}), ...extra };
-    const start = Date.now(); const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', runtime, '--hook', '--config', config, '--native', self], { env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
+    const start = Date.now(); const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', runtime, '--hook', '--config', config, '--native', flag('--recorded-native') ?? self], { env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
     let stdout = ''; let stderr = ''; child.stdout.on('data', data => stdout += data); child.stderr.on('data', data => stderr += data); child.stdin.end(JSON.stringify(input));
     const code = await new Promise(done => child.on('exit', done));
     log('hooks.jsonl', { event, session, turn, code, stdout, stderr, elapsedMs: Date.now() - start });
