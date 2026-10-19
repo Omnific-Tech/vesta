@@ -105,7 +105,7 @@ function verify(directory: string) {
       assert.equal(integration.warmEnabled, true, 'integration readiness preserved separately');
       const report = integration.runtimeOwners; assert.equal(report?.schema, 1, 'missing separately labeled runtimeOwners');
       assert.ok(report.owners.length <= 64, 'bounded owners'); assert.equal(typeof report.truncated, 'boolean');
-      for (const owner of report.owners) { assert.deepEqual(Object.keys(owner).filter(key => !['directory', 'ownerId', 'pid', 'birth', 'observedAt', 'liveness', 'reason', 'warmEnabled', 'sessionId', 'turnId', 'busy', 'diagnostics'].includes(key)), []); privacy(owner); if (owner.diagnostics) metadata(owner.diagnostics); if (owner.liveness !== 'live') assert.notEqual(owner.warmEnabled, true); }
+      for (const owner of report.owners) { assert.deepEqual(Object.keys(owner).filter(key => !['directory', 'ownerId', 'pid', 'birth', 'observedAt', 'liveness', 'reason', 'warmEnabled', 'sessionId', 'turnId', 'busy', 'diagnostics', 'integrationMode'].includes(key)), []); privacy(owner); if (owner.diagnostics) metadata(owner.diagnostics); if (owner.liveness !== 'live') assert.notEqual(owner.warmEnabled, true); }
       const current = report.owners.find((owner: any) => owner.directory === 'actual');
       assert.equal(current.sessionId, thread, 'current attachment session independently visible'); assert.equal(current.turnId, 'fixture-turn-1', 'current attachment turn independently visible'); assert.equal(current.busy, false);
       for (const expected of row.expected) assert.ok(report.owners.some((owner: any) => owner.directory === expected.directory && owner.liveness === expected.liveness && owner.reason === expected.reason), 'classification ' + JSON.stringify(expected));
@@ -243,7 +243,7 @@ else {
       writeFileSync(join(statusDir, 'actual/codex-native-status.json'), JSON.stringify(actual));
       const shellFile = join(configDir, '.zshrc'); const block = '# >>> Vesta managed Codex >>>\n# fixture\n# <<< Vesta managed Codex <<<\n'; writeFileSync(shellFile, block);
       const config = { ...row.settings, statusDir }; writeFileSync(join(configDir, 'vesta-codex.json'), JSON.stringify(config));
-      writeFileSync(join(configDir, '.vesta-setup-codex.json'), JSON.stringify({ provider: 'codex', native, nativePluginId: 'vesta@vesta-local', nativeHookCommand: 'fixture-hook', shellFile, block }));
+      writeFileSync(join(configDir, '.vesta-setup-codex.json'), JSON.stringify({ provider: 'codex', native, nativePluginId: 'vesta@vesta-local', nativeHookCommand: 'fixture-hook', nativeCodexHome: row.home, shellFile, block }));
       const put = (name: string, value: any) => { mkdirSync(join(statusDir, name)); writeFileSync(join(statusDir, name, 'codex-native-status.json'), typeof value === 'string' ? value : JSON.stringify(value)); };
       put('legacy', { ownerId: 'legacy', warmEnabled: true, raw: 'PRIVATE_UNKNOWN_SENTINEL' }); put('malformed', '{');
       const base = { ...json(join(row.folder, 'codex-native-status.json')), ownerId: 'birth-mismatch' };

@@ -26,6 +26,7 @@ if (process.argv.includes('--lease-peer')) {
       if (row.method === 'initialize' && process.env.VESTA_DIAGNOSTIC_MODE === 'queue-failure') { log('transport-failures.jsonl', { pid: process.pid, method: row.method, exitCode: 23 }); process.exit(23); }
       if (row.method === 'initialize') setTimeout(() => reply({}), Number(process.env.VESTA_DIAGNOSTIC_WRITER_DELAY ?? 0));
       if (row.method === 'hooks/list') reply({ data: [{ hooks: ['sessionStart', 'sessionEnd', 'userPromptSubmit', 'stop', 'interrupt', 'postCompact'].map(eventName => ({ eventName, pluginId: 'vesta@vesta-local', enabled: true, trustStatus: 'trusted', command: 'fixture-hook' })) }] });
+      if (row.method === 'config/read') reply({ config: { features: {} } });
       if (row.method === 'thread/queue/add') { log('queue.jsonl', { row }); reply({ queuedSubmission: { id: 'fixture-queue' } }); }
     }
   });
