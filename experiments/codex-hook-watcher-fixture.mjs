@@ -23,7 +23,13 @@ if (process.argv.includes('app-server')) {
         log('initialize.jsonl', { pid: process.pid });
         const delay = Number(existsSync(join(folder, 'writer-delay')) ? readFileSync(join(folder, 'writer-delay'), 'utf8') : 0);
         await new Promise(done => setTimeout(done, delay)); reply({});
-      } else if (row.method === 'hooks/list') { const mode = existsSync(join(folder, 'hooks-mode')) ? readFileSync(join(folder, 'hooks-mode'), 'utf8') : ''; reply({ data: [{ hooks: ['sessionStart', 'sessionEnd', 'userPromptSubmit', 'stop', 'interrupt', 'postCompact'].map(eventName => ({ eventName, pluginId: 'vesta@vesta-local', enabled: mode !== 'disabled', trustStatus: mode === 'untrusted' ? 'untrusted' : 'trusted', command: process.env.FIXTURE_HOOK_COMMAND })) }] }); }
+      } else if (row.method === 'hooks/list') {
+        const mode = existsSync(join(folder, 'hooks-mode')) ? readFileSync(join(folder, 'hooks-mode'), 'utf8') : '';
+        const requiredCwd = existsSync(join(folder, 'required-cwd')) ? readFileSync(join(folder, 'required-cwd'), 'utf8') : undefined;
+        const cwdReady = !requiredCwd || row.params.cwds?.includes(requiredCwd);
+        log('readiness.jsonl', { cwds: row.params.cwds, requiredCwd, ready: cwdReady && !['untrusted', 'disabled'].includes(mode) });
+        reply({ data: [{ hooks: ['sessionStart', 'sessionEnd', 'userPromptSubmit', 'stop', 'interrupt', 'postCompact'].map(eventName => ({ eventName, pluginId: 'vesta@vesta-local', enabled: mode !== 'disabled', trustStatus: mode === 'untrusted' || !cwdReady ? 'untrusted' : 'trusted', command: process.env.FIXTURE_HOOK_COMMAND })) }] });
+      }
       else if (row.method === 'thread/queue/add') { log('queue.jsonl', { row }); reply({ queuedSubmission: { id: randomUUID(), clientUserMessageId: row.params.clientUserMessageId } }); }
       else if (row.method === 'thread/read') reply({ thread: { id: row.params.threadId, status: { type: 'idle' } } });
     }
@@ -34,16 +40,16 @@ if (process.argv.includes('app-server')) {
   const transcript = session => join(process.env.FIXTURE_TRANSCRIPT_ROOT ?? join(folder, 'sessions'), session + '.jsonl');
   const record = (session, row) => { mkdirSync(dirname(transcript(session)), { recursive: true }); appendFileSync(transcript(session), JSON.stringify({ timestamp: new Date().toISOString(), ...row }) + '\n'); };
   const hook = async (event, session, turn, extra = {}) => {
-    const input = { session_id: session, transcript_path: transcript(session), cwd: resolve(folder), hook_event_name: event, ...(turn ? { turn_id: turn } : {}), ...extra };
+    const input = { session_id: session, transcript_path: transcript(session), cwd: resolve(process.env.FIXTURE_CWD ?? folder), hook_event_name: event, ...(turn ? { turn_id: turn } : {}), ...extra };
     const start = Date.now(); const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', runtime, '--hook', '--config', config, '--native', self], { env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
     let stdout = ''; let stderr = ''; child.stdout.on('data', data => stdout += data); child.stderr.on('data', data => stderr += data); child.stdin.end(JSON.stringify(input));
     const code = await new Promise(done => child.on('exit', done));
     log('hooks.jsonl', { event, session, turn, code, stdout, stderr, elapsedMs: Date.now() - start });
   };
-  async function start(session) {
+  async function start(session, concurrent = 1) {
     if (starts.has(session)) return; starts.add(session);
     record(session, { type: 'session_meta', payload: { id: session, source: 'cli', cwd: folder } });
-    await hook('SessionStart', session, null, { source: 'startup' });
+    await Promise.all(Array.from({ length: concurrent }, () => hook('SessionStart', session, null, { source: 'startup' })));
   }
   async function submit(command) {
     const session = command.session; await start(session); const turn = command.turn ?? 'fixture-turn-' + (++sequence) + '-' + randomUUID(); const client = command.client ?? randomUUID(); busy = true;
@@ -68,9 +74,10 @@ if (process.argv.includes('app-server')) {
   process.on('message', command => {
     commands = commands.then(async () => {
       let result;
+      if (command.kind === 'concurrent-start') result = await start(command.session, 4);
       if (command.kind === 'submit') result = await submit(command);
       if (command.kind === 'complete') result = await complete(command);
-      if (command.kind === 'event') result = await hook(command.event, command.session, command.turn);
+      if (command.kind === 'event') result = await hook(command.event, command.session, command.turn, command.source ? { source: command.source } : {});
       process.send?.({ id: command.id, result });
     }).catch(error => { process.send?.({ id: command.id, error: String(error) }); });
   });

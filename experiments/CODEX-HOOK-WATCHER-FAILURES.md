@@ -55,12 +55,14 @@ the six hook payloads. No explicit detach feature is required by initial scope.
 | Wrapper dependency, output/input takeover | Direct fixture native launch, no Vesta env, native parent/stdio unchanged; hooks silent | synthetic basic, native |
 | Hook from an unverified parent | No watcher/queue side effect | synthetic foreign-parent |
 | Concurrent or duplicate first hooks | One effective producer, one exact queue submission | synthetic identity |
+| Parallel hook process bootstrap | Four genuinely concurrent SessionStart hook processes leave one actual observer and one initial queue | synthetic concurrent-first |
 | Multiple threads or account homes | Exact thread isolation; canonical transcript shared across homes cannot produce twice | synthetic identity/shared-transcript; home-alias extension before migration |
 | Native PID death/reuse or stale ownership | Stop warming; never signal native or unrelated process | synthetic worker-death; PID-reuse extension before migration |
 | Watcher TERM/KILL | Native remains alive; no dangling queue child; fresh hooks can bootstrap safely | synthetic worker-death |
 | Missing/delayed transcript/client ID | Busy immediately; no activity renewal or dispatch until binding | synthetic busy; delayed-binding extension |
 | Stop followed by continuation | Remain busy beyond idle interval until exact successful task_complete | synthetic busy, native |
 | Interruption, compaction, SessionEnd, native exit | Invalidate eligibility; old completion cannot rearm; watcher follows engine death | synthetic invalidation/native-exit |
+| Resume after a thread SessionEnd | Fresh SessionStart/submission/reply rearms that exact thread in the same engine; other threads continue | synthetic resume-ended-thread |
 | Duplicate/replayed/out-of-order events | Never renew user budget or accept stale completion | synthetic attribution; reordered extension |
 | Equality/below threshold, stale/cumulative/output metrics | No warm; only fresh last input tokens qualify | synthetic threshold |
 | Own dispatch UUID lost, replayed or queue reply lost | No user-budget renewal; no automatic duplicate retry | synthetic attribution; restart/lost-reply extension |
@@ -71,6 +73,8 @@ the six hook payloads. No explicit detach feature is required by initial scope.
 | Ownership conflict or malformed journal | Fail closed, never steal native locks | synthetic shared-transcript/malformed-journal |
 | Journal replacement/truncation/symlinks/bounds | Fail closed | fault extensions before migration |
 | Missing/untrusted/disabled hooks or notify override | No trust bypass; notify/auth/native config preserved | synthetic hooks-untrusted/hooks-disabled; native; source migration extension |
+| Live hook trust restored | Same worker discovers recovery, but only a subsequent fresh prompt/reply can warm | synthetic trust-recovery |
+| Project-specific hook policy | Readiness uses native hook cwd, distinct from home and rollout directory | synthetic project-readiness |
 | Cleanup or artifact links escape fixture | Signal only recorded fixture births; retained artifacts contain no symlinks | both drivers |
 | Default source setup retains wrapper | Migration must fail until owned block removal and rollback are verified | separate migration contract before setup edits |
 
@@ -88,9 +92,12 @@ ABS_CODEX`. Both accept `--artifacts DIR` and otherwise use
 `node --experimental-strip-types experiments/codex-hook-contract.ts --verify DIR`.
 
 The receipt hashes every retained artifact and the contract/product source inputs.
+The runtime helper `codex-hook-state.ts` is a required source/oracle receipt input.
 Replay checks hashes and independently evaluates raw observations against the
 source oracle. A baseline failure remains failure on replay. Cleanup records
 fixture PID/birth identities; evidence is sealed only after owned children exit.
+Synthetic scenarios continue after individual failures to retain the complete
+failure inventory; any failed scenario makes the complete receipt fail verification.
 Localhost SSE uses a custom provider with no OpenAI authentication, no real keys,
 no external model calls and no copied personal configuration. Mock response usage
 is explicitly synthetic; native hooks, transport, rollout and queue are real.

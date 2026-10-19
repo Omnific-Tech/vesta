@@ -31,14 +31,14 @@ export function fixtureEnvironment(home: string, extra: Record<string, string> =
   // Allowlisted fixture environment never inherits real credentials, account data or wrapper state.
   return { PATH: process.env.PATH ?? '', HOME: home, CODEX_HOME: join(home, 'codex'), SHELL: '/bin/sh', TERM: 'xterm-256color', LANG: 'en_US.UTF-8', ...extra };
 }
-const sources = ['experiments/CODEX-HOOK-WATCHER-FAILURES.md', 'experiments/codex-hook-contract.ts', 'experiments/codex-hook-watcher-fixture.mjs', 'experiments/codex-hook-watcher-e2e.ts', 'experiments/codex-hook-native-e2e.ts', 'experiments/codex-hook-watcher.ts', 'experiments/watcher-policy.ts', 'experiments/codex-native-state.ts', 'experiments/codex-native-ipc.ts'];
+const sources = ['experiments/CODEX-HOOK-WATCHER-FAILURES.md', 'experiments/codex-hook-contract.ts', 'experiments/codex-hook-watcher-fixture.mjs', 'experiments/codex-hook-watcher-e2e.ts', 'experiments/codex-hook-native-e2e.ts', 'experiments/codex-hook-watcher.ts', 'experiments/codex-hook-state.ts', 'experiments/watcher-policy.ts', 'experiments/codex-native-state.ts', 'experiments/codex-native-ipc.ts'];
 function files(path: string): string[] { return readdirSync(path).flatMap(name => { const p = join(path, name); const st = lstatSync(p); assert.ok(!st.isSymbolicLink(), 'retained evidence has no symlinks'); return st.isDirectory() ? files(p) : [p]; }); }
 export function seal(path: string, summary: any) {
   save(join(path, 'summary.json'), summary);
   save(join(path, 'receipt.json'), { schema: 1, sources: sources.map(file => ({ path: file, sha256: existsSync(join(root, file)) ? sha(join(root, file)) : null })), files: files(path).filter(file => relative(path, file) !== 'receipt.json').map(file => ({ path: relative(path, file), sha256: sha(file) })) });
 }
 function verifySynthetic(path: string, summary: any) {
-  const required = ['basic', 'busy', 'threshold', 'controls', 'worker-death', 'invalidation', 'attribution', 'identity', 'writer-race', 'foreign-parent', 'shared-transcript', 'malformed-journal', 'native-exit', 'hooks-untrusted', 'hooks-disabled'];
+  const required = ['basic', 'busy', 'threshold', 'controls', 'worker-death', 'invalidation', 'attribution', 'identity', 'writer-race', 'foreign-parent', 'shared-transcript', 'malformed-journal', 'native-exit', 'hooks-untrusted', 'hooks-disabled', 'concurrent-first', 'resume-ended-thread', 'trust-recovery', 'project-readiness'];
   assert.deepEqual(summary.cases.map((row: any) => row.name), required, 'full executable case coverage');
   for (const c of summary.cases) {
     assert.equal(c.failure, '', c.name + ' driver failure');
@@ -59,8 +59,8 @@ function verifySynthetic(path: string, summary: any) {
       for (const q of m.queues) assert.ok(ledger.some((d: any) => d.sessionId === q.row.params.threadId && d.clientId === q.row.params.clientUserMessageId && d.at <= q.at), 'actual durable own-client ledger precedes queue write');
       for (const file of m.metadata) for (const word of ['PRIVATE_PROMPT_SENTINEL', 'PRIVATE_REPLY_SENTINEL', 'PRIVATE_KEEPALIVE_SENTINEL']) assert.ok(!file.text.includes(word), 'actual product journal/ledger privacy');
     }
-    if (['busy', 'threshold', 'controls', 'invalidation', 'writer-race', 'foreign-parent', 'shared-transcript', 'malformed-journal', 'hooks-untrusted', 'hooks-disabled'].includes(c.name)) assert.equal(marks.blocked.queues.length, 0, c.name + ' blocked queue');
-    if (['basic', 'busy', 'threshold', 'controls', 'worker-death', 'attribution', 'identity'].includes(c.name)) assert.ok(marks.warmed.queues.length > 0, c.name + ' eventual delivery');
+    if (['busy', 'threshold', 'controls', 'invalidation', 'writer-race', 'foreign-parent', 'shared-transcript', 'malformed-journal', 'hooks-untrusted', 'hooks-disabled', 'trust-recovery'].includes(c.name)) assert.equal(marks.blocked.queues.length, 0, c.name + ' blocked queue');
+    if (['basic', 'busy', 'threshold', 'controls', 'worker-death', 'attribution', 'identity', 'concurrent-first', 'resume-ended-thread', 'trust-recovery', 'project-readiness'].includes(c.name)) assert.ok(marks.warmed.queues.length > 0, c.name + ' eventual delivery');
     if (c.name === 'basic') { assert.equal(marks.expired.queues.length, marks.budget.queues.length, 'budget stops further dispatch'); assert.equal(marks.expired.statuses[0].state.userAt, marks.warmed.statuses[0].state.userAt, 'warm never renews user budget'); assert.ok(marks.warmed.statuses[0].state.warmAt > marks.warmed.statuses[0].state.userAt, 'actual completed warm refreshes idle clock'); assert.ok(marks.warmed.at < marks.warmed.statuses[0].state.userAt + 3000, 'warm observed before budget expiry'); for (const q of marks.expired.queues) assert.ok(q.at < marks.warmed.statuses[0].state.userAt + 3100, 'no queue commitment after budget'); }
     if (c.name === 'worker-death') { assert.ok(marks.term.nativeAlive && marks.kill.nativeAlive); assert.notEqual(marks.term.workerPid, marks.kill.workerPid, 'new hook restarts terminated watcher'); }
     if (c.name === 'attribution') { assert.ok(marks.human.statuses[0].state.userAt > marks.warmed.statuses[0].state.userAt, 'identical human text renews activity'); assert.equal(marks.replay.statuses[0].state.userAt, marks.human.statuses[0].state.userAt, 'own replay never renews activity'); }
@@ -68,6 +68,10 @@ function verifySynthetic(path: string, summary: any) {
     if (c.name === 'shared-transcript') assert.equal(marks.blocked.peerQueues.length, 0, 'canonical transcript peer also blocked');
     if (c.name === 'malformed-journal') assert.ok(marks.blocked.metadata.some((f: any) => f.path.endsWith('events.jsonl') && f.text.includes('INVALID_JOURNAL_SENTINEL')), 'actual ingress journal corrupted');
     if (c.name === 'native-exit') { assert.equal(marks.exited.workerAlive, false, 'native death ends watcher'); assert.equal(marks.exited.queues.length, marks.ended.queues.length, 'no dispatch after native exit'); }
+    if (c.name === 'concurrent-first') { assert.equal(marks.warmed.queues.length, 1, 'one initial queue after concurrent bootstrap'); assert.equal(marks.warmed.hooks.filter((h: any) => h.event === 'SessionStart').length, 4); assert.deepEqual(marks.warmed.workerProcesses.map((p: any) => p.pid), [marks.warmed.workerPid], 'one actual worker process'); }
+    if (c.name === 'resume-ended-thread') { assert.equal(marks.warmed.workerPid, marks.initial.workerPid); assert.ok(marks.warmed.queues.some((q: any) => q.row.params.threadId === thread && q.at > marks.warmed.resumedAfter), 'resumed exact thread warmed afresh'); assert.ok(marks.warmed.queues.some((q: any) => q.row.params.threadId === second && q.at > marks.warmed.endedAfter), 'other thread remained eligible'); }
+    if (c.name === 'trust-recovery') { assert.equal(marks.warmed.workerPid, marks.blocked.workerPid); assert.ok(marks.warmed.readiness.some((r: any) => !r.ready) && marks.warmed.readiness.some((r: any) => r.ready), 'native trust really changed'); }
+    if (c.name === 'project-readiness') assert.ok(marks.warmed.readiness.some((r: any) => r.ready && r.cwds.includes(marks.warmed.requiredCwd)), 'effective hook readiness queried using native project cwd');
   }
 }
 export function verify(path: string) {

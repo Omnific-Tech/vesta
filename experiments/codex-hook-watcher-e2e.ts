@@ -1,6 +1,6 @@
 // Preimplementation process E2E. Fixture engine invokes actual detached product hooks.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { appendFileSync, chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { alive, birth, directory, fixtureEnvironment, flags, here, json, lines, namedFiles, productMetadata, runtime, save, seal, second, sleep, statuses, thread, until, verify } from './codex-hook-contract.ts';
@@ -28,20 +28,20 @@ async function engine(folder: string, settings: any = {}, extraEnv: Record<strin
 }
 type Engine = Awaited<ReturnType<typeof engine>>;
 async function observe(row: Engine, marks: any[], name: string) {
-  const worker = row.states()[0]?.diagnostics; const m: any = { name, at: Date.now(), engine: row.identity, nativeAlive: alive(row.identity), workerPid: worker?.pid, statuses: row.states(), queues: row.queues(), hooks: lines(join(row.nativeHome, 'hooks.jsonl')), metadata: productMetadata(row.statusDir) }; marks.push(m); return m;
+  const worker = row.states()[0]?.diagnostics; const m: any = { name, at: Date.now(), engine: row.identity, nativeAlive: alive(row.identity), workerPid: worker?.pid, statuses: row.states(), queues: row.queues(), hooks: lines(join(row.nativeHome, 'hooks.jsonl')), readiness: lines(join(row.nativeHome, 'readiness.jsonl')), metadata: productMetadata(row.statusDir) }; marks.push(m); return m;
 }
 async function warmed(row: Engine, after = 0) {
   await until(() => row.queues().some(q => {
-    if (q.at <= after) return false;
+    if (q.at <= after || q.row.params.threadId !== thread) return false;
     const submitted = lines(join(row.nativeHome, 'submissions.jsonl')).find(s => s.session === q.row.params.threadId && s.client === q.row.params.clientUserMessageId);
     return submitted && row.states().some(s => s.sessionId === submitted.session && s.state.turnId === submitted.turn && !s.state.busy && s.diagnostics.lastMeasurement?.current && s.nativePid === row.identity.pid && alive({ pid: s.diagnostics.pid, birth: s.diagnostics.birth }));
   }), 'new exact warm turn completed by live watcher');
 }
-async function run(name: string, task: (row: Engine, marks: any[]) => Promise<void>, settings = {}) {
+async function run(name: string, task: (row: Engine, marks: any[]) => Promise<void>, settings = {}, extraEnv: Record<string, string> = {}) {
   const folder = join(artifacts, name); const marks: any[] = []; const scenario = { name, file: name + '/observations.json', failure: '' }; cases.push(scenario);
   let row: Engine | undefined;
-  try { row = await engine(folder, settings); await task(row, marks); }
-  catch (error) { scenario.failure = String(error); throw error; }
+  try { row = await engine(folder, settings, extraEnv); await task(row, marks); }
+  catch (error) { scenario.failure = String(error); }
   finally {
     if (row) {
       for (const s of row.states()) { const worker = { pid: s.diagnostics.pid, birth: s.diagnostics.birth, kind: 'watcher' }; if (!owned.some(p => p.pid === worker.pid && p.birth === worker.birth)) owned.push(worker); }
@@ -78,6 +78,28 @@ try {
   await run('malformed-journal', async (r, m) => { const turn = await r.command({ kind: 'submit', session: thread, complete: false }); await r.worker(); await until(() => r.states().some(s => s.sessionId === thread && s.state.busy), 'bound busy before journal corruption'); const journal: any = await until(() => namedFiles(r.statusDir, 'events.jsonl')[0], 'actual ingress journal'); appendFileSync(journal, 'INVALID_JOURNAL_SENTINEL\n'); await r.command({ kind: 'complete', ...turn }); await sleep(1400); await observe(r, m, 'blocked'); });
   await run('native-exit', async (r, m) => { await r.command({ kind: 'submit', session: thread }); const worker = await r.worker(); r.child.kill('SIGTERM'); await until(() => !alive(r.identity), 'native fixture exited'); const ended = await observe(r, m, 'ended'); await until(() => !alive(worker), 'watcher follows native exit'); await sleep(1200); const mark = await observe(r, m, 'exited'); mark.workerAlive = alive(worker); assert.equal(mark.queues.length, ended.queues.length); });
   for (const mode of ['untrusted', 'disabled']) await run('hooks-' + mode, async (r, m) => { mkdirSync(r.nativeHome, { recursive: true }); writeFileSync(join(r.nativeHome, 'hooks-mode'), mode); await r.command({ kind: 'submit', session: thread }); await sleep(1400); await observe(r, m, 'blocked'); });
+  await run('concurrent-first', async (r, m) => {
+    await r.command({ kind: 'concurrent-start', session: thread }); const worker = await r.worker(); await r.command({ kind: 'submit', session: thread }); await warmed(r);
+    const mark = await observe(r, m, 'warmed');
+    mark.workerProcesses = execFileSync('/bin/ps', ['-axww', '-o', 'pid=', '-o', 'args='], { encoding: 'utf8' }).split('\n').filter(line => line.includes(runtime + ' --watch ') && line.includes(' --engine ' + r.identity.pid + ' ') && line.includes(' --folder ' + join(r.statusDir, 'hook-engines') + '/')).map(line => ({ pid: Number(line.trim().match(/^\d+/)?.[0]), args: line.trim().replace(/^\d+\s+/, '') }));
+    assert.deepEqual(mark.workerProcesses.map(p => p.pid), [worker.pid], 'one actual live worker after concurrent hook ingress');
+  });
+  await run('resume-ended-thread', async (r, m) => {
+    await r.command({ kind: 'submit', session: thread }); await r.command({ kind: 'submit', session: second }); const worker = await r.worker(); await until(() => [thread, second].every(s => r.queues().some(q => q.row.params.threadId === s)), 'initial exact thread dispatches');
+    await observe(r, m, 'initial'); await r.command({ kind: 'event', event: 'SessionEnd', session: thread }); const endAt = Date.now();
+    await until(() => r.queues().some(q => q.at > endAt && q.row.params.threadId === second), 'other backend thread continues after one SessionEnd');
+    const phase = Date.now(); await r.command({ kind: 'event', event: 'SessionStart', session: thread, source: 'resume' }); await r.command({ kind: 'submit', session: thread }); await warmed(r, phase);
+    const mark = await observe(r, m, 'warmed'); mark.resumedAfter = phase; mark.endedAfter = endAt; assert.equal(mark.workerPid, worker.pid, 'same backend worker survives per-thread end/resume');
+  }, { budgetMs: 12000 });
+  await run('trust-recovery', async (r, m) => {
+    mkdirSync(r.nativeHome, { recursive: true }); writeFileSync(join(r.nativeHome, 'hooks-mode'), 'untrusted'); await r.command({ kind: 'submit', session: thread }); const worker = await r.worker(); await sleep(1200); await observe(r, m, 'blocked');
+    writeFileSync(join(r.nativeHome, 'hooks-mode'), ''); await until(() => r.states().some(s => s.warmEnabled), 'live native hook trust recovers'); await sleep(1200); assert.equal(r.queues().length, 0, 'trust recovery needs fresh prompt/reply');
+    const phase = Date.now(); await r.command({ kind: 'submit', session: thread }); await warmed(r, phase); const mark = await observe(r, m, 'warmed'); assert.equal(mark.workerPid, worker.pid, 'trust recovery retains observer');
+  }, { budgetMs: 12000 });
+  await run('project-readiness', async (r, m) => {
+    const project = join(r.folder, 'workspace'); mkdirSync(project, { recursive: true }); mkdirSync(r.nativeHome, { recursive: true }); writeFileSync(join(r.nativeHome, 'required-cwd'), project); await r.command({ kind: 'submit', session: thread }); await r.worker(); await warmed(r); const mark = await observe(r, m, 'warmed'); mark.requiredCwd = project;
+  }, {}, { FIXTURE_CWD: join(artifacts, 'project-readiness', 'workspace') });
+  failure = cases.filter(c => c.failure).map(c => c.name + ': ' + c.failure).join('; ');
 } catch (error) { failure = String(error); }
 finally {
   for (const row of owned) if (alive(row)) { try { process.kill(row.pid, 'SIGTERM'); } catch {} }
