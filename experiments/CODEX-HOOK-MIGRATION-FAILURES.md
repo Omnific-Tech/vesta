@@ -92,6 +92,14 @@ Fixture submission now uses the existing native controls driver's bracketed past
 300 ms delay and separate Enter. There are no automatic prompt retries, extra
 model turns or changes to product input handling.
 
+The functionally successful `dist/codex-hook-tui-submit-fixed` run exposed a
+post-seal hash change in a native plugin-sync git temporary pack. Fixture cleanup
+now snapshots descendants of exact live fixture PID/birth roots before parent
+termination, retains PID/birth/parent receipts, then birth-checks and terminates
+only those owned descendants. Reparenting does not discard an already observed
+identity. Remaining owned processes fail the run; artifacts are sealed only after
+bounded cleanup. This is fixture cleanup, never product control of user children.
+
 The test-only filesystem preload throws once *after* a real owned-block removal.
 It is not a production fault API. The native proxy likewise fails once after an
 actual native registry mutation. All injected files and processes are fixture-owned.

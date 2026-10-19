@@ -18,6 +18,11 @@ mkdirSync(join(artifacts, 'compiled')); const built = buildRelocated(join(artifa
 const owned: any[] = []; const terminals: any[] = []; const homes: any[] = []; let failure = ''; let server: ReturnType<typeof createServer> | undefined;
 const identity = (pid: number, kind: string) => { const row = { pid, birth: birth(pid), kind }; assert.ok(row.birth); owned.push(row); return row; };
 const ps = (pid: number, field: string) => execFileSync('/bin/ps', ['-ww', '-p', String(pid), '-o', field + '='], { encoding: 'utf8' }).trim();
+function captureDescendants() {
+  const rows = execFileSync('/bin/ps', ['-axww', '-o', 'pid=', '-o', 'ppid=', '-o', 'args='], { encoding: 'utf8' }).split('\n').flatMap(line => { const m = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/); return m ? [{ pid: Number(m[1]), ppid: Number(m[2]), command: m[3] }] : []; });
+  const parents = new Set(owned.filter(alive).map(row => row.pid)); let changed = true;
+  while (changed) { changed = false; for (const row of rows) if (parents.has(row.ppid) && !parents.has(row.pid)) { parents.add(row.pid); changed = true; const observedBirth = birth(row.pid); if (!observedBirth) continue; if (!owned.some(p => p.pid === row.pid && p.birth === observedBirth)) { const receipt = { ...row, birth: observedBirth, kind: 'native-child' }; owned.push(receipt); appendFileSync(join(artifacts, 'native-child-receipts.jsonl'), JSON.stringify({ at: Date.now(), ...receipt }) + '\n'); } } }
+}
 function loadedComposer(output: string) {
   const plain = stripVTControlCharacters(output); const composer = plain.lastIndexOf('Ask Codex to do anything');
   const footer = [...plain.matchAll(/\b(?:GPT-[A-Za-z0-9.-]+|gpt-[A-Za-z0-9.-]+)\s+(?:default|low|medium|high|xhigh|max|ultra)\s*·/g)].at(-1)?.index ?? -1;
@@ -35,7 +40,7 @@ function daemonReceipts(home: string, folder: string) {
     if (!owned.some(row => row.pid === record.pid)) { const row = identity(record.pid, 'backend'); save(join(folder, name + '.json'), { path: file, record, identity: row, command: ps(record.pid, 'args') }); }
   }
 }
-async function stop(row: any, signal: NodeJS.Signals) { assert.ok(alive(row), 'only exact live fixture identity can be signaled'); process.kill(row.pid, signal); await until(() => !alive(row), 'fixture-owned ' + row.kind + ' exit', 15000); }
+async function stop(row: any, signal: NodeJS.Signals) { assert.ok(alive(row), 'only exact live fixture identity can be signaled'); captureDescendants(); process.kill(row.pid, signal); await until(() => !alive(row), 'fixture-owned ' + row.kind + ' exit', 15000); }
 async function submit(terminal: pty.IPty, text: string) { terminal.write('\x15\x1b[200~' + text + '\x1b[201~'); await sleep(300); terminal.write('\r'); }
 try {
   const build = json(built.receipt); for (const file of ['codex-hook-watcher.ts', 'codex-hook-state.ts']) assert.ok(build.assets.some((a: any) => a.path === 'app/experiments/' + file), 'missing packaged hook dependency: ' + file);
@@ -109,9 +114,13 @@ finally {
     for (const account of ['a', 'b']) { const home = join(shared, 'account-' + account); const folder = join(artifacts, 'account-' + account); if (existsSync(home)) { mkdirSync(folder, { recursive: true }); daemonReceipts(home, folder); } }
     await sleep(100);
   }
+  captureDescendants();
   for (const terminal of terminals) { const row = owned.find(row => row.kind === 'tui' && row.pid === terminal.pid); if (row && alive(row)) terminal.kill('SIGTERM'); }
   for (const row of owned) if (alive(row)) { try { process.kill(row.pid, 'SIGTERM'); } catch {} }
-  if (server) await new Promise<void>(done => server!.close(() => done())); await sleep(500);
+  if (server) await new Promise<void>(done => server!.close(() => done())); await sleep(1000);
+  for (const row of owned) if (alive(row)) { try { process.kill(row.pid, 'SIGKILL'); } catch {} }
+  for (let attempt = 0; attempt < 20 && owned.some(alive); attempt++) await sleep(100);
+  if (owned.some(alive)) failure += '; fixture-owned native process cleanup did not finish';
   sealMigration(artifacts, { schema: 1, kind: 'shared-tui', failure, cleanup: owned.map(row => ({ ...row, remaining: alive(row) })) });
 }
 console.log(JSON.stringify(verifyMigration(artifacts)));
