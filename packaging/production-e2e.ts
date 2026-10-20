@@ -32,7 +32,7 @@ try {
   run('version', binary, ['--version'], 10000);
   assert.equal(readFileSync(join(artifacts, 'version.stdout'), 'utf8').trim(), 'vesta ' + releaseVersion);
   writeFileSync(join(artifacts, 'SHA256SUMS'), identity.binarySha256 + '  vesta-darwin-arm64\n');
-  const oracleFiles = ['packaging/production-e2e.ts', 'packaging/production-acceptance.ts', 'packaging/controls-artifact.ts', 'packaging/release-acceptance.ts', 'packaging/controls-e2e.ts', 'experiments/controls-native-e2e.ts', 'experiments/controls-acceptance.ts', 'experiments/controls-claude-host-fixture.ts'];
+  const oracleFiles = ['packaging/production-e2e.ts', 'packaging/production-acceptance.ts', 'packaging/controls-artifact.ts', 'packaging/release-acceptance.ts', 'packaging/controls-e2e.ts', 'experiments/controls-native-e2e.ts', 'experiments/controls-acceptance.ts', 'experiments/controls-claude-host-fixture.ts', 'experiments/controls-codex-hook-fixture.ts', 'experiments/CONTROLS-FAILURES.md'];
   const sourceIdentity = oracleFiles.map(path => ({ path, sha256: hash(join(root, path)) }));
   writeFileSync(join(artifacts, 'source-identity.json'), JSON.stringify({ ...identity, version: releaseVersion, oracleFiles: sourceIdentity }, null, 2) + '\n');
   for (const [name, driver, kind] of [
