@@ -27,11 +27,16 @@ async function ingress() {
   const packet = envelope(JSON.parse(raw), engine, Date.now()); const statusDir = directory(resolve(config.statusDir));
   const engineKey = digest(nativeHome + '\n' + engine.pid + '\n' + engine.birth); const folder = directory(join(directory(join(statusDir, 'hook-engines')), engineKey));
   const lock = join(folder, 'ingress.lock'); let fd: number | undefined;
+  // Identity is computed before the lock exists: a holder must never publish an empty record while spawning ps.
+  const record = JSON.stringify({ pid: process.pid, birth: birth(process.pid) });
   for (let attempt = 0; attempt < 70; attempt++) {
-    try { fd = openSync(lock, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600); writeFileSync(fd, JSON.stringify({ pid: process.pid, birth: birth(process.pid) })); break; }
+    try { fd = openSync(lock, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600); writeFileSync(fd, record); break; }
     catch (error: any) {
       if (error.code !== 'EEXIST') throw error;
-      const holder = json(lock); if (!holder.pid || !holder.birth) throw new Error('unknown ingress lock'); if (!alive(holder)) rmSync(lock); else await sleep(20);
+      let holder: any; try { holder = json(lock); } catch { holder = undefined; }
+      // An incomplete record is a holder between create and write: wait, and reclaim only when it stays incomplete.
+      if (!holder) { let age = 0; try { age = Date.now() - lstatSync(lock).mtimeMs; } catch { /* released meanwhile */ } if (age > 5000) rmSync(lock, { force: true }); else await sleep(20); continue; }
+      if (!holder.pid || !holder.birth) throw new Error('unknown ingress lock'); if (!alive(holder)) rmSync(lock); else await sleep(20);
     }
   }
   if (fd === undefined) return;
