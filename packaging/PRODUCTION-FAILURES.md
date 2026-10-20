@@ -30,7 +30,7 @@ These contracts precede release metadata changes. Publication must stop when:
 - Published downloads have mismatched checksums/version, cannot be installed or
   updated anonymously from the previous public release, fail owned repair/status
   or uninstall, or change isolated instruction files or personal installation.
-- Public smoke uses an older baseline than latest public 0.2.5, authenticates
+- Public smoke uses an older baseline than previous public 0.2.6, authenticates
   GitHub transport, omits curl `--disable`, or fails actual published pause,
   config and reset commands including values and warming opt-in preservation.
 
@@ -38,7 +38,7 @@ The production driver retains the exact binary, build receipt, checksum file,
 raw child output, original provider summaries and source identity. Operational
 symlinks are sealed only after actual provider assertions and owned cleanup.
 
-Production builds exactly one publishable 0.2.6 candidate, supplies its absolute
+Production builds exactly one publishable 0.3.0 candidate, supplies its absolute
 binary and receipt paths to both existing controls drivers, then reruns their
 acceptance oracles. The update fixture remains an independent nonpublishable
 next-version build. Standalone driver invocation keeps its relocated build.

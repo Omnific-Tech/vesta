@@ -44,7 +44,7 @@ function download(version: string) {
 }
 const args = (operation: string) => [operation, '--provider', 'codex', '--config-dir', config, '--shell-file', shell, '--json'];
 try {
-  const baselineVersion = '0.2.5';
+  const baselineVersion = '0.2.6';
   const current = download(releaseVersion); const old = download(baselineVersion);
   const receiptFile = join(artifacts, releaseVersion, 'build-receipt.json');
   run('download-current-receipt', '/usr/bin/curl', ['--disable', '--fail', '--location', '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '10', '--max-time', '90', '-o', receiptFile, 'https://github.com/Omnific-Tech/vesta/releases/download/v' + releaseVersion + '/build-receipt.json']);
