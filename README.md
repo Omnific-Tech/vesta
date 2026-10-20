@@ -7,22 +7,24 @@ timer expires. Continue using ordinary `claude` and `codex` commands after setup
 Cache retention and net usage savings are **unverified**. Each keepalive is a
 real model turn and consumes usage.
 
-**Version 0.2.6:** persistent `vesta pause|resume` and live
+**Version 0.3.0:** Codex uses trusted native hooks to start a detached,
+metadata-only watcher. Launch native Codex directly, including through account
+launchers. Vesta adds no shell wrapper, PTY, keystroke interception, argument
+changes or signal control. Status separates per-home registration/readiness from
+actual runtime eligibility. See the [v0.3.0 release notes](docs/releases/v0.3.0.md).
+
+Persistent `vesta pause|resume` and live
 `vesta config --idle-ms N --budget-ms N --threshold N --message TEXT` apply to
 all selected owned sessions (`--provider claude|codex|all`; `both` remains a
 compatibility alias). `vesta reset --provider all` restores default intervals,
 budget, threshold and message, and unpauses, preserving saved warm opt-in and
 installation. Changed controls require a fresh real prompt/reply. Restart older
 runtimes once after upgrading. See the [Claude](docs/claude.md) and
-[Codex](docs/codex.md) guides and [v0.2.6 release notes](docs/releases/v0.2.6.md).
+[Codex](docs/codex.md) guides. These controls were introduced in
+[v0.2.6](docs/releases/v0.2.6.md); already running owners retain their earlier
+integration until restarted after upgrading.
 
-Unreleased source uses [Codex native hook watchers](docs/codex.md): launch native
-Codex directly, including through account launchers. Trusted hooks start a detached
-observer without a shell wrapper, PTY or argument changes. Status separates native
-home registration/readiness from actual runtime eligibility. Published 0.2.6 and
-already running owners retain their earlier integration until explicitly upgraded.
-
-Source warming for both providers measures idle and input usage from the latest
+Warming for both providers measures idle and input usage from the latest
 completed owned request, including system/meta prompts and Vesta keepalives.
 Only non-Vesta activity renews the four-hour budget. Codex counts submitted
 messages; drafts and keystrokes are not observed. Native hook registration,
@@ -70,8 +72,8 @@ adds a native plugin-message envelope around the marker.
 Run these commands in a directory where you can save the download:
 
 ```sh
-curl -fL https://github.com/Omnific-Tech/vesta/releases/download/v0.2.6/vesta-darwin-arm64 -o vesta-darwin-arm64
-curl -fL https://github.com/Omnific-Tech/vesta/releases/download/v0.2.6/SHA256SUMS -o SHA256SUMS
+curl -fL https://github.com/Omnific-Tech/vesta/releases/download/v0.3.0/vesta-darwin-arm64 -o vesta-darwin-arm64
+curl -fL https://github.com/Omnific-Tech/vesta/releases/download/v0.3.0/SHA256SUMS -o SHA256SUMS
 grep '  vesta-darwin-arm64$' SHA256SUMS | shasum -a 256 -c -
 ```
 
@@ -91,16 +93,19 @@ privileges.
 Installation discovers the available providers. Use `--provider claude` or
 `--provider codex` to select one explicitly. Omit `--warm` to install without
 enabling warming on a new installation; refreshes preserve existing preferences.
-In version 0.2.6, `--warm` enables Claude warming and registers Codex's native
-hooks. Codex warming becomes ready after native hook trust review. Source setup:
+`--warm` opts selected providers into warming; Codex's native hooks are registered
+even without it. The standalone install includes the full hook runtime. Codex
+warming becomes ready after native hook trust review. For source development:
 
 ```sh
 node --experimental-strip-types experiments/setup.ts install --provider codex --warm
 ```
 
-For the published release, open a new terminal after installation. Source migration
-removes the owned Codex function block; open a new terminal or explicitly run
+Migration removes only the exact owned Codex function block and rolls back owned
+changes on failure; compensation failures are reported. Open a new terminal or explicitly run
 `unfunction codex` in an existing zsh. Start new Claude/Codex sessions after setup.
+Register each account's `CODEX_HOME` explicitly and review Vesta in native `/hooks`
+from that home, including xswap/Pulse accounts. See the [Codex setup guide](docs/codex.md#setup-and-migration).
 Put `~/.local/bin` on your PATH to use `vesta` directly:
 
 ```sh
@@ -137,9 +142,8 @@ selected provider. For custom message text, `vesta config` prints the matching
 K-only reply rule. Send it as a normal prompt to current sessions and add it to
 the applicable global instruction file for future sessions before warming.
 
-Upgrading from v0.2.1 or later: run `vesta update`, or download v0.2.6 above and run
-`install` again. Open a new terminal after a published-release upgrade.
-Source migration requires a new terminal or `unfunction codex` in existing zsh;
+Upgrading from v0.2.1 or later: run `vesta update`, or download v0.3.0 above and run
+`install` again. Migration requires a new terminal or `unfunction codex` in existing zsh;
 review Vesta's Codex entries in native `/hooks` if prompted, and restart older
 Claude/Codex sessions once. Send a fresh normal prompt and wait for a qualifying
 reply; setup readiness alone does not prove live attachment. Upgrading from v0.2.0 requires
@@ -155,9 +159,13 @@ See the [provider guides](docs/README.md) for the
 live-session troubleshooting.
 
 Claude Code loads a native Vesta plugin. Its watcher belongs to the open session;
-Vesta does not reopen ended conversations. Source Codex integration follows native
+Vesta does not reopen ended conversations. Codex integration follows native
 backend threads through trusted hooks and preserves native launch arguments,
-notifications and lifecycle. A shared backend can outlive its terminal; see the
+notifications and lifecycle. A shared backend has an idle unload delay of about
+30 minutes after terminal exit; warming may extend residency. For one backend per terminal session, use `codex --no-daemon` (or a
+shell alias with that flag); Vesta never adds it automatically. Native `-c`
+overrides, including Pulse/xswap notification overrides, select an embedded
+backend in the TUI. See the
 [Codex guide](docs/codex.md) for activity clocks and ownership limits.
 
 Warming uses the latest completed owned request's input usage, strictly above
@@ -180,7 +188,7 @@ Busy, stale and ended sessions are skipped. Keepalives restart idle when they
 complete but never extend the inactivity budget, including after replay/recovery.
 After four hours without non-Vesta activity warming stops. A submitted message
 can cancel a pending Codex ping before
-dispatch; once submitted to a native queue, retraction is not guaranteed. Source
+dispatch; once submitted to a native queue, retraction is not guaranteed. Native
 hook mode does not observe draft input.
 
 Codex selects and validates all launch options itself. Vesta has no argument
@@ -212,8 +220,7 @@ Codex launch support and reply compliance are tracked in
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for building, verification and releases.
-The [original proposal](harness/artifacts/init_spec.md) is historical; current
-behavior is described above and in the setup reference.
+Current behavior is described above and in the [setup reference](experiments/SETUP.md).
 
 ## License
 

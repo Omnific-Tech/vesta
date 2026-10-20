@@ -10,12 +10,13 @@ APIs. It has no separate daemon that reopens conversations.
 
 Add the [global reply rule](../README.md#1-add-the-reply-rule), then install with
 `vesta install --provider claude --warm` from the
-[v0.2.6 release](releases/v0.2.6.md).
+[v0.3.0 release](releases/v0.3.0.md). In 0.3.0 any owned completion, including meta turns, restarts idle.
 Restart Claude Code and use ordinary `claude` commands. The global instruction
 file is `~/.claude/CLAUDE.md`, or the corresponding file under `CLAUDE_CONFIG_DIR`.
 Vesta never edits that file for you.
 
-The following live controls are available in **version 0.2.6**.
+The following live controls were introduced in **version 0.2.6** and remain
+available in 0.3.0.
 Restart older sessions once after upgrading; running v0.2.5 owners cannot read
 these controls.
 
@@ -43,7 +44,7 @@ prompt and reply without renewing user activity. Identical resets preserve bytes
 and change metadata. Reset rejects malformed containers, JSON or invalid existing
 control values before writing any selected provider; it does not repair them.
 
-Runtime 0.2.6 uses a one-second polling timer and re-reads immediately before
+The runtime uses a one-second polling timer and re-reads immediately before
 dispatch; native host or I/O delays can delay an observation. Resume and effective configuration changes cancel uncommitted
 reservations and require a new real submitted prompt and completed reply. A turn
 already running before a change cannot rearm eligibility. Controls preserve user
