@@ -37,15 +37,19 @@ async function call(native: string, argv: string[], nativeHome: string) {
   try { return JSON.parse(Buffer.concat(stdout).toString('utf8')); }
   catch { throw new Error('Native Codex returned invalid JSON: ' + receipt); }
 }
-export async function codexRegistration(native: string, state: any, selectedHome?: string) {
-  if (state?.integrationMode === 'hook' && Array.isArray(state.nativeHomes) && !selectedHome) return { nativeHomes: await Promise.all(state.nativeHomes.map(async (row: any) => ({ state: row, snapshot: await codexRegistration(native, row, row.nativeCodexHome) }))) };
+// `recorded` is every home already owned by this Vesta installation. A home with no state row of its own may still see the Vesta
+// marketplace/plugin through a `config.toml` shared with a recorded home (xswap managed accounts); that is adopted only when the
+// native source is exactly a recorded owned catalog root and that catalog still validates. Any other source stays foreign.
+export async function codexRegistration(native: string, state: any, selectedHome?: string, recorded: any[] = []) {
+  if (state?.integrationMode === 'hook' && Array.isArray(state.nativeHomes) && !selectedHome) return { nativeHomes: await Promise.all(state.nativeHomes.map(async (row: any) => ({ state: row, snapshot: await codexRegistration(native, row, row.nativeCodexHome, state.nativeHomes) }))) };
   const nativeHome = selectedHome ?? home();
   if (state?.nativeCodexHome && state.nativeCodexHome !== nativeHome) throw new Error('Owned native Codex home cannot be relocated implicitly');
   if (!existsSync(nativeHome)) return { nativeHome, plugin: undefined, marketplace: undefined };
   const plugin = (await call(native, ['plugin', 'list', '--marketplace', 'vesta-local', '--json'], nativeHome)).installed.find((row: any) => row.pluginId === codexPluginId);
   const marketplace = (await call(native, ['plugin', 'marketplace', 'list', '--json'], nativeHome)).marketplaces.find((row: any) => row.name === 'vesta-local');
-  if (plugin && (state?.nativePluginId !== codexPluginId || plugin.source?.path !== join(state.nativeMarketplaceRoot, 'plugin'))) throw new Error('Foreign native Codex Vesta plugin ownership');
-  if (marketplace && (!state?.nativeMarketplaceOwned || marketplace.marketplaceSource?.source !== state.nativeMarketplaceRoot)) throw new Error('Foreign native Codex Vesta marketplace ownership');
+  const adoptable = (root: any) => { if (state || typeof root !== 'string' || !recorded.some(row => row?.nativeMarketplaceOwned && row.nativeMarketplaceRoot === root)) return false; try { validateCatalog(root); return true; } catch { return false; } };
+  if (plugin && (state?.nativePluginId !== codexPluginId || plugin.source?.path !== join(state.nativeMarketplaceRoot, 'plugin')) && !(adoptable(typeof plugin.source?.path === 'string' ? dirname(plugin.source.path) : undefined) && plugin.source.path === join(dirname(plugin.source.path), 'plugin'))) throw new Error('Foreign native Codex Vesta plugin ownership');
+  if (marketplace && (!state?.nativeMarketplaceOwned || marketplace.marketplaceSource?.source !== state.nativeMarketplaceRoot) && !adoptable(marketplace.marketplaceSource?.source)) throw new Error('Foreign native Codex Vesta marketplace ownership');
   return { nativeHome, plugin, marketplace };
 }
 const registry = async (native: string, nativeHome: string) => ({ nativeHome,
@@ -72,8 +76,8 @@ export async function restoreNativeCodex(native: string, currentState: any, prev
   const restored = await registry(native, nativeHome);
   if (JSON.stringify(restored.plugin) !== JSON.stringify(previous?.plugin) || JSON.stringify(restored.marketplace) !== JSON.stringify(previous?.marketplace)) throw new Error('Native registration compensation did not restore prior state');
 }
-export async function installNativeCodex(native: string, configDir: string, node: string, state: any, hookConfig?: string, selectedHome?: string) {
-  const previous = await codexRegistration(native, state, selectedHome);
+export async function installNativeCodex(native: string, configDir: string, node: string, state: any, hookConfig?: string, selectedHome?: string, recorded: any[] = []) {
+  const previous = await codexRegistration(native, state, selectedHome, recorded);
   mkdirSync(previous.nativeHome, { recursive: true, mode: 0o700 });
   const effective = await nativeRequest(native, 'config/read', { includeLayers: false }, undefined, { env: { ...process.env as Record<string, string>, CODEX_HOME: previous.nativeHome } });
   if (effective.config.features?.plugins === false || effective.config.features?.hooks === false) return undefined;
