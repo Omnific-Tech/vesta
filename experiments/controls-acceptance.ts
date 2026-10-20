@@ -79,7 +79,14 @@ export function controlProfileSnapshot(bytes: Buffer) {
   assert.ok(profile && typeof profile === 'object' && !Array.isArray(profile), 'personal profile must be an object');
   const { pluginUsage, ...stable } = profile; const pluginUsagePresent = Object.hasOwn(profile, 'pluginUsage');
   if (pluginUsagePresent) assert.ok(pluginUsage && typeof pluginUsage === 'object' && !Array.isArray(pluginUsage), 'plugin usage must be an object');
-  return { sha256: sha(bytes), stableSha256: sha(canonical(stable)), pluginUsagePresent,
+  // Live Claude sessions rewrite engine counters here; only Vesta-named paths must stay put.
+  const vesta: string[] = []; const walk = (value: any, path: string) => {
+    if (typeof value === 'string') { if (/vesta/i.test(value)) vesta.push(path + '=' + value); return; }
+    if (value && typeof value === 'object') for (const [key, child] of Object.entries(value)) { const next = path + '/' + key; if (/vesta/i.test(key)) vesta.push(next + '=' + canonical(child)); else walk(child, next); }
+  };
+  walk(stable, '');
+  return { sha256: sha(bytes), stableSha256: sha(canonical(stable)), vestaSha256: sha(vesta.sort().join('\n')), pluginUsagePresent,
+    keys: Object.fromEntries(Object.keys(stable).sort().map(key => [key, sha(canonical(stable[key]))])),
     plugins: Object.entries(pluginUsagePresent ? pluginUsage : {}).map(([id, value]: [string, any]) => {
       assert.ok(value && typeof value === 'object' && !Array.isArray(value), 'plugin usage entry must be an object');
       const { usageCount, lastUsedAt, ...stable } = value;
@@ -89,13 +96,11 @@ export function controlProfileSnapshot(bytes: Buffer) {
 }
 export function verifyControlProfile(before: ReturnType<typeof controlProfileSnapshot>, after: ReturnType<typeof controlProfileSnapshot>) {
   // Every assertion compares hashes/booleans only; no private JSON/IDs/values.
-  assert.equal(after.stableSha256, before.stableSha256, 'personal stable profile hash changed');
-  assert.equal(after.pluginUsagePresent, before.pluginUsagePresent, 'personal plugin usage presence changed');
-  assert.deepEqual(after.plugins.map(row => row.idSha256), before.plugins.map(row => row.idSha256), 'personal hashed plugin identity set changed');
-  before.plugins.forEach((a, i) => {
-    const b = after.plugins[i]!; assert.equal(b.isVesta, a.isVesta); assert.equal(b.usageCountPresent, a.usageCountPresent); assert.equal(b.lastUsedAtPresent, a.lastUsedAtPresent);
-    assert.equal(b.stableSha256, a.stableSha256, 'personal plugin stable hash changed'); if (a.isVesta) assert.equal(b.sha256, a.sha256, 'personal Vesta hash changed');
-  });
+  assert.equal(after.vestaSha256, before.vestaSha256, 'personal Vesta profile paths changed');
+  const vesta = (rows: typeof before.plugins) => rows.filter(row => row.isVesta).map(row => row.idSha256 + ':' + row.sha256);
+  assert.deepEqual(vesta(after.plugins), vesta(before.plugins), 'personal Vesta plugin usage changed');
+  // Names only: which engine-owned keys live sessions rewrote during the run.
+  return [...new Set([...Object.keys(before.keys), ...Object.keys(after.keys)])].filter(key => before.keys[key] !== after.keys[key]).sort();
 }
 export function integration(value: any, provider: string) {
   const row = value.integrations?.find((row: any) => row.provider === provider);
@@ -143,7 +148,7 @@ export function verifyControls(directory: string) {
   const personalProfile = e.personal.find((row: any) => row.path === e.profileIntegrity.path); assert.ok(personalProfile);
   assert.equal(e.profileIntegrity.before.sha256, personalProfile.before);
   assert.equal(e.profileIntegrity.after.sha256, personalProfile.after);
-  verifyControlProfile(e.profileIntegrity.before, e.profileIntegrity.after);
+  assert.deepEqual(verifyControlProfile(e.profileIntegrity.before, e.profileIntegrity.after), e.profileIntegrity.changedKeys, 'recorded changed profile keys');
   const rawRows = (file: string) => readFileSync(join(directory, file), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
   for (const provider of ['claude', 'codex']) {
     const owners = e.owners.filter((owner: any) => owner.provider === provider);

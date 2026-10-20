@@ -46,7 +46,7 @@ const profilePath = join(homedir(), '.claude.json');
 // canonical JSON, and disallow adding or modifying a personal Vesta entry.
 const profileBefore = controlProfileSnapshot(readFileSync(profilePath));
 personal.push({ path: profilePath, before: profileBefore.sha256, after: '' });
-const profileIntegrity = { path: profilePath, before: profileBefore, after: profileBefore };
+const profileIntegrity = { path: profilePath, before: profileBefore, after: profileBefore, changedKeys: [] as string[] };
 const commands: any[] = []; const observations: any[] = []; const cleanup: any[] = []; const installedFiles: any[] = [];
 type Owner = { provider: 'claude' | 'codex'; index: number; pid: number; terminal: pty.IPty; terminalFile: string; snapshotsFile: string; rolloutFile: string; sessionId: string; nonce: string; exited: boolean; folder: string; statusSource?: string; wrapperVariables: string[] };
 const owners: Owner[] = []; let failure = ''; let promptCount = 0;
@@ -384,7 +384,7 @@ finally {
   writeFileSync(join(hookEvidence, 'events.jsonl'), collect('events.jsonl')); writeFileSync(join(hookEvidence, 'dispatches.jsonl'), collect('dispatches.jsonl'));
   if (existsSync(join(config, '.vesta-setup-codex.json'))) copyFileSync(join(config, '.vesta-setup-codex.json'), join(artifacts, 'codex-setup-record.json'));
   for (const file of personal.filter(file => file.path !== profilePath)) file.after = existsSync(file.path) ? hash(file.path) : 'absent';
-  try { profileIntegrity.after = controlProfileSnapshot(readFileSync(profilePath)); personal.find(file => file.path === profilePath)!.after = profileIntegrity.after.sha256; verifyControlProfile(profileIntegrity.before, profileIntegrity.after); }
+  try { profileIntegrity.after = controlProfileSnapshot(readFileSync(profilePath)); personal.find(file => file.path === profilePath)!.after = profileIntegrity.after.sha256; profileIntegrity.changedKeys = verifyControlProfile(profileIntegrity.before, profileIntegrity.after); }
   catch { failure ||= 'Personal Claude profile integrity validation failed (values redacted)'; }
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'native-controls', failure, binary: built.binary, binarySha256: hash(built.binary), receipt, promptCount, maximumNativeTurns: promptCount + 6, commands, observations, cleanup, installedFiles, personal,
     receiptFile: built.receipt, productionIdentityBefore: built.productionIdentityBefore, productionIdentityAfter: controlsArtifactAfter(built),
