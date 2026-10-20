@@ -272,8 +272,10 @@ try {
   for (const provider of ['claude', 'codex'] as const) {
     const owner = owners.find(owner => owner.provider === provider && owner.index === 0)!;
     // The hook observer samples once per second: keep the real turn busy across two samples plus the CLI write.
+    const since = Date.now();
     await type(owner, 'Without using tools, count from 1 through ' + (provider === 'codex' ? 300 : 80) + ', then finish with ' + owner.nonce + '.');
-    const busy = await capture(owner, 'busy-before', value => value.busy === true);
+    // Codex status can show busy (rollout) a sample before this prompt's submit hook lands userAt.
+    const busy = await capture(owner, 'busy-before', value => value.busy === true && value.userAt >= since);
     command(['config', '--provider', provider, '--idle-ms', '11000']);
     const changed = await capture(owner, 'busy-changed', value => value.busy === true && value.controlRevision > busy.controlRevision);
     const completed = await capture(owner, 'busy-after', value => value.busy === false && value.tokens === null);
