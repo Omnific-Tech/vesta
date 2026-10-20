@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { readJson, sha256, version } from './assets.ts';
 import { compare, executable, pluginId, preflight, providers, value, withLock } from './manage.ts';
 import { codexRegistration } from '../experiments/codex-native-setup.ts';
-import { ownedNativeHomes } from '../experiments/codex-hook-setup.ts';
+import { legacyShell, ownedNativeHomes } from '../experiments/codex-hook-setup.ts';
 import { nativeRequest } from '../experiments/codex-native-ipc.ts';
 
 const repository = 'Omnific-Tech/vesta'; const assetName = 'vesta-darwin-arm64';
@@ -35,6 +35,8 @@ export async function update(args: string[], root: string) {
             const state = readJson(join(p.configDir, '.vesta-setup-codex.json'));
             // Hook mode records registrations per native home and owns no shell block.
             const hook = state?.integrationMode === 'hook';
+            // A leftover owned legacy block still needs migration; an edited one is a conflict.
+            if (hook && legacyShell(state, p.shellFile).removed) { lagging = true; continue; }
             if (!hook && (!state?.block || !existsSync(p.shellFile) || !readFileSync(p.shellFile, 'utf8').includes(state.block))) { lagging = true; continue; }
             if (readJson(join(p.configDir, 'vesta-codex.json'), {}).warm !== true) continue;
             const effective = await nativeRequest(state.native, 'config/read', { includeLayers: false });
