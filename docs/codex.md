@@ -51,8 +51,8 @@ vesta reset --provider codex
 
 Controls preserve saved warm opt-in. Reset restores 20 minutes idle, a four-hour
 budget, strict input tokens above 100,000, the default marker and unpaused state.
-Changed controls and recovery from malformed config require a fresh prompt and
-reply. Custom marker text needs its matching K-only instruction; Vesta never
+Changed controls and recovery from malformed config require a fresh user prompt
+and reply. Custom marker text needs its matching K-only instruction; Vesta never
 adds that instruction to a keepalive payload.
 
 Every non-Vesta submitted message counts as activity, including messages from
@@ -62,11 +62,21 @@ binding identifies Vesta's turns, which never extend the four-hour budget.
 Identical text submitted through another client still counts as activity.
 
 A successful persisted completion of the exact current turn starts the idle
-interval. Fresh last-turn input tokens must exceed the threshold; cached input
+interval, whether started by a user, another tool/system message, or Vesta.
+That same latest completion supplies the measurement: fresh last-turn input
+tokens must strictly exceed the threshold (default 100,000); cached input
 is counted once, while output and lifetime totals do not qualify. Stop alone is
-insufficient because another hook can continue the turn. Interruption, compaction,
-resume, changed controls and restored native hook trust require fresh eligibility.
-Busy threads do not warm.
+insufficient because another hook can continue the turn. A persisted successful
+task completion and fresh last-turn usage remain required. Interruption,
+compaction and session resume/reconnect invalidate the old measurement only;
+the next owned completion of any origin can qualify without a new user prompt.
+Changed controls and restored native hook trust retain the fresh user prompt/reply
+consent requirement. Other threads and subagent transcripts cannot refresh this
+thread's clock or measurement. Busy threads do not warm.
+
+Vesta keepalive completions restart idle but never renew the inactivity budget,
+including after replay/recovery. Warming stops four hours after the last non-Vesta
+prompt, even if keepalives have continued completing in the meantime.
 
 ## Backend lifetime and delivery
 

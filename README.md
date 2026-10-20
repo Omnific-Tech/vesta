@@ -22,12 +22,14 @@ observer without a shell wrapper, PTY or argument changes. Status separates nati
 home registration/readiness from actual runtime eligibility. Published 0.2.6 and
 already running owners retain their earlier integration until explicitly upgraded.
 
-Source Codex warming counts every non-Vesta submission as activity; drafts and
-keystrokes are not observed. Each successful completed reply starts a fresh idle
-interval. Native hook registration, warm opt-in and explicit `/hooks` trust remain
+Source warming for both providers measures idle and input usage from the latest
+completed owned request, including system/meta prompts and Vesta keepalives.
+Only non-Vesta activity renews the four-hour budget. Codex counts submitted
+messages; drafts and keystrokes are not observed. Native hook registration,
+warm opt-in and explicit `/hooks` trust remain
 separate requirements. Running legacy owners keep their existing behavior until
 they exit. The earlier terminal-input policy is documented in historical release
-notes; Claude's activity policy is unchanged.
+notes; Claude also retains its editing and composer-command budget observations.
 
 Upgrading from v0.2.1 replaces its earlier Codex wrapper. Version 0.2.5 introduced
 CLI resume and `/resume` with a fresh completed reply before warming. See the
@@ -158,27 +160,34 @@ backend threads through trusted hooks and preserves native launch arguments,
 notifications and lifecycle. A shared backend can outlive its terminal; see the
 [Codex guide](docs/codex.md) for activity clocks and ownership limits.
 
-Warming starts only after a fresh model reply reports more than 100,000 input
-tokens in the current context. Cached input counts once. Output tokens and
-cumulative lifetime usage do not count toward this threshold. Reopening or
-compacting a session requires a fresh reply before warming can resume.
+Warming uses the latest completed owned request's input usage, strictly above
+100,000 tokens by default. Cached input counts once (Claude: input + cache read +
+cache creation); output and cumulative lifetime usage do not qualify. Every owned
+completion restarts idle, regardless of origin. Compaction, session resume and
+reconnect invalidate old usage only; the next completion of any origin supplies
+a valid new measurement. Controls/config changes still require a fresh user
+prompt and reply. Subagent/sidechain turns and other sessions do not update the
+owned conversation's clocks or usage.
 
 | Setting | Default |
 | --- | --- |
 | Input threshold | Strictly greater than 100,000 tokens |
 | Claude idle interval | 50 minutes |
 | Codex idle interval | 20 minutes |
-| Maximum time since user activity (Codex: last submitted prompt) | 4 hours |
+| Maximum time since non-Vesta activity (Codex: last submitted prompt) | 4 hours |
 
-Busy, stale and ended sessions are skipped. Keepalives do not extend the
-user inactivity budget. A submitted message can cancel a pending Codex ping before
+Busy, stale and ended sessions are skipped. Keepalives restart idle when they
+complete but never extend the inactivity budget, including after replay/recovery.
+After four hours without non-Vesta activity warming stops. A submitted message
+can cancel a pending Codex ping before
 dispatch; once submitted to a native queue, retraction is not guaranteed. Source
 hook mode does not observe draft input.
 
 Codex selects and validates all launch options itself. Vesta has no argument
 filter; warming requires a live native backend with trusted session hooks and a
 fresh qualifying completion. Utilities that produce no such session remain ordinary
-native commands. Resume and compaction require fresh eligibility. Keepalives enter
+native commands. Resume and compaction require a new completed-turn measurement.
+Keepalives enter
 the exact thread's native durable queue and receive `K` in that conversation;
 Vesta never types marker keys into a terminal.
 Status separates `warmConfigured` from effective `warmEnabled` and reports why
