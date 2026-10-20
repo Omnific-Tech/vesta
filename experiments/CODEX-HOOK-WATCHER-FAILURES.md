@@ -105,6 +105,21 @@ coverage. Initial runtime contract lock must decide which extensions are require
 before implementation. Full task completion cannot be claimed from these first
 drivers alone.
 
+## Concurrent hook ingress (found by the native controls suite)
+
+Hooks from different threads of one backend run as separate processes at the same
+instant (for example simultaneous prompts). Ingress serialises on a lock file in the
+engine folder. Failure: a hook that finds the lock held reads the holder metadata
+before the holder has written it (the holder computes its birth, a `ps` spawn, after
+creating the file), treats the empty/unparseable file as corruption, and silently
+drops its event. A dropped `UserPromptSubmit` leaves the thread unobserved: no
+`turn-start`, stale `userAt`, no fresh eligibility. Contract: every concurrently
+delivered hook is journaled exactly once; an incomplete holder record is waited on
+(bounded), never fatal; a record that stays incomplete past a stale bound is
+reclaimed. Executable check: `concurrent-first` requires all four concurrent
+`SessionStart` packets in the journal, and the native controls suite fires three
+real Codex prompts at once.
+
 ## Execution and artifacts
 
 Run `node --experimental-strip-types experiments/codex-hook-watcher-e2e.ts` and
