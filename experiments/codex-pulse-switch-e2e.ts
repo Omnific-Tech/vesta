@@ -184,11 +184,7 @@ try {
   const vesta = (home: string, args: string[]) => spawnSync(built.binary, [...args, '--provider', 'codex', '--config-dir', config, '--shell-file', shell, '--json'], { cwd: workspace, env: setupEnv(home), encoding: 'utf8', timeout: 90000 });
   const installA = vesta(homes.a, ['install', '--warm']); save(join(artifacts, 'install-a.json'), { code: installA.status, stdout: installA.stdout, stderr: installA.stderr }); assert.equal(installA.status, 0, installA.stderr);
   const installB = vesta(homes.b, ['install', '--warm']); save(join(artifacts, 'install-b-real.json'), { code: installB.status, stdout: installB.stdout, stderr: installB.stderr });
-  const registration: any = { a: { code: installA.status }, bReal: { code: installB.status, stderr: installB.stderr.trim() }, workaround: [] as any[] };
-  // Diagnostic continuation only: native `plugin add` is the exact native command the product itself runs, and it is recorded as a workaround.
-  if (installB.status !== 0) {
-    const added = spawnSync(npm, ['plugin', 'add', 'vesta@vesta-local', '--json'], { env: { ...setupEnv(homes.b) }, encoding: 'utf8', timeout: 60000 }); registration.workaround.push({ home: 'b', command: 'codex plugin add vesta@vesta-local --json', code: added.status, stdout: added.stdout, stderr: added.stderr }); assert.equal(added.status, 0, added.stderr);
-  }
+  const registration: any = { a: { code: installA.status }, bReal: { code: installB.status, stderr: installB.stderr.trim() } };
   save(join(artifacts, 'registration.json'), registration);
   const bundledNode = join(ownedRoot, 'current/runtime/bin/node'); assert.ok(existsSync(bundledNode));
   appendFileSync(mainConfig, '\n[tui]\nscreen_reader_detection_done = true\n\n[tui.model_availability_nux]\n"gpt-6.1-sol" = 4\n');
@@ -273,10 +269,12 @@ try {
   writeFileSync(mainConfig, enabledConfig);
   const queueAfter = await nativeRequest(npm, 'thread/queue/list' as any, { threadId: thread }, undefined, { env: { ...setupEnv(homes.a), CODEX_SQLITE_HOME: main } }); queueLists.push({ at: Date.now(), when: 'final', result: queueAfter });
   clearInterval(sampler); sampler = undefined; copyFileSync(rolloutFile(thread)!, join(artifacts, 'rollout.jsonl')); save(join(artifacts, 'product-metadata.json'), productMetadata(statusDir)); copyFileSync(mainConfig, join(artifacts, 'native-config-after.toml'));
-  const authAfter = Object.fromEntries(Object.entries(homes).map(([k, home]) => [k, hash(join(home, 'auth.json'))]));
+  const authAfter = Object.fromEntries(Object.entries(homes).map(([k, home]) => [k, hash(join(home, 'auth.json'))])); const configFinal = hash(mainConfig); const controlsFinal = hash(controls);
+  // Product uninstall through one account home must remove the shared owned registrations for every recorded home (after all hash captures).
+  const uninstallResult = vesta(homes.a, ['uninstall']); const uninstall = { code: uninstallResult.status, stderr: uninstallResult.stderr.trim(), stateExists: existsSync(join(config, '.vesta-setup-codex.json')), hooksAfter: { a: (await hooksFor('a')).length, b: (await hooksFor('b')).length }, statusC: vestaStatus('c').registeredHomes.find((h: any) => h.nativeHome === homes.c) };
   save(join(artifacts, 'evidence.json'), { schema: 1, environment, controlsBefore, main, npm, vendor, vendorSha256: sha(vendor), xswap: { path: xswapPath, sha256: sha(xswapPath), version: xswapVersion }, origin, idleMs, thread, homes, layout, registration, hooks: { setup: Object.fromEntries(Object.entries(hooksSetup).map(([k, v]: any) => [k, v.map((h: any) => ({ eventName: h.eventName, trustStatus: h.trustStatus, enabled: h.enabled }))])), cBefore: hooksCBefore.length, cAfter: hooksCAfter.length, cDisabled: hooksCDisabled.length, bUntrusted: hooksBUntrusted.map((h: any) => ({ eventName: h.eventName, trustStatus: h.trustStatus })) }, cache: { beforeLaunch: cacheBeforeLaunch, atLaunch: cacheAtLaunch },
     status: { setup: statusSetup, c1: statusC1, c2: statusC2, bUntrusted: statusBUntrusted }, watchers: { a1: watcherA ?? null, b1: watcherB }, softFailures, launches, moves, queueLists, beforeActivity, hold: holdSummary, ownerScans, ownerState, proxy: DEAD_PROXY,
-    hashes: { configBaseline, configTrustedEnd, configDisabled, configDisabledEnd, configUntrusted, configUntrustedEnd, configFinal: hash(mainConfig), authBefore, authAfter, vestaControls: hash(controls) }, activityAt, a2At, cAt, prebuilt: !!prebuilt });
+    hashes: { configBaseline, configTrustedEnd, configDisabled, configDisabledEnd, configUntrusted, configUntrustedEnd, configFinal, authBefore, authAfter, vestaControls: controlsFinal }, uninstall, activityAt, a2At, cAt, prebuilt: !!prebuilt });
 } catch (error) { failure = String(error?.stack ?? error); }
 finally {
   if (sampler) clearInterval(sampler); hold.release?.();

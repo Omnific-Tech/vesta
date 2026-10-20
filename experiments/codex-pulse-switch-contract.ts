@@ -98,7 +98,9 @@ export function verifyPulse(path: string) {
     assert.match(e.xswap.version, /^xswap 0\.3\.5$/); assert.equal(e.registration.a.code, 0, 'explicit `vesta install` in home A');
     assert.equal(e.registration.bReal.code, 0, 'explicit `vesta install` in home B must succeed on the xswap managed layout; got: ' + e.registration.bReal.stderr);
     for (const key of ['a', 'b', 'c']) for (const name of ['sessions', 'archived_sessions', 'thread-writer-locks', 'history.jsonl', 'session_index.jsonl', 'config.toml']) { const row = e.layout[key].find((r: any) => r.name === name); assert.equal(row?.type, 'symlink', key + '/' + name); assert.equal(dirname(row.target), e.main, key + '/' + name + ' links into the shared main home'); assert.equal(row.target.split('/').at(-1), name); }
-    for (const key of ['a', 'b']) { assert.equal(e.hooks.setup[key].length, 6, 'six native Vesta hooks in ' + key); assert.ok(e.hooks.setup[key].every((h: any) => h.enabled && h.trustStatus === 'trusted'), 'trusted hooks in ' + key); const s = e.status.setup[key].registeredHomes.find((h: any) => h.nativeHome === e.homes[key]); assert.ok(s.registered && s.ready, 'vesta status ready for ' + key); }
+    for (const key of ['a', 'b']) { assert.equal(e.hooks.setup[key].length, 6, 'six native Vesta hooks in ' + key); assert.ok(e.hooks.setup[key].every((h: any) => h.enabled && h.trustStatus === 'trusted'), 'trusted hooks in ' + key); const s = e.status.setup[key].registeredHomes.find((h: any) => h.nativeHome === e.homes[key]); assert.ok(s.registered && s.ready, 'vesta status ready for ' + key); assert.ok(s.owned && !s.inherited, 'installed home ' + key + ' is owned, not merely inherited'); }
+    const sc = e.status.setup.c.registeredHomes.find((h: any) => h.nativeHome === e.homes.c); assert.equal(sc.owned, false, 'a home that only shares the config is never owned'); assert.equal(sc.inherited, sc.registered, 'inherited exactly when native lists the hooks without an own state row');
+    assert.equal(e.status.setup.b.registeredHomes.filter((h: any) => h.owned).length, 2, 'both explicitly installed homes owned, C not');
   });
   check(2, 'embedded topology under the exact xswap argv; sqlite home shared by engine and queue writer', () => {
     for (const l of e.launches) {
@@ -188,6 +190,9 @@ export function verifyPulse(path: string) {
     const profile = readFileSync(join(path, 'sandbox.sb'), 'utf8'); for (const p of e.ownerState) assert.ok(profile.includes(JSON.stringify(p)), 'xswap import/version ran under a Seatbelt profile denying ' + p); assert.equal(e.proxy, 'http://127.0.0.1:9', 'non-localhost egress is routed to a dead proxy');
     const signals = timeline.filter(r => r.kind === 'signal').flatMap(r => r.signals); const trees = e.moves.flatMap((m: any) => m.tree); for (const s of signals) { assert.ok(s.birth); assert.ok(trees.some((t: any) => t.pid === s.pid && t.birth === s.birth), 'signal targeted a recorded fixture descendant'); }
     assert.equal(timeline.filter(r => r.kind === 'watcher-sigkill').length, 1, 'single fixture-owned watcher SIGKILL (stale claim variant)'); assert.deepEqual(e.softFailures.filter((f: any) => !f.name.startsWith('a1-')), [], 'no other soft failure');
+  });
+  check(11, 'product uninstall removes every owned registration of the shared-config homes', () => {
+    assert.equal(e.uninstall.code, 0, 'vesta uninstall from home A: ' + e.uninstall.stderr); assert.equal(e.uninstall.stateExists, false, 'owned setup state removed'); assert.deepEqual(e.uninstall.hooksAfter, { a: 0, b: 0 }, 'native lists no Vesta hooks in either installed home'); assert.equal(e.uninstall.statusC.registered, false, 'home C no longer sees Vesta'); assert.equal(e.uninstall.statusC.inherited, false);
   });
   const failed = cases.filter(c => !c.ok);
   return { artifacts: path, verified: failed.length === 0, integrity: true, cases, failed: failed.map(c => c.id + ': ' + c.error) };

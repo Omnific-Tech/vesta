@@ -111,9 +111,12 @@ removes none.
   `[plugins.*]` entries and hook trust are shared by every account home, while the
   native plugin cache (`plugins/cache`) is per home and is materialized by native
   at TUI start. F4 therefore stays strict (explicit install of every home must
-  succeed) and the E2E records the real outcome for home B. When it fails, the
-  fixture continues only through the recorded diagnostic workaround (native
-  `plugin add vesta@vesta-local`), so later cases still run; case 1 stays red.
+  succeed) and the E2E records the real outcome for home B. Home B's install
+  adopts the shared marketplace only because its source equals a recorded owned
+  catalog root (see CODEX-HOOK-MIGRATION-FAILURES.md); the earlier diagnostic
+  `plugin add` workaround is removed. Home C is never installed: status labels it
+  `owned: false` with `inherited` equal to `registered`. After the run, a product
+  `uninstall` from home A must remove every owned registration (case 11).
 - F15 cannot use a managed home that has no plugin entry (the shared config always
   has it). "Unregistered" is therefore the plugin disabled in the shared config
   (fixture-owned toggle, native reports no Vesta hooks, status `registered=false`);
@@ -137,8 +140,8 @@ removes none.
   with the engine in the tree, rollout idle at the kill instant, watcher gone with
   its backend and status `owner-ended` (the A move alone can be vacuous when case 3
   is red).
-- Product defects found by this run (recorded red, not patched here; root cause
-  and proposed patches reported to the owner): (1) a new thread started in an xswap
+- Product defects found by the first runs (both red until fixed; fixed afterwards
+  by owner-approved patches, the cases are never weakened): (1) a new thread started in an xswap
   `--share-history` account home reports `transcript_path` through the account
   home's `sessions` symlink and `transcript()` in `codex-hook-state.ts` rejects it
   (`realpathSync(path) !== resolve(path)`), so that session is `observer-failed`
@@ -146,8 +149,13 @@ removes none.
   3); (2) `vesta install` for a second xswap account home fails with `Foreign
   native Codex Vesta marketplace ownership` because `config.toml` is shared, the
   marketplace is already registered by the first home's install and
-  `codexRegistration` has no state row for the new home (case 1). Both cases must
-  turn green only through a product fix, never by weakening their assertions.
+  `codexRegistration` has no state row for the new home (case 1). Fix 1:
+  `transcript()` accepts a link-reported path only when its resolved path is inside
+  the resolved `sessions`/`archived_sessions` of the hook's verified home, the
+  reported final component is not a link, the resolved file opens `O_NOFOLLOW` as
+  this uid's regular file, and claims use the resolved path. Fix 2: a home without
+  a state row adopts a marketplace/plugin only for a recorded owned catalog root
+  that still validates. Both cases turn green only through those fixes.
 - Replay: `node --experimental-strip-types experiments/codex-pulse-switch-contract.ts
   --verify ABS_ARTIFACT_DIR` re-derives engine keys and owner identities,
   recomputes every artifact and source hash and re-evaluates every case from the
