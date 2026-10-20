@@ -29,7 +29,7 @@ export class NativeDiagnostics {
     const last = this.lastMeasurement;
     if (last && (last.sessionId !== state.sessionId || last.turnId !== state.turnId || last.generation !== state.generation || state.tokens === null || state.busy)) last.current = false;
     return { schema: 1, pid: this.pid, birth: this.birth, observedAt: Date.now(), lastDecision: this.lastDecision, lastSkip: this.lastSkip,
-      idleDeadline: last?.current && state.userAt !== null && state.warmAt !== null ? Math.max(state.userAt, state.warmAt) + idleMs : null,
+      idleDeadline: last?.current && state.userAt !== null && state.warmAt !== null ? state.warmAt + idleMs : null,
       lastMeasurement: last ? { ...last } : null,
       ownership: this.ambiguous ? { state: 'ambiguous', blocker: this.ambiguousBlocker } : this.conflict ? { state: 'conflict', blocker: this.conflictBlocker } : { state: sessionId ? 'owned' : 'unbound', blocker: null },
       decisions: this.decisions.map(row => ({ ...row })) };
