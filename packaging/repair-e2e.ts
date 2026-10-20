@@ -1,7 +1,7 @@
 // Compiled CLI/native acceptance authored before setup/repair implementation.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { buildRelocated, executable, hash, nativeBin, nextReleaseVersion, releaseVersion, root, sealEvidence } from './e2e-common.ts';
@@ -66,11 +66,13 @@ function damage(ctx: Context) {
   const current = registry(ctx);
   if (current.plugin) success(ctx, 'remove-owned-plugin', ['plugin', 'remove', 'vesta@vesta-local', '--json'], join(ctx.bin, 'codex'));
   if (current.marketplace) success(ctx, 'remove-owned-marketplace', ['plugin', 'marketplace', 'remove', 'vesta-local', '--json'], join(ctx.bin, 'codex'));
-  const block = json(join(ctx.config, '.vesta-setup-codex.json')).block; writeFileSync(ctx.shell, readFileSync(ctx.shell, 'utf8').replace(block, ''));
+  // Hook mode owns no shell block: damage is the native registration alone.
+  const damaged = registry(ctx); assert.equal(damaged.plugin, undefined); assert.equal(damaged.marketplace, undefined);
 }
 function restored(ctx: Context) {
   const current = registry(ctx); assert.ok(current.plugin && current.marketplace, 'actual owned native registration restored');
-  const state = json(join(ctx.config, '.vesta-setup-codex.json')); const shell = readFileSync(ctx.shell, 'utf8'); assert.ok(shell.includes(state.block)); assert.equal(shell.split('# >>> Vesta managed Codex >>>').length, 2); assert.ok(shell.includes('# unrelated shell preference'));
+  const state = json(join(ctx.config, '.vesta-setup-codex.json')); const shell = readFileSync(ctx.shell, 'utf8'); assert.equal(state.integrationMode, 'hook'); assert.equal(state.block, ''); assert.ok(!shell.includes('# >>> Vesta managed Codex >>>') && !shell.includes('# <<< Vesta managed Codex <<<')); assert.ok(shell.includes('# unrelated shell preference'));
+  assert.ok(Array.isArray(state.nativeHomes) && state.nativeHomes.length === 1); assert.equal(state.nativeHomes[0].nativeCodexHome, realpathSync(ctx.codex)); assert.equal(state.nativeHomes[0].nativePluginId, 'vesta@vesta-local');
   assert.equal(readFileSync(join(ctx.codex, 'hooks.json'), 'utf8'), JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: 'command', command: '/usr/bin/true', timeout: 1 }] }] } }));
 }
 function release(ctx: Context, newer: boolean) {
@@ -117,7 +119,7 @@ try {
   const onlyBefore = snapshot(only, 'unselected-before'); assert.notEqual(run(only, 'repair-unowned-claude', ['repair', '--provider', 'claude']).status, 0); assert.deepEqual(snapshot(only, 'unselected-after'), onlyBefore); cases.push('REPAIR-UNOWNED-SELECTION');
   const inventoryPath = join(only.installation, 'installation.json'); const onlyInventory = readFileSync(inventoryPath, 'utf8'); writeFileSync(inventoryPath, JSON.stringify({ ...JSON.parse(onlyInventory), providers: [] }));
   const emptyInventoryBefore = snapshot(only, 'empty-inventory-before'); assert.notEqual(run(only, 'repair-empty-inventory', ['repair']).status, 0); assert.deepEqual(snapshot(only, 'empty-inventory-after'), emptyInventoryBefore); writeFileSync(inventoryPath, onlyInventory); cases.push('REPAIR-EMPTY-INVENTORY');
-  const edited = readFileSync(only.shell, 'utf8').replace('function codex()', 'function user_edited_codex()'); writeFileSync(only.shell, edited); const editedBefore = snapshot(only, 'edited-before'); assert.notEqual(run(only, 'repair-edited-block', ['repair']).status, 0); assert.deepEqual(snapshot(only, 'edited-after'), editedBefore); cases.push('REPAIR-FOREIGN-SHELL');
+  const edited = readFileSync(only.shell, 'utf8') + '# >>> Vesta managed Codex >>>\nfunction user_edited_codex() { command codex "$@"; }\n# <<< Vesta managed Codex <<<\n'; writeFileSync(only.shell, edited); const editedBefore = snapshot(only, 'edited-before'); assert.notEqual(run(only, 'repair-edited-block', ['repair']).status, 0); assert.deepEqual(snapshot(only, 'edited-after'), editedBefore); cases.push('REPAIR-FOREIGN-SHELL');
   const foreign = context('foreign-native'); success(foreign, 'foreign-initial-setup', args(foreign, 'setup', 'codex', true)); damage(foreign);
   const foreignRoot = join(foreign.directory, 'foreign-marketplace'); mkdirSync(join(foreignRoot, '.agents/plugins'), { recursive: true }); mkdirSync(join(foreignRoot, 'plugin/.codex-plugin'), { recursive: true });
   writeFileSync(join(foreignRoot, '.agents/plugins/marketplace.json'), JSON.stringify({ name: 'vesta-local', plugins: [{ name: 'vesta', source: './plugin' }] })); writeFileSync(join(foreignRoot, 'plugin/.codex-plugin/plugin.json'), JSON.stringify({ name: 'vesta', version: releaseVersion }));
@@ -133,17 +135,12 @@ try {
     assert.equal(setup.status, 0, setup.stderr); assert.ok(!existsSync(join(source.installation, 'installation.json')));
     const file = join(source.config, 'vesta-codex.json'); writeFileSync(file, JSON.stringify({ ...json(file), idleMs: 765432, customPreference: 'source-preserved' }));
     const beforeNative = json(join(source.config, '.vesta-setup-codex.json')).native;
-    if (!selected) {
-      success(source, 'legacy-remove-native-plugin', ['plugin', 'remove', 'vesta@vesta-local', '--json'], join(source.bin, 'codex'));
-      success(source, 'legacy-remove-native-marketplace', ['plugin', 'marketplace', 'remove', 'vesta-local', '--json'], join(source.bin, 'codex'));
-      const statePath = join(source.config, '.vesta-setup-codex.json'); const legacy = json(statePath);
-      for (const field of ['nativePluginId', 'nativeCodexHome', 'nativeMarketplaceRoot', 'nativeMarketplaceOwned', 'nativeHookCommand']) delete legacy[field]; writeFileSync(statePath, JSON.stringify(legacy));
-    }
+    if (!selected) damage(source);
     const poison = join(source.directory, 'new-path-candidate'); mkdirSync(poison); writeFileSync(join(poison, 'codex'), '#!/bin/zsh\nprint -r -- "Unowned PATH candidate must not run" >&2\nexit 97\n'); chmodSync(join(poison, 'codex'), 0o755); source.env.PATH = poison + ':' + source.env.PATH;
     const result = success(source, 'repair-source-only', ['repair', ...(selected ? ['--provider', 'codex', '--config-dir', source.config] : []), '--json']);
     assert.deepEqual(result.repaired, ['codex']); assert.deepEqual(json(join(source.installation, 'installation.json')).providers.map((row: any) => row.provider), ['codex']);
     const state = json(join(source.config, '.vesta-setup-codex.json')); assert.equal(state.native, beforeNative); assert.equal(state.shellFile, source.shell);
-    assert.ok(state.block.includes(source.installation + '/current/app/experiments/codex-autoload.ts'), 'source ownership migrates to retained packaged entrypoint'); assert.equal(json(file).idleMs, 765432); assert.equal(json(file).customPreference, 'source-preserved'); assert.equal(json(file).warm, true);
+    assert.ok(String(state.nativeHomes?.[0]?.nativeHookCommand).includes(source.installation + '/'), 'source hooks migrate to the retained packaged runtime');assert.equal(json(file).idleMs, 765432); assert.equal(json(file).customPreference, 'source-preserved'); assert.equal(json(file).warm, true);
     source.env.PATH = source.env.PATH.slice(poison.length + 1); restored(source);
     assert.ok(!existsSync(join(source.config, '.vesta-setup-claude.json')), 'available unowned Claude never adopted');
   } cases.push('REPAIR-SOURCE-DEFAULT', 'REPAIR-SOURCE-SELECTED');
