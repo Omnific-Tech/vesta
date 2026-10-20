@@ -1,14 +1,15 @@
 // Preimplementation process E2E. Fixture engine invokes actual detached product hooks.
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { appendFileSync, chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { sealEvidence } from '../packaging/e2e-common.ts';
 import { alive, birth, directory, fixtureEnvironment, flags, here, json, lines, namedFiles, productMetadata, runtime, save, seal, second, sleep, statuses, thread, until, verify } from './codex-hook-contract.ts';
 const artifacts = directory('codex-hook-watcher'); const cases: any[] = []; const owned: any[] = []; let failure = '';
 const fixture = join(here, 'codex-hook-watcher-fixture.mjs'); chmodSync(fixture, 0o755);
 const id = () => Math.random().toString(36).slice(2);
-async function engine(folder: string, settings: any = {}, extraEnv: Record<string, string> = {}, integration?: { config: string; statusDir: string }) {
-  mkdirSync(folder, { recursive: true }); const home = join(folder, 'home'); const statusDir = integration?.statusDir ?? join(folder, 'status'); const config = integration?.config ?? join(folder, 'vesta.json');
+async function engine(folder: string, settings: any = {}, extraEnv: Record<string, string> = {}, integration?: { config: string; statusDir: string }, prepare?: (nativeHome: string, folder: string) => void) {
+  mkdirSync(folder, { recursive: true }); const home = join(folder, 'home'); mkdirSync(join(home, 'codex'), { recursive: true }); prepare?.(join(home, 'codex'), folder); const statusDir = integration?.statusDir ?? join(folder, 'status'); const config = integration?.config ?? join(folder, 'vesta.json');
   if (!integration) save(config, { warm: true, paused: false, idleMs: 100, budgetMs: 4000, threshold: 100000, message: 'PRIVATE_KEEPALIVE_SENTINEL', controlRevision: 0, controlChangedAt: 0, statusDir, ...settings });
   const quote = (s: string) => "'" + s.replaceAll("'", "'\\''") + "'";
   const hookCommand = [process.execPath, ...flags, runtime, '--hook', '--config', config, '--native', fixture].map(quote).join(' ');
@@ -37,10 +38,10 @@ async function warmed(row: Engine, after = 0) {
     return submitted && row.states().some(s => s.sessionId === submitted.session && s.state.turnId === submitted.turn && !s.state.busy && s.diagnostics.lastMeasurement?.current && s.nativePid === row.identity.pid && alive({ pid: s.diagnostics.pid, birth: s.diagnostics.birth }));
   }), 'new exact warm turn completed by live watcher');
 }
-async function run(name: string, task: (row: Engine, marks: any[]) => Promise<void>, settings = {}, extraEnv: Record<string, string> = {}) {
+async function run(name: string, task: (row: Engine, marks: any[]) => Promise<void>, settings = {}, extraEnv: Record<string, string> = {}, prepare?: (nativeHome: string, folder: string) => void) {
   const folder = join(artifacts, name); const marks: any[] = []; const scenario = { name, file: name + '/observations.json', failure: '' }; cases.push(scenario);
   let row: Engine | undefined;
-  try { row = await engine(folder, settings, extraEnv); await task(row, marks); }
+  try { row = await engine(folder, settings, extraEnv, undefined, prepare); await task(row, marks); }
   catch (error) { scenario.failure = String(error); }
   finally {
     if (row) {
@@ -65,7 +66,8 @@ try {
   await run('writer-race', async (r, m) => { mkdirSync(r.nativeHome, { recursive: true }); writeFileSync(join(r.nativeHome, 'writer-delay'), '700'); await r.command({ kind: 'submit', session: thread }); await r.worker(); await until(() => lines(join(r.nativeHome, 'initialize.jsonl')).length, 'queue initialize in flight'); await r.command({ kind: 'submit', session: thread, complete: false }); await sleep(1400); await observe(r, m, 'blocked'); });
   await run('foreign-parent', async (r, m) => { const child = spawn(process.execPath, [...flags, runtime, '--hook', '--config', r.config, '--native', fixture], { env: fixtureEnvironment(r.home), stdio: ['pipe', 'ignore', 'ignore'] }); child.stdin.end(JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: thread, turn_id: 'foreign', transcript_path: join(r.nativeHome, 'foreign.jsonl') })); await new Promise(done => child.on('exit', done)); await sleep(1200); assert.deepEqual(r.states(), [], 'unverified native ancestor has no observer'); await observe(r, m, 'blocked'); });
   await run('shared-transcript', async (r, m) => {
-    const shared = join(r.nativeHome, 'sessions'); const peer = await engine(join(r.folder, 'peer'), {}, { FIXTURE_TRANSCRIPT_ROOT: shared }, { config: r.config, statusDir: r.statusDir });
+    // The peer account home links its `sessions` to the shared canonical tree, exactly like xswap --share-history.
+    const shared = join(r.nativeHome, 'sessions'); mkdirSync(shared, { recursive: true }); const peer = await engine(join(r.folder, 'peer'), {}, { FIXTURE_TRANSCRIPT_ROOT: shared }, { config: r.config, statusDir: r.statusDir }, nativeHome => symlinkSync(shared, join(nativeHome, 'sessions')));
     try {
       const firstTurn = await r.command({ kind: 'submit', session: thread, complete: false }); const peerTurn = await peer.command({ kind: 'submit', session: thread, complete: false });
       await r.worker(); await peer.worker();
@@ -99,12 +101,29 @@ try {
   await run('project-readiness', async (r, m) => {
     const project = join(r.folder, 'workspace'); mkdirSync(project, { recursive: true }); mkdirSync(r.nativeHome, { recursive: true }); writeFileSync(join(r.nativeHome, 'required-cwd'), project); await r.command({ kind: 'submit', session: thread }); await r.worker(); await warmed(r); const mark = await observe(r, m, 'warmed'); mark.requiredCwd = project;
   }, {}, { FIXTURE_CWD: join(artifacts, 'project-readiness', 'workspace') });
+  // Transcript containment (xswap --share-history layout): the account home's `sessions` is a link to a shared tree. Reported through the link,
+  // a transcript is accepted only because its resolved path stays inside the home's resolved sessions tree, and claims use the resolved path.
+  const claimRows = (r: Engine) => { const dir = join(r.statusDir, 'hook-transcript-claims'); return existsSync(dir) ? readdirSync(dir).filter(n => n.endsWith('.json')).map(n => json(join(dir, n))) : []; };
+  const layout = (name: string) => join(artifacts, name, 'home', 'codex');
+  await run('transcript-symlinked-sessions', async (r, m) => {
+    await r.command({ kind: 'submit', session: thread }); await r.worker(); await warmed(r); const mark = await observe(r, m, 'warmed'); mark.claims = claimRows(r); mark.sharedReal = realpathSync(join(r.folder, 'shared-sessions')); mark.reportedRoot = join(r.nativeHome, 'sessions');
+  }, {}, {}, (nativeHome, folder) => { mkdirSync(join(folder, 'shared-sessions'), { recursive: true }); symlinkSync(join(folder, 'shared-sessions'), join(nativeHome, 'sessions')); });
+  await run('transcript-escape', async (r, m) => {
+    await r.command({ kind: 'submit', session: thread }); await sleep(1600); const mark = await observe(r, m, 'blocked'); mark.claims = claimRows(r); mark.outside = join(r.folder, 'outside'); mark.outsideExists = existsSync(join(r.folder, 'outside', thread + '.jsonl'));
+  }, {}, { FIXTURE_TRANSCRIPT_ROOT: join(layout('transcript-escape'), 'sessions', 'escape') }, (nativeHome, folder) => { mkdirSync(join(nativeHome, 'sessions'), { recursive: true }); mkdirSync(join(folder, 'outside'), { recursive: true }); symlinkSync(join(folder, 'outside'), join(nativeHome, 'sessions', 'escape')); });
+  await run('transcript-final-symlink', async (r, m) => {
+    await r.command({ kind: 'submit', session: thread }); await sleep(1600); const mark = await observe(r, m, 'blocked'); mark.claims = claimRows(r); mark.finalLink = join(r.nativeHome, 'sessions', thread + '.jsonl');
+  }, {}, {}, nativeHome => { mkdirSync(join(nativeHome, 'sessions', 'real'), { recursive: true }); symlinkSync(join(nativeHome, 'sessions', 'real', thread + '.jsonl'), join(nativeHome, 'sessions', thread + '.jsonl')); });
+  await run('transcript-foreign-owner', async (r, m) => {
+    await r.command({ kind: 'submit', session: thread }); await sleep(1600); const mark = await observe(r, m, 'blocked'); mark.claims = claimRows(r);
+  }, {}, { NODE_OPTIONS: '--import=' + join(here, 'codex-hook-watcher-uid-fault.mjs') });
   failure = cases.filter(c => c.failure).map(c => c.name + ': ' + c.failure).join('; ');
 } catch (error) { failure = String(error); }
 finally {
   for (const row of owned) if (alive(row)) { try { process.kill(row.pid, 'SIGTERM'); } catch {} }
   await sleep(250);
   const cleanup = owned.map(row => ({ ...row, remaining: alive(row) }));
+  sealEvidence(artifacts); // operational symlinks (transcript layout fixtures) are recorded in operational-symlinks.json and removed
   seal(artifacts, { schema: 1, kind: 'synthetic', failure, cases, cleanup });
 }
 console.log(JSON.stringify(verify(artifacts)));

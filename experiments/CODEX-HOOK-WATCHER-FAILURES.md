@@ -57,6 +57,10 @@ the six hook payloads. No explicit detach feature is required by initial scope.
 | Concurrent or duplicate first hooks | One effective producer, one exact queue submission | synthetic identity |
 | Parallel hook process bootstrap | Four genuinely concurrent SessionStart hook processes leave one actual observer and one initial queue | synthetic concurrent-first |
 | Multiple threads or account homes | Exact thread isolation; canonical transcript shared across homes cannot produce twice | synthetic identity/shared-transcript; home-alias extension before migration |
+| Transcript reported through a directory symlink (xswap `--share-history` links the account home's `sessions` to a shared tree) | Accepted only when the resolved path is inside the resolved `sessions`/`archived_sessions` of the hook's verified home; session binds and warms; claim and digest use the resolved path so two homes coincide | synthetic transcript-symlinked-sessions, shared-transcript (peer uses the linked layout), native Pulse switch E2E |
+| Transcript path escapes the home's resolved sessions tree (a subdirectory link pointing outside) | Fail closed: no claim, no activity, no queue | synthetic transcript-escape |
+| Reported transcript final component is a symlink | Fail closed even if the target is inside sessions | synthetic transcript-final-symlink |
+| Transcript file owned by another uid | Fail closed (uid shifted by a fixture preload because a non-root test cannot create foreign-owned files; the product's own uid gate must reject) | synthetic transcript-foreign-owner |
 | Native PID death/reuse or stale ownership | Stop warming; never signal native or unrelated process | synthetic worker-death; PID-reuse extension before migration |
 | Watcher TERM/KILL | Native remains alive; no dangling queue child; fresh hooks can bootstrap safely | synthetic worker-death |
 | Missing/delayed transcript/client ID | Busy immediately; no activity renewal or dispatch until binding | synthetic busy; delayed-binding extension |

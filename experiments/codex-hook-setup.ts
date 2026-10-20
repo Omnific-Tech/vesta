@@ -27,7 +27,7 @@ export function legacyShell(state: any, shell: string) {
 export async function preflightHookSetup(native: string, state: any, shell: string, operation: string, selectedHome = currentNativeHome()) {
   legacyShell(state, shell); const homes = ownedNativeHomes(state);
   for (const row of homes) { if (!existsSync(row.nativeCodexHome)) throw new Error('Recorded owned native home unavailable; refusing partial registration changes'); await codexRegistration(native, row, row.nativeCodexHome); }
-  if (operation === 'install' && !homes.some(row => row.nativeCodexHome === selectedHome)) await codexRegistration(native, null, selectedHome);
+  if (operation === 'install' && !homes.some(row => row.nativeCodexHome === selectedHome)) await codexRegistration(native, null, selectedHome, homes);
   return homes;
 }
 export async function hookSetupStatus(configDir: string, native: string, state: any, cwd = process.cwd()) {
@@ -42,7 +42,8 @@ export async function hookSetupStatus(configDir: string, native: string, state: 
       ready = effective.config.features?.hooks !== false && effective.config.features?.plugins !== false && ['sessionStart', 'sessionEnd', 'userPromptSubmit', 'stop', 'interrupt', 'postCompact'].every(event => hooks.some((h: any) => h.eventName === event)) && hooks.every((h: any) => h.enabled && h.trustStatus === 'trusted' && (!entry?.nativeHookCommand || h.command === entry.nativeHookCommand));
       if (ready) reason = '';
     } catch {}
-    rows.push({ nativeHome: home, registered, owned: !!entry, warmEnabled: controls.warm && !controls.paused && ready, ready, reason });
+    // `inherited`: native lists the Vesta hooks for this home (shared config.toml or its own plugin cache) but this installation has no state row for it.
+    rows.push({ nativeHome: home, registered, owned: !!entry, inherited: registered && !entry, warmEnabled: controls.warm && !controls.paused && ready, ready, reason });
   }
   const currentRow = rows.find(row => row.nativeHome === current)!;
   return { integrationMode: 'hook', currentNativeHome: current, registeredHomes: rows, installed: !!state && owned.length > 0, warmConfigured: controls.warm, warmEnabled: currentRow.warmEnabled,
@@ -70,7 +71,7 @@ async function mutateHookSetup(options: SetupOptions) {
   for (const path of [statePath, configPath, ...(migration.removed ? [shell] : []), ...homes.map(row => join(row.nativeCodexHome, 'config.toml')), ...(operation === 'install' ? [join(selectedHome, 'config.toml')] : [])]) snapshots.set(path, existsSync(path) ? readFileSync(path) : null);
   const targets = operation === 'uninstall' || options.ownedOnly ? homes : [homes.find(row => row.nativeCodexHome === selectedHome) ?? { nativeCodexHome: selectedHome }];
   const registrySnapshots: any[] = []; const changed: any[] = [];
-  for (const row of targets) registrySnapshots.push({ before: await codexRegistration(native, row.nativePluginId ? row : null, row.nativeCodexHome), state: row });
+  for (const row of targets) registrySnapshots.push({ before: await codexRegistration(native, row.nativePluginId ? row : null, row.nativeCodexHome, homes), state: row });
   let removedShell = false; const expected = new Map<string, string | null>();
   const content = (path: string) => existsSync(path) ? readFileSync(path, 'utf8') : null;
   const unrelatedNative = (text: string | null) => (text ?? '').replace(/^\[(?:plugins\."?vesta@vesta-local"?|marketplaces\."?vesta-local"?)\][\s\S]*?(?=^\[|$(?![\s\S]))/gm, '').trim();
@@ -79,7 +80,7 @@ async function mutateHookSetup(options: SetupOptions) {
     if (operation === 'install') {
       nativeIdentity(native);
       for (const target of targets) {
-        const registration = await installNativeCodex(native, configDir, node, target.nativePluginId ? target : null, configPath, target.nativeCodexHome);
+        const registration = await installNativeCodex(native, configDir, node, target.nativePluginId ? target : null, configPath, target.nativeCodexHome, homes);
         if (!registration) continue;
         const row = { ...registration, nativeCodexHome: target.nativeCodexHome }; changed.push(row); const index = nextHomes.findIndex(h => h.nativeCodexHome === row.nativeCodexHome); if (index < 0) nextHomes.push(row); else nextHomes[index] = row;
       }

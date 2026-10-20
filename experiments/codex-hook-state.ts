@@ -57,11 +57,16 @@ export function envelope(raw: any, engine: { pid: number; birth: string }, at: n
   return { schema: 1, at, nativePid: engine.pid, nativeBirth: engine.birth, input: { hook_event_name: raw.hook_event_name, session_id: raw.session_id,
     transcript_path: raw.transcript_path, ...(raw.turn_id ? { turn_id: raw.turn_id } : {}), ...(text(raw.cwd, 4096) ? { cwd: raw.cwd } : {}), ...(text(raw.source, 32) ? { source: raw.source } : {}) } };
 }
-export function transcript(path: string, session: string, turn: string) {
-  if (!isAbsolute(path) || realpathSync(path) !== resolve(path)) throw new Error('unsafe transcript path');
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+// A transcript may be reported through directory symlinks (xswap --share-history links the account home's `sessions`), but only when its
+// resolved location stays inside the resolved sessions/archived_sessions tree of the hook's verified native home. The reported final
+// component must not be a link; the resolved final component is opened with O_NOFOLLOW and must be this uid's regular file.
+export function transcript(path: string, session: string, turn: string, home: string) {
+  if (!isAbsolute(path) || lstatSync(path).isSymbolicLink()) throw new Error('unsafe transcript path');
+  const real = realpathSync(path); const roots = ['sessions', 'archived_sessions'].flatMap(name => { try { return [realpathSync(join(home, name))]; } catch { return []; } });
+  if (!roots.some(root => real.startsWith(root + '/'))) throw new Error('transcript outside native sessions');
+  const fd = openSync(real, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
-    const st = fstatSync(fd); if (!st.isFile() || process.getuid && st.uid !== process.getuid()) throw new Error('unsafe transcript');
+    const st = fstatSync(fd); const named = lstatSync(real); if (!st.isFile() || named.isSymbolicLink() || st.ino !== named.ino || st.dev !== named.dev || process.getuid && st.uid !== process.getuid()) throw new Error('unsafe transcript');
     const head = Buffer.alloc(Math.min(st.size, 65536)); readSync(fd, head, 0, head.length, 0);
     const header = head.toString().split('\n').slice(0, -1).map(line => JSON.parse(line)).find(row => row.type === 'session_meta');
     if (header?.payload?.id !== session) throw new Error('native transcript session mismatch');
@@ -79,7 +84,7 @@ export function transcript(path: string, session: string, turn: string) {
     const complete = interval.findLast(row => row.type === 'event_msg' && ['task_complete', 'turn_complete'].includes(row.payload?.type) && row.payload.turn_id === turn);
     const tokens = metric?.payload.info.last_token_usage.input_tokens;
     const fresh = final && metric && complete && !complete.payload.error && Date.parse(metric.timestamp) >= Date.parse(final.timestamp) && Date.parse(complete.timestamp) >= Date.parse(metric.timestamp) && Number.isSafeInteger(tokens) && tokens >= 0;
-    return { path: realpathSync(path), clientId: submission?.payload.item.client_id, order: positions[start], complete: !!fresh,
+    return { path: real, clientId: submission?.payload.item.client_id, order: positions[start], complete: !!fresh,
       completedAt: complete ? Date.parse(complete.timestamp) : undefined, raw: fresh ? { tokenUsage: { last: { inputTokens: tokens } } } : null };
   } finally { closeSync(fd); }
 }

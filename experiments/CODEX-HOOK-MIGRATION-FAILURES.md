@@ -53,6 +53,9 @@ Preserve the recorded launcher and native notify/cwd/argv/account behavior.
 | Queue/client/token claim is fabricated | Replay actual product journal/ledger, native rollout and localhost requests |
 | Notify/auth/instruction mutation | Fixture bytes retained, no auth file, original notify argv preserved |
 | Live evidence symlink | Seal operational links as metadata only after assertions and fixture cleanup |
+| Second account home that shares `config.toml` (xswap managed homes) cannot be installed: the first home's marketplace looks foreign | A home with no state row adopts the marketplace/plugin only when the native source equals the `nativeMarketplaceRoot` of a home already recorded in this Vesta state and that catalog validates; second install succeeds, adds the marketplace zero further times, never replaces the linked `config.toml`, leaves the first home's row byte-identical, and uninstall removes every owned registration (case shared-config-second-home) |
+| Adoption becomes a way to accept a foreign marketplace | A marketplace source that matches no recorded owned root, or a recorded root whose catalog no longer validates, is still `Foreign native Codex Vesta marketplace ownership`, rejected before any mutation (case shared-config-foreign-marketplace) |
+| Status calls a config-sharing home owned | Status rows carry `inherited` = hooks listed by native without a state row; `owned` is true only for homes with their own state row (case shared-config-second-home) |
 
 `codex-hook-migration-e2e.ts` exercises source and relocated compiled metadata,
 ownership and rollback cases. `codex-hook-tui-e2e.ts` exercises the compiled retained

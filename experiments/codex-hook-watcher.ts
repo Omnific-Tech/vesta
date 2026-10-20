@@ -123,7 +123,7 @@ async function observe() {
     for (const s of slots.values()) {
       if (s.ended) continue;
       if (s.pending) {
-        const p = s.pending; const bound = transcript(s.path, s.session, p.input.turn_id);
+        const p = s.pending; const bound = transcript(s.path, s.session, p.input.turn_id, home);
         if (bound?.clientId) {
           if (!safeId(bound.clientId)) throw new Error('invalid native client identity');
           if (s.seen.size >= 1024) throw new Error('native turn observation bound exceeded');
@@ -138,7 +138,7 @@ async function observe() {
         } else if (Date.now() >= p.deadline) { s.pending = undefined; invalidate(s, 'submission-unresolved'); }
       }
       if (s.stop && !s.pending && s.watcher.state.busy) {
-        const bound = transcript(s.path, s.session, s.stop.turn);
+        const bound = transcript(s.path, s.session, s.stop.turn, home);
         if (bound?.complete && bound.clientId && bound.order === s.lastOrder) {
           event(s, 'turn-complete', { sessionId: s.session, turnId: s.stop.turn, raw: bound.raw }); s.stop = undefined;
         }
