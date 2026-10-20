@@ -106,7 +106,8 @@ try {
     }
     release(ctx, name);
     if (['missing-owned-provider', 'explicit-missing-provider'].includes(name)) rmSync(join(ctx.bin, 'claude'));
-    if (name === 'edited-shell-conflict') writeFileSync(ctx.shell, readFileSync(ctx.shell, 'utf8').replace('# >>> Vesta managed Codex >>>', '# >>> Vesta managed Codex >>>\n# user modification'));
+    // Hook installs own no shell block: plant a user-edited legacy block the update must refuse to remove.
+    if (name === 'edited-shell-conflict') writeFileSync(ctx.shell, readFileSync(ctx.shell, 'utf8') + '\n# >>> Vesta managed Codex >>>\n# user modification\n# <<< Vesta managed Codex <<<\n');
     if (name === 'symlink-version-root') {
       const outside = join(ctx.directory, 'outside'); mkdirSync(outside); writeFileSync(join(outside, 'sentinel'), 'unchanged outside owned root');
       symlinkSync(outside, join(ctx.installation, 'versions', nextReleaseVersion));
