@@ -27,7 +27,8 @@ const status = () => ({ ...watcher.state, ...config, pluginId: 'vesta@vesta-loca
   warmConfigured: config.warm, warmEnabled: config.warm && !config.paused && !configError && nativeEnabled,
   warmingSuspendedReason: configError || (config.paused ? 'Vesta warming is paused.' : !nativeEnabled ? 'Native Vesta plugin is disabled.' : ''),
   minimumRuntimeVersion: '0.2.6', lastAction, resetReason, turnSource,
-  controlSignature: signature, consent: watcher.consentState(), configurationUnavailable: !!configError, transcriptPath, warmTurnIds: [...warmTurns],
+  // Structured, not a nested JSON string: Claude's markdown display strips its escapes from /vesta-status.
+  controlSignature: signature ? JSON.parse(signature) : null, consent: watcher.consentState(), configurationUnavailable: !!configError, transcriptPath, warmTurnIds: [...warmTurns],
   ...(userTurn && watcher.activeTurnEligible() ? { activeTurn: userTurn, ...(userTurn.source === 'user' ? { activeUserTurn: userTurn } : {}) } : {}),
   ...(warmPending !== undefined ? { committedMessage: warmPending } : {}) });
 const persist = async ($, target = watcher, id = sessionId) => {
@@ -126,7 +127,7 @@ const ensure = async $ => {
       errorAt = now;
       await event($, 'control', { config, enabled: config.warm && !config.paused && nativeEnabled, changedAt: now }, owner, ownerSession);
     }
-    if (continuity && old.controlSignature === signature && !configError) watcher.restoreConsent(old.consent);
+    if (continuity && old.controlSignature != null && JSON.stringify(old.controlSignature) === signature && !configError) watcher.restoreConsent(old.consent);
     const provenance = old?.activeTurn ?? old?.activeUserTurn;
     if (continuity && watcher.state.busy && ['user', 'other', 'warm'].includes(provenance?.source) && provenance.sessionId === id && provenance.turnId === watcher.state.turnId
         && Number.isSafeInteger(provenance.submittedAt) && provenance.submittedAt >= Math.max(config.controlChangedAt, errorAt) && provenance.submittedAt <= now
