@@ -1,5 +1,23 @@
 # Codex hook watcher: preimplementation contract
 
+## Turn-agnostic cache clocks (contract before implementation)
+
+- Interrupt/PostCompact/SessionStart-resume invalidates old usage only; the
+  next owned successful completion of any origin can qualify. A completion
+  immediately following compaction/reconnect must not remain generation-stale.
+- Post-compact latest input <=100000 blocks warming; >100000 qualifies. Keep
+  persisted successful task_complete, exact turn binding and fresh last-turn
+  input usage checks; Stop or cumulative/output metrics alone never qualifies.
+- Foreign threads and subagent/separate transcripts cannot update the owned
+  completion clock or measurement. Busy turns still block dispatch.
+- Every owned completion, including a ledger-attributed Vesta keepalive,
+  restarts idle. Only non-Vesta prompts renew the four-hour inactivity budget;
+  recovered/replayed Vesta submissions never do. Budget expiry stops warming.
+- Controls/config changes and trust recovery still require fresh user
+  prompt+reply consent; context lifecycle changes alone do not add that barrier.
+- Extend process E2E and sealed replay assertions before implementation; retain
+  observed statuses, hook receipts, queues and durable attribution evidence.
+
 This inventory and its executable contracts precede product implementation.
 No installation, publication, version bump or personal account mutation is part
 of these contracts. Existing wrapper contracts remain unchanged.
@@ -86,6 +104,21 @@ Rows labeled extension are explicit remaining acceptance work, not claimed
 coverage. Initial runtime contract lock must decide which extensions are required
 before implementation. Full task completion cannot be claimed from these first
 drivers alone.
+
+## Concurrent hook ingress (found by the native controls suite)
+
+Hooks from different threads of one backend run as separate processes at the same
+instant (for example simultaneous prompts). Ingress serialises on a lock file in the
+engine folder. Failure: a hook that finds the lock held reads the holder metadata
+before the holder has written it (the holder computes its birth, a `ps` spawn, after
+creating the file), treats the empty/unparseable file as corruption, and silently
+drops its event. A dropped `UserPromptSubmit` leaves the thread unobserved: no
+`turn-start`, stale `userAt`, no fresh eligibility. Contract: every concurrently
+delivered hook is journaled exactly once; an incomplete holder record is waited on
+(bounded), never fatal; a record that stays incomplete past a stale bound is
+reclaimed. Executable check: `concurrent-first` requires all four concurrent
+`SessionStart` packets in the journal, and the native controls suite fires three
+real Codex prompts at once.
 
 ## Execution and artifacts
 

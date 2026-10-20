@@ -27,11 +27,16 @@ async function ingress() {
   const packet = envelope(JSON.parse(raw), engine, Date.now()); const statusDir = directory(resolve(config.statusDir));
   const engineKey = digest(nativeHome + '\n' + engine.pid + '\n' + engine.birth); const folder = directory(join(directory(join(statusDir, 'hook-engines')), engineKey));
   const lock = join(folder, 'ingress.lock'); let fd: number | undefined;
+  // Identity is computed before the lock exists: a holder must never publish an empty record while spawning ps.
+  const record = JSON.stringify({ pid: process.pid, birth: birth(process.pid) });
   for (let attempt = 0; attempt < 70; attempt++) {
-    try { fd = openSync(lock, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600); writeFileSync(fd, JSON.stringify({ pid: process.pid, birth: birth(process.pid) })); break; }
+    try { fd = openSync(lock, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600); writeFileSync(fd, record); break; }
     catch (error: any) {
       if (error.code !== 'EEXIST') throw error;
-      const holder = json(lock); if (!holder.pid || !holder.birth) throw new Error('unknown ingress lock'); if (!alive(holder)) rmSync(lock); else await sleep(20);
+      let holder: any; try { holder = json(lock); } catch { holder = undefined; }
+      // An incomplete record is a holder between create and write: wait, and reclaim only when it stays incomplete.
+      if (!holder) { let age = 0; try { age = Date.now() - lstatSync(lock).mtimeMs; } catch { /* released meanwhile */ } if (age > 5000) rmSync(lock, { force: true }); else await sleep(20); continue; }
+      if (!holder.pid || !holder.birth) throw new Error('unknown ingress lock'); if (!alive(holder)) rmSync(lock); else await sleep(20);
     }
   }
   if (fd === undefined) return;
@@ -64,7 +69,7 @@ async function observe() {
   }
   const event = (s: Slot, type: string, extra: any = {}) => {
     const result = s.watcher.event({ at: Date.now(), type, ...extra });
-    if (['turn-start', 'control', 'reconnect', 'exit'].includes(type)) s.diagnostics.invalidate();
+    if (['turn-start', 'control', 'reconnect', 'interrupt', 'exit'].includes(type)) s.diagnostics.invalidate();
     if (type === 'turn-complete' && result.reason === 'completed response') s.diagnostics.measure(s.watcher.state, result.at);
     return result;
   };
@@ -76,6 +81,16 @@ async function observe() {
     if (!s) {
       if (slots.size >= 64) throw new Error('native thread observation bound exceeded');
       const ownerId = 'hook-' + digest(engineKey + '\n' + session); s = { session, ownerId, path, cwd: project, watcher: new Watcher('codex', { ...live, paused: live.paused || !live.warm || controlError, controlChangedAt: Math.max(live.controlChangedAt, errorAt) }), diagnostics: new NativeDiagnostics(identity), seen: new Set(), lastOrder: -1, ended: false, preparing: false, ready: false, readinessKnown: false, readinessAt: 0 };
+      const statusPath = join(statusDir, ownerId, 'codex-native-status.json');
+      if (existsSync(statusPath)) {
+        const old = json(statusPath); const timestamp = (at: any) => at === null || Number.isSafeInteger(at) && at >= 0 && at <= Date.now();
+        if (old.integrationMode === 'hook' && old.sessionId === session && old.nativePid === engine.pid && old.nativeBirth === engine.birth && old.nativeHome === home
+            && timestamp(old.state?.userAt) && timestamp(old.state?.warmAt)) {
+          s.watcher.state.userAt = old.state.userAt; s.watcher.state.warmAt = old.state.warmAt;
+          if (old.controlSignature === digest(signature) && !controlError && live.warm && !live.paused) s.watcher.restoreConsent(old.consent);
+          if (old.configurationUnavailable && !controlError) event(s, 'control', { config: live, enabled: live.warm && !live.paused, changedAt: Date.now() });
+        }
+      }
       slots.set(session, s);
     }
     if (s.cwd !== project) { s.cwd = project; s.ready = false; s.readinessKnown = false; s.readinessAt = 0; invalidate(s); }
@@ -105,6 +120,10 @@ async function observe() {
       if (packet.schema !== 1 || packet.nativePid !== engine.pid || packet.nativeBirth !== engine.birth || !Number.isSafeInteger(packet.at) || packet.at > Date.now()) throw new Error('native envelope identity mismatch');
       const sanitized = envelope(packet.input, engine, packet.at); if (JSON.stringify(packet) !== JSON.stringify(sanitized)) throw new Error('unsafe native envelope fields');
       const row = packet.input;
+      // A separate agent transcript is outside this thread's established owner
+      // binding. Ignore it before lifecycle, clocks or pending turn mutation.
+      const existing = slots.get(row.session_id);
+      if (existing && existing.path !== row.transcript_path) continue;
       if (row.hook_event_name === 'SessionStart' && slots.get(row.session_id)?.ended) slots.delete(row.session_id);
       const s = slot(row.session_id, row.transcript_path, row.cwd);
       if (row.hook_event_name === 'SessionStart') { if (!s.ended && !s.watcher.state.turnId) continue; invalidate(s); }
@@ -115,7 +134,8 @@ async function observe() {
         event(s, 'turn-start', { sessionId: s.session, turnId: row.turn_id, source: 'other' });
       } else if (!s.ended && row.hook_event_name === 'Stop') {
         if (row.turn_id === s.watcher.state.turnId) s.stop = { turn: row.turn_id };
-      } else if (!s.ended && ['Interrupt', 'PostCompact'].includes(row.hook_event_name)) { s.pending = undefined; invalidate(s); }
+      } else if (!s.ended && row.hook_event_name === 'Interrupt') { s.pending = undefined; s.stop = undefined; event(s, 'interrupt'); s.diagnostics.freshRequired = true; }
+      else if (!s.ended && row.hook_event_name === 'PostCompact') invalidate(s);
     }
     offset = Buffer.byteLength(text);
   }
@@ -151,7 +171,7 @@ async function observe() {
     const path = join(directory(join(statusDir, s.ownerId)), 'codex-native-status.json');
     atomic(path, { integrationMode: 'hook', ownerId: s.ownerId, sessionId: s.session, nativePid: engine.pid, nativeBirth: engine.birth, nativeHome: home,
       warmConfigured: live.warm, warmEnabled: enabled, warming: enabled, warmingSuspendedReason: closing || s.ended ? 'owner-ended' : failed ? 'observer-failed' : !s.ready ? 'hooks-unavailable' : controlError ? 'configuration-unavailable' : live.paused ? 'warming-paused' : !live.warm ? 'warming-disabled' : conflict ? 'lease-conflict' : '',
-      idleMs: live.idleMs, budgetMs: live.budgetMs, threshold: live.threshold, state, diagnostics: s.diagnostics.snapshot(state, live.idleMs, s.session) });
+      idleMs: live.idleMs, budgetMs: live.budgetMs, threshold: live.threshold, controlSignature: digest(signature), configurationUnavailable: controlError, consent: s.watcher.consentState(), state, diagnostics: s.diagnostics.snapshot(state, live.idleMs, s.session) });
   }
   function refresh() {
     controls(); ingest(); bind(); for (const s of slots.values()) snapshot(s);

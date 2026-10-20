@@ -1,5 +1,25 @@
 # Claude fixture profile integrity contract
 
+## Turn-agnostic cache clocks (contract before implementation)
+
+- Manual compaction then an isMeta/background turn with input >100000 must
+  warm after its completion-based idle interval; source `other` cannot strand
+  tokens at null. Equality/below-threshold latest completions must not warm.
+- Resume/reconnect/attach/detach/module reload invalidates old usage only. The
+  next owned completion, including an already active non-user turn, supplies
+  fresh usage without another user prompt.
+- Controls/config recovery remains a consent barrier: require a fresh user
+  prompt and its reply, including across reload; meta/Vesta turns cannot clear it.
+- Sidechain/subagent/separate-transcript/foreign-session turns must change
+  neither the owned idle timer, measurement nor budget.
+- Every owned completion, including Vesta, restarts idle and replaces input
+  usage (input + cache read + cache creation); busy turns block dispatch.
+- Non-Vesta prompts, including meta prompts, renew the four-hour budget. Vesta
+  prompts never do, including recovered/replayed committed submissions. Budget
+  expiry stops warming even while keepalives continue completing.
+- Preserve pending/dispatch cancellation and stale-turn guards. Extend the
+  actual-register.ts host fixture with retained event/status/submission evidence.
+
 The native production proof completed its actual Claude marker exchange but
 failed the personal profile byte-hash check. Native backups exactly matched the
 before and after hashes. Their redacted comparison found only `usageCount` and

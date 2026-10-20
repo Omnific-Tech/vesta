@@ -63,7 +63,7 @@ exposes:
 | --- | --- | --- |
 | `warm` | `false` | Explicit opt-in to submit eligible keepalives |
 | `idle_ms` | `3000000` | 50-minute idle interval |
-| `budget_ms` | `14400000` | Four-hour maximum since verified user activity |
+| `budget_ms` | `14400000` | Four-hour maximum since non-Vesta activity |
 | `paused` | `false` | Persistent pause across Claude owners |
 | `threshold` | `100000` | Input must be strictly greater than this value |
 | `message` | `VESTA_CACHE_KEEPALIVE` | Exact keepalive body |
@@ -89,7 +89,8 @@ the running session loads the intended plugin runtime.
 
 1. Native middleware observes session and turn events. A completed turn qualifies
    only when its reason is `answer`; Vesta then reads `$.session.usage()` and uses
-   `context.tokens` for that current context.
+   `context.tokens` for that current context (input + cache read + cache creation).
+   User prompts, system/meta-injected prompts and Vesta keepalives all qualify.
 2. A one-second native polling timer checks eligibility. The session must
    be idle, within its activity budget, and have a fresh qualifying measurement.
 3. Vesta reserves a submission, yields, then checks the reservation again before
@@ -101,28 +102,36 @@ the running session loads the intended plugin runtime.
    four-hour user inactivity budget.
 
 Cached input is included once in the native context measurement. Output tokens
-and cumulative conversation usage do not establish eligibility. Clear, resume,
-branch, compaction, attach/detach and plugin reload invalidate eligibility or
-replace the watcher; saved status never restores stale token eligibility.
+and cumulative conversation usage do not establish eligibility. The latest
+completed owned request replaces the measurement and starts the idle interval,
+whatever its origin. Compaction, resume, attach/detach and plugin reload invalidate
+the old measurement only: the next owned completion can qualify without another
+user prompt. Sidechain/subagent turns and other sessions do not update these clocks.
+Clear and branch can replace the owner; saved status never restores stale tokens.
 Session end cancels its timer.
 
 Native settings changes may reload the plugin automatically. A reload in the
-same nonended session preserves validated user/warm timestamps and an active
+same live session preserves validated user/warm timestamps and an active
 turn's binding, so configuration does not erase or renew the inactivity budget.
 It also retains attribution for an already committed configured marker. Tokens
-and pending reservations are never restored. A still-active verified user turn
-started after the current control change may carry its submission time, turn
-binding and matching configuration through reload; only its actual subsequent
-completion can supply a fresh metric. Pre-change turns and warm turns cannot
-regain eligibility this way. New or ended sessions do not inherit that metadata.
+and pending reservations are never restored. A still-active eligible turn of any
+origin can carry its binding and matching configuration through reload; only its
+actual subsequent completion can supply a fresh metric. A controls/config change
+still requires a fresh user prompt and reply. Meta and Vesta turns cannot clear
+that consent barrier. Explicitly reopening the same saved conversation preserves
+its validated clocks and controls consent, but requires a new completion for
+usage. A different session does not inherit that metadata.
 
 ## What counts as activity
 
-Claude's policy differs from Codex's submitted-prompt clock. `prompt.edit`
-renews Claude's user activity time, as do `command.run` and `prompt.submit`
+Claude retains its editing activity observations: `prompt.edit`
+renews Claude's activity budget, as do `command.run` and `prompt.submit`
 events whose origin is `composer` or `bridge`. That includes a user invoking
-`/vesta-status` from the composer. Activity cancels a pending reservation and
-delays the idle deadline. A plugin-generated keepalive does not renew the budget.
+`/vesta-status` from the composer. Other non-Vesta prompts, including system/meta
+notifications, also renew the budget. Activity cancels a pending reservation;
+the idle interval is measured from the latest owned completion. A Vesta keepalive
+restarts idle when it completes but never renews the budget, including after
+replay or recovery. Warming stops after four hours without non-Vesta activity.
 
 A busy turn cannot receive a new ping. User activity observed before dispatch can
 cancel the reservation. Once native submission is committed, removal is not
@@ -143,9 +152,10 @@ enabled warming, pause, effective values/revision and suspension reason. Restart
 once when upgrading an older runtime; subsequent controls apply live. Send a
 normal message.
 Wait until its completed answer supplies a fresh measurement above the threshold.
-An old measurement from before resume, compaction or reload is insufficient.
-Check that subsequent edits or commands have not restarted the idle interval,
-and that four hours of inactivity have not expired.
+An old measurement from before resume, compaction or reload is insufficient;
+the next owned completion of any origin supplies the new one. After a controls
+change, use a fresh user prompt and reply. Check for a busy turn and that four
+hours without non-Vesta activity have not expired.
 
 Source: [native middleware and timer](../experiments/vesta-claude/hooks/register.ts),
 [eligibility policy](../experiments/vesta-claude/hooks/policy.ts), and

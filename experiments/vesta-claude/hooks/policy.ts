@@ -40,6 +40,11 @@ export class Watcher {
   private freshAfter = 0;
   private warmingAllowed = true;
   activeTurnEligible() { return this.state.busy && this.activeGeneration === this.state.generation; }
+  consentState() { return { freshRequired: this.freshRequired, freshAfter: this.freshAfter }; }
+  restoreConsent(value: any) {
+    if (typeof value?.freshRequired !== 'boolean' || !Number.isSafeInteger(value.freshAfter) || value.freshAfter < this.freshAfter) return;
+    this.freshRequired = value.freshRequired; this.freshAfter = value.freshAfter;
+  }
   constructor(provider: string, config: any = {}, mode = 'normal') {
     if (!['claude', 'codex'].includes(provider)) throw new Error('provider must be claude or codex');
     if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('invalid configuration');
@@ -81,11 +86,14 @@ export class Watcher {
       s.userAt = e.at; s.pending = false;
       return result(pending ? 'cancel' : 'observe', 'user activity');
     }
-    if (['compact', 'reconnect', 'turn-start'].includes(e.type)) {
+    if (['compact', 'reconnect', 'interrupt', 'turn-start'].includes(e.type)) {
       if (e.type === 'turn-start' && (!e.sessionId || !e.turnId)) return result('skip', 'missing owner binding');
       const pending = s.pending;
+      const active = this.activeTurnEligible();
       s.pending = false; s.tokens = null; s.generation += 1; this.invalidatedAt = e.at;
       this.completedGeneration = -1; this.activeGeneration = -1;
+      if (e.type === 'interrupt') s.busy = false;
+      else if (e.type !== 'turn-start' && active && !this.freshRequired && this.warmingAllowed) this.activeGeneration = s.generation;
       if (e.type === 'turn-start') {
         s.sessionId = e.sessionId; s.turnId = e.turnId; s.busy = true;
         const fresh = e.source === 'user' && Number.isSafeInteger(e.submittedAt) && e.submittedAt >= this.freshAfter;
@@ -121,7 +129,7 @@ export class Watcher {
     if (s.userAt === null || s.tokens === null || s.tokens <= this.defaults.threshold || !s.sessionId || !s.turnId) {
       s.pending = false; return result('skip', 'unknown or ineligible current input');
     }
-    if (e.at - Math.max(s.userAt, s.warmAt ?? 0) < this.defaults.idleMs) return result('skip', 'idle interval not elapsed');
+    if (s.warmAt === null || e.at - s.warmAt < this.defaults.idleMs) return result('skip', 'idle interval not elapsed');
     if (e.type === 'dispatch') {
       if (!s.pending || s.dispatched || this.reservedGeneration !== s.generation
           || (e.reservationId !== undefined && e.reservationId !== s.reservationId)) return result('skip', 'no matching pending reservation');

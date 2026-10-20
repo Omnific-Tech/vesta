@@ -1,6 +1,9 @@
 // CONTROL-001 native contracts: real installed Claude/Codex + compiled candidate.
 // Failure inventory is in controls-acceptance.ts. Synthetic owner/IPC cases are
 // explicitly supplemental and never stand in for either provider's model turns.
+// Codex owners are the default hook-mode integration (no wrapper): owner state is the
+// hook watcher's real per-thread status, bound to each PTY by a unique rollout nonce.
+// Contract, oracle mapping and intentional changes: experiments/CONTROLS-FAILURES.md.
 // Startup failure: Codex renders a loading composer before a delayed update
 // dialog. Blind Enter can execute Update now instead of submitting the prompt.
 // The fixture centrally manages its pinned native binary and disables native
@@ -11,19 +14,21 @@
 // direct store JSON files; bounded rollout traversal tolerates ENOENT races but
 // preserves permission and other I/O failures as real verification failures.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import * as pty from 'node-pty';
-import { hash, nativeBin, nodeFlags, root, sealEvidence } from '../packaging/e2e-common.ts';
+import { hash, nativeBin, root, sealEvidence } from '../packaging/e2e-common.ts';
 import { controlsArtifact, controlsArtifactAfter } from '../packaging/controls-artifact.ts';
 import { verifyBuildReceipt } from '../packaging/release-acceptance.ts';
+import { alive, birth } from './codex-hook-state.ts';
 import { nativeRequest } from './codex-native-ipc.ts';
 import { controlMessage, controlFileError, codexControlSnapshot, controlProfileSnapshot, verifyControlProfile, integration, resetDefaults, sameControls, verifyControls } from './controls-acceptance.ts';
 import { claudeControlHostFixture } from './controls-claude-host-fixture.ts';
+import { codexControlHookFixture } from './controls-codex-hook-fixture.ts';
 import { parseClaudeStatuses } from './setup-acceptance.ts';
 
 const flag = process.argv.indexOf('--artifacts');
@@ -41,10 +46,12 @@ const profilePath = join(homedir(), '.claude.json');
 // canonical JSON, and disallow adding or modifying a personal Vesta entry.
 const profileBefore = controlProfileSnapshot(readFileSync(profilePath));
 personal.push({ path: profilePath, before: profileBefore.sha256, after: '' });
-const profileIntegrity = { path: profilePath, before: profileBefore, after: profileBefore };
+const profileIntegrity = { path: profilePath, before: profileBefore, after: profileBefore, changedKeys: [] as string[] };
 const commands: any[] = []; const observations: any[] = []; const cleanup: any[] = []; const installedFiles: any[] = [];
-type Owner = { provider: 'claude' | 'codex'; index: number; pid: number; terminal: pty.IPty; terminalFile: string; snapshotsFile: string; traceFile: string; rolloutFile: string; sessionId: string; nonce: string; exited: boolean; folder: string; statusSource?: string };
+type Owner = { provider: 'claude' | 'codex'; index: number; pid: number; terminal: pty.IPty; terminalFile: string; snapshotsFile: string; rolloutFile: string; sessionId: string; nonce: string; exited: boolean; folder: string; statusSource?: string; wrapperVariables: string[] };
 const owners: Owner[] = []; let failure = ''; let promptCount = 0;
+// Hook-mode Codex evidence: status/ledger/journal live in the configured status directory; the shared backend is fixture-owned.
+const statusDir = join(config, 'sessions'); const shellBefore = hash(shell); let daemon: any;
 const sleep = (ms: number) => new Promise(done => setTimeout(done, ms));
 const deadline = Math.min(Date.now() + 720000, process.env.VESTA_E2E_DEADLINE ? Number(process.env.VESTA_E2E_DEADLINE) - 15000 : Infinity);
 const rows = (path: string): any[] => existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } }) : [];
@@ -75,21 +82,35 @@ async function wait<T>(get: () => T | undefined | false, label: string, ms = 450
 }
 function launch(provider: Owner['provider'], index: number) {
   const folder = join(artifacts, provider + '-' + index); mkdirSync(folder);
-  const argv = provider === 'claude' ? ['--ax-screen-reader'] : ['-f', '-c', 'source "$1"; shift; codex "$@"', 'vesta-controls-native', shell, '-a', 'never', '-s', 'read-only', '--no-alt-screen'];
-  const commandName = provider === 'claude' ? join(fixture, 'native-bin/claude') : '/bin/zsh';
-  const launchEnv = { ...env, ...(provider === 'codex' ? { VESTA_WATCHER_TEST_OPTIONS: JSON.stringify(['--probe', '--capture-native', '--artifacts', folder]) } : {}) };
+  // Hook mode needs no wrapper, shell function, argv/notify override or Vesta variables: the native TUI is launched directly.
+  const argv = provider === 'claude' ? ['--ax-screen-reader'] : ['-a', 'never', '-s', 'read-only', '--no-alt-screen'];
+  const commandName = join(fixture, 'native-bin', provider);
+  const launchEnv = provider === 'codex' ? Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith('VESTA_'))) : env;
   const terminal = pty.spawn(commandName, argv, { cwd: fixture, env: launchEnv, cols: 200, rows: 45, name: 'xterm-256color' });
-  const owner: Owner = { provider, index, pid: terminal.pid, terminal, terminalFile: provider + '-' + index + '/terminal.txt', snapshotsFile: provider + '-' + index + '/snapshots.jsonl', traceFile: provider + '-' + index + '/codex-native-trace.jsonl', rolloutFile: provider + '-' + index + '/rollout.jsonl', sessionId: '', nonce: 'CONTROL-' + randomUUID(), exited: false, folder };
+  const owner: Owner = { provider, index, pid: terminal.pid, terminal, terminalFile: provider + '-' + index + '/terminal.txt', snapshotsFile: provider + '-' + index + '/snapshots.jsonl', rolloutFile: provider + '-' + index + '/rollout.jsonl', sessionId: '', nonce: 'CONTROL-' + randomUUID(), exited: false, folder,
+    wrapperVariables: provider === 'codex' ? Object.keys(launchEnv).filter(key => key.startsWith('VESTA_')) : [] };
   owners.push(owner); terminal.onExit(() => { owner.exited = true; });
   terminal.onData(data => { appendFileSync(join(artifacts, owner.terminalFile), data); if (data.includes('\x1b[6n')) terminal.write('\x1b[1;1R'); });
   return owner;
 }
 // Read the actual native store, not the activity-producing /vesta-status command.
-function snapshot(owner: Owner): any {
-  if (owner.provider === 'codex') {
-    const path = join(owner.folder, 'codex-native-status.json'); if (!existsSync(path)) return;
-    try { const value = JSON.parse(readFileSync(path, 'utf8')); owner.statusSource = path; return codexControlSnapshot(value); } catch { return; }
+// Hook watcher status for this owner's thread, paired with the config bytes read at the same moment. The pair is
+// returned only when the observer's controlSignature proves it applied exactly those config bytes.
+function codexRead(owner: Owner): { value: any; statusBytes: Buffer; controlBytes: Buffer } | undefined {
+  if (!owner.sessionId) return;
+  for (const entry of entries(statusDir).filter(entry => entry.isDirectory() && entry.name.startsWith('hook-'))) {
+    const path = join(statusDir, entry.name, 'codex-native-status.json'); let statusBytes: Buffer;
+    try { statusBytes = readFileSync(path); } catch { continue; }
+    let status: any; try { status = JSON.parse(statusBytes.toString('utf8')); } catch { continue; }
+    if (status.sessionId !== owner.sessionId) continue;
+    let controlBytes: Buffer; try { controlBytes = readFileSync(join(config, 'vesta-codex.json')); } catch { controlBytes = Buffer.alloc(0); }
+    const value = codexControlSnapshot(statusBytes, controlBytes); if (!value) return;
+    owner.statusSource = path; return { value, statusBytes, controlBytes };
   }
+}
+const ledgerRows = (): any[] => entries(join(statusDir, 'hook-engines')).filter(entry => entry.isDirectory()).flatMap(entry => rows(join(statusDir, 'hook-engines', entry.name, 'dispatches.jsonl')));
+function snapshot(owner: Owner): any {
+  if (owner.provider === 'codex') return codexRead(owner)?.value;
   const storeDirectory = join(claude, 'plugins/store');
   for (const path of entries(storeDirectory).filter(entry => entry.isFile() && entry.name.endsWith('.json')).map(entry => join(storeDirectory, entry.name))) {
     try {
@@ -121,11 +142,16 @@ async function bind(owner: Owner) {
   } else {
     await codexComposer(owner);
     await type(owner, 'Reply with exactly ' + owner.nonce + '. Do not use tools.');
-    const value = await wait(() => {
-      const value = snapshot(owner); if (!value?.sessionId || value.busy) return;
-      const completed = rows(join(artifacts, owner.traceFile)).findLast(row => row.kind === 'response-complete' && row.activeSession === value.sessionId && row.text?.trim() === owner.nonce);
-      return completed ? value : undefined;
-    }, 'Codex own session and actual initial assistant nonce'); owner.sessionId = value.sessionId;
+    // Bind by this PTY's unique nonce in the native rollout (session identity + actual assistant reply), never by status order.
+    owner.sessionId = await wait(() => {
+      for (const path of files(join(codex, 'sessions')).filter(path => path.endsWith('.jsonl'))) {
+        const transcript = rows(path); const id = transcript.find(row => row.type === 'session_meta')?.payload?.id;
+        const answered = transcript.some(row => row.type === 'response_item' && row.payload?.role === 'assistant' && row.payload.phase === 'final_answer' && row.payload.content?.map((block: any) => block.text ?? '').join('').trim() === owner.nonce);
+        if (id && answered) return id as string;
+      }
+    }, 'Codex own session and actual initial assistant nonce');
+    await wait(() => { const value = snapshot(owner); return value && !value.busy && value.sessionId === owner.sessionId ? value : undefined; }, 'hook observer status idle for the nonce thread');
+    daemon ??= daemonReceipt();
   }
   await wait(() => snapshot(owner), 'native passive status available');
 }
@@ -157,11 +183,18 @@ async function type(owner: Owner, text: string, model = true) {
   owner.terminal.write('\r');
 }
 async function capture(owner: Owner, phase: string, predicate: (value: any) => boolean = () => true) {
+  if (owner.provider === 'codex') {
+    // Retain the exact status and config bytes the predicate was evaluated on; replay recomputes the snapshot from them.
+    const read = await wait(() => { const read = codexRead(owner); return read && predicate(read.value) ? read : undefined; }, owner.provider + '/' + owner.index + ' ' + phase);
+    const at = Date.now(); const stem = join(owner.folder, phase + '-' + at); const rawFile = relative(artifacts, stem + '.raw.json'); const controlFile = relative(artifacts, stem + '.control.json');
+    writeFileSync(join(artifacts, rawFile), read.statusBytes); writeFileSync(join(artifacts, controlFile), read.controlBytes);
+    appendFileSync(join(artifacts, owner.snapshotsFile), JSON.stringify({ at, phase, value: read.value, rawFile, rawSha256: hash(join(artifacts, rawFile)), controlFile, controlSha256: hash(join(artifacts, controlFile)) }) + '\n'); return read.value;
+  }
   const value = await wait(() => { const value = snapshot(owner); return value && predicate(value) ? value : undefined; }, owner.provider + '/' + owner.index + ' ' + phase);
   const at = Date.now(); const rawFile = relative(artifacts, join(owner.folder, phase + '-' + at + '.raw.json'));
   assert.ok(owner.statusSource); copyFileSync(owner.statusSource, join(artifacts, rawFile));
   const raw = JSON.parse(readFileSync(join(artifacts, rawFile), 'utf8'));
-  const captured = owner.provider === 'claude' ? raw['status:' + owner.sessionId] : codexControlSnapshot(raw);
+  const captured = raw['status:' + owner.sessionId];
   assert.ok(predicate(captured), 'retained native status still satisfies phase');
   appendFileSync(join(artifacts, owner.snapshotsFile), JSON.stringify({ at, phase, value: captured, rawFile, rawSha256: hash(join(artifacts, rawFile)) }) + '\n'); return captured;
 }
@@ -170,8 +203,28 @@ function rollout(owner: Owner) {
   return files(base).find(path => path.endsWith('.jsonl') && (path.includes(owner.sessionId) || rows(path).some(row => row.type === 'session_meta' && row.payload?.id === owner.sessionId)));
 }
 function warms(owner: Owner) {
-  if (owner.provider === 'codex') return rows(join(artifacts, owner.traceFile)).filter(row => row.kind === 'warm-attributed').length;
+  // Hook mode: committed durable dispatches bound the automatic turns (the watcher has no warm limit of its own).
+  if (owner.provider === 'codex') return ledgerRows().filter(row => row.sessionId === owner.sessionId && owner.sessionId).length;
   const path = rollout(owner); return path ? rows(path).filter(row => row.type === 'user' && JSON.stringify(row.message.content).includes('The vesta plugin sent a message:')).length : 0;
+}
+// A Codex warm is complete only when the ledger client id appears in the native rollout and that native turn finished and the
+// observer bound and completed it; the next control command must not race an in-flight warm turn.
+function warmDone(owner: Owner) {
+  if (owner.provider === 'claude') return warms(owner) === 1;
+  const ledger = ledgerRows().filter(row => row.sessionId === owner.sessionId); if (ledger.length !== 1) return false;
+  const path = rollout(owner); if (!path) return false; const transcript = rows(path);
+  const index = transcript.findIndex(row => row.type === 'event_msg' && row.payload?.type === 'item_completed' && row.payload.item?.type === 'UserMessage' && row.payload.item.client_id === ledger[0].clientId); if (index < 0) return false;
+  const turn = transcript[index].payload.turn_id;
+  if (!transcript.slice(index).some(row => row.type === 'event_msg' && ['task_complete', 'turn_complete'].includes(row.payload?.type) && row.payload.turn_id === turn)) return false;
+  const value = snapshot(owner); return !!value && !value.busy && value.turnId === turn;
+}
+const ps = (pid: number, field: string) => execFileSync('/bin/ps', ['-ww', '-p', String(pid), '-o', field + '='], { encoding: 'utf8' }).trim();
+// The shared native backend daemon is fixture-owned: its record lives in the fixture CODEX_HOME and must be the pinned native binary.
+function daemonReceipt(name = 'daemon.pid') {
+  const record = JSON.parse(readFileSync(join(codex, 'app-server-daemon', name), 'utf8'));
+  assert.ok(Number.isSafeInteger(record.pid) && record.pid > 0); const born = birth(record.pid); assert.equal(born, record.processStartTime, 'daemon record names this live process');
+  const executable = realpathSync(ps(record.pid, 'comm')); const home = realpathSync(codex);
+  return { pid: record.pid as number, birth: born, executable, executableSha256: hash(executable), pinnedSha256: hash(nativeCodex), nativeHome: home };
 }
 async function trustCodex() {
   const result = await nativeRequest(nativeCodex, 'hooks/list', { cwds: [fixture] }, undefined, { env });
@@ -194,6 +247,8 @@ try {
   command(['install', '--provider', 'claude', '--config-dir', claude, '--shell-file', shell, '--warm', '--json']);
   command(['install', '--provider', 'codex', '--config-dir', config, '--shell-file', shell, '--warm', '--json']); await trustCodex();
   command(['config', '--idle-ms', '10000', '--budget-ms', '180000', '--threshold', '9007199254740991', '--message', controlMessage]);
+  assert.equal(JSON.parse(readFileSync(join(config, 'vesta-codex.json'), 'utf8')).statusDir, statusDir, 'hook observer status directory is the configured one');
+  assert.equal(readFileSync(shell, 'utf8'), '# isolated native controls fixture\n', 'hook-mode install leaves the caller shell file untouched');
   const registered = command(['plugin', 'list', '--json'], join(fixture, 'native-bin/claude'));
   const plugin = registered.find((row: any) => row.id === 'vesta@vesta-local'); assert.ok(plugin?.installPath);
   for (const provider of ['claude', 'codex'] as const) for (let i = 0; i < 2; i++) { const owner = launch(provider, i); await bind(owner); }
@@ -216,8 +271,11 @@ try {
   // Change a busy turn, then wait for its actual old completion: it cannot rearm.
   for (const provider of ['claude', 'codex'] as const) {
     const owner = owners.find(owner => owner.provider === provider && owner.index === 0)!;
-    await type(owner, 'Without using tools, count from 1 through 80, then finish with ' + owner.nonce + '.');
-    const busy = await capture(owner, 'busy-before', value => value.busy === true);
+    // The hook observer samples once per second: keep the real turn busy across two samples plus the CLI write.
+    const since = Date.now();
+    await type(owner, 'Without using tools, count from 1 through ' + (provider === 'codex' ? 300 : 80) + ', then finish with ' + owner.nonce + '.');
+    // Codex status can show busy (rollout) a sample before this prompt's submit hook lands userAt.
+    const busy = await capture(owner, 'busy-before', value => value.busy === true && value.userAt >= since);
     command(['config', '--provider', provider, '--idle-ms', '11000']);
     const changed = await capture(owner, 'busy-changed', value => value.busy === true && value.controlRevision > busy.controlRevision);
     const completed = await capture(owner, 'busy-after', value => value.busy === false && value.tokens === null);
@@ -247,7 +305,11 @@ try {
   const freshSince = Date.now();
   await Promise.all(owners.map(owner => type(owner, 'Remember ' + owner.nonce + '. Reply with exactly ' + owner.nonce + '. Do not use tools.')));
   await Promise.all(owners.map(owner => capture(owner, 'fresh', value => !value.busy && value.tokens > 0 && value.userAt >= freshSince)));
-  await wait(() => owners.every(owner => warms(owner) === 1), 'one actual native custom warm per owner', 90000);
+  await wait(() => owners.filter(owner => owner.provider === 'codex').every(warmDone), 'one actual native custom warm per Codex owner, completed', 90000);
+  // Hook mode has no warm limit: the observer re-warms every idle interval while eligible. Disable further Codex eligibility
+  // as soon as every Codex warm is complete, before the next idle interval, instead of after the slower Claude owners.
+  command(['config', '--provider', 'codex', '--threshold', '9007199254740991']);
+  await wait(() => owners.filter(owner => owner.provider === 'claude').every(warmDone), 'one actual native custom warm per Claude owner, completed', 90000);
   // Disable future eligibility without fabricating activity; shortened budget
   // expires from original user submission, not this config command.
   command(['config', '--threshold', '9007199254740991', '--budget-ms', '1']);
@@ -273,55 +335,24 @@ try {
   }
   assert.ok(resetPaths.every(existsSync), 'reset keeps existing native settings paths');
   // Fingerprint the actual installed immutable assets against compiled receipt.
+  const assetRoot = join(config, 'codex-native-assets'); const versions = entries(assetRoot).filter(entry => entry.isDirectory()); assert.equal(versions.length, 1, 'one registered Codex plugin asset version');
+  const pluginRoot = join(assetRoot, versions[0]!.name, 'plugin');
   for (const [file, assetPath] of [
     [join(plugin.installPath, 'hooks/register.ts'), 'app/experiments/vesta-claude/hooks/register.ts'],
     [join(plugin.installPath, 'hooks/policy.ts'), 'app/experiments/vesta-claude/hooks/policy.ts'],
-    [join(env.VESTA_HOME, 'current/app/experiments/codex-native-owner.ts'), 'app/experiments/codex-native-owner.ts'],
-    [join(env.VESTA_HOME, 'current/app/experiments/watcher-policy.ts'), 'app/experiments/watcher-policy.ts'],
+    ...['codex-hook-watcher.ts', 'codex-hook-state.ts', 'watcher-policy.ts'].flatMap(name => [
+      // Installed package copy and the plugin copy that native Codex actually executes through the six trusted hooks.
+      [join(env.VESTA_HOME, 'current/app/experiments', name), 'app/experiments/' + name],
+      [join(pluginRoot, name), 'app/experiments/' + name],
+    ]),
   ]) installedFiles.push({ path: file, assetPath, sha256: hash(file!) });
   const host = await claudeControlHostFixture({ binary: built.binary, modulePath: join(plugin.installPath, 'hooks/register.ts'), configDir: claude, env, directory: join(artifacts, 'claude-host') });
   observations.push({ name: 'claude-precommit-host', summaryFile: 'claude-host/summary.json', synthetic: true, moduleSha256: host.moduleSha256 });
-  // Supplemental exact threshold and final IPC authorization race use actual
-  // embedded owner with existing synthetic-native transport and fixed209848 input.
-  for (const scenario of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input', 'delayed-prerecovery-input'] as const) {
-    const folder = join(artifacts, scenario); mkdirSync(folder); const home = join(folder, 'home'); mkdirSync(home);
-    const native = join(folder, 'synthetic-native'); copyFileSync(join(root, 'experiments/codex-native-input-fixture.mjs'), native); chmodSync(native, 0o755);
-    const configPath = join(folder, 'config.json'); const settings = { warm: true, paused: false, controlRevision: 0, idleMs: 800, budgetMs: 10000, threshold: scenario === 'threshold-equality' ? 209848 : 0, message: controlMessage, statusDir: folder };
-    writeFileSync(configPath, JSON.stringify(settings));
-    let exited = false; const terminal = pty.spawn(join(env.VESTA_HOME, 'current/runtime/bin/node'), [...nodeFlags, join(env.VESTA_HOME, 'current/app/experiments/codex-native-owner.ts'), '--native', native, '--config', configPath, '--probe', '--capture-native', '--max-warms', '1', '--artifacts', folder, '--', '--yolo'],
-      { cwd: fixture, env: { ...env, PATH: dirname(process.execPath) + ':' + path, CODEX_HOME: home, VESTA_INPUT_FIXTURE: folder, VESTA_INPUT_INITIALIZE_DELAY: scenario === 'precommit-cancel' ? '1500' : '0' }, cols: 100, rows: 30, name: 'xterm-256color' });
-    let output = ''; terminal.onData(data => { output += data; }); terminal.onExit(() => { exited = true; });
-    const trace = () => rows(join(folder, 'codex-native-trace.jsonl'));
-    try {
-      await wait(() => output.includes('VESTA_INPUT_FIXTURE_READY'), scenario + ' ready');
-      let malformedStatusFile: string | undefined;
-      if (scenario === 'delayed-prerecovery-input') {
-        writeFileSync(configPath, '{');
-        await wait(() => { const file = join(folder, 'codex-native-status.json'); if (!existsSync(file)) return; try { return controlFileError(JSON.parse(readFileSync(file, 'utf8')).warmingSuspendedReason); } catch { return; } }, 'owner observed invalid config before input');
-        malformedStatusFile = relative(artifacts, join(folder, 'invalid-status.json')); copyFileSync(join(folder, 'codex-native-status.json'), join(artifacts, malformedStatusFile));
-      }
-      terminal.write('seed\r');
-      let changedAt: number | undefined;
-      if (scenario === 'delayed-prechange-input' || scenario === 'delayed-prerecovery-input') {
-        // Existing transport delays native submission metadata by80ms. Wait for
-        // the real owner's keyboard receipt, then revise before that metadata.
-        const until = Date.now() + 5000;
-        while (!trace().some(row => row.kind === 'user-input') && Date.now() < until) await sleep(5);
-        assert.ok(trace().some(row => row.kind === 'user-input'), 'actual owner received pre-change input');
-        changedAt = Date.now(); writeFileSync(configPath, JSON.stringify(scenario === 'delayed-prerecovery-input' ? settings : { ...settings, idleMs: 801, controlRevision: 1, controlChangedAt: changedAt }));
-      }
-      await wait(() => trace().some(row => row.kind === 'response-complete'), scenario + ' real owner synthetic completion');
-      if (scenario === 'precommit-cancel') {
-        await wait(() => trace().some(row => row.kind === 'queue-process'), 'actual IPC child initialized before pause');
-        changedAt = Date.now(); writeFileSync(configPath, JSON.stringify({ ...settings, paused: true, controlRevision: 1, controlChangedAt: changedAt }));
-      }
-      const observedUntil = Date.now() + 2200; while (Date.now() < observedUntil) await sleep(50);
-      assert.equal(rows(join(folder, 'queue.jsonl')).length, 0, scenario + ' prevents native queue write');
-      observations.push({ name: scenario, changedAt, observedUntil, malformedStatusFile, traceFile: relative(artifacts, join(folder, 'codex-native-trace.jsonl')), queueFile: relative(artifacts, join(folder, 'queue.jsonl')), synthetic: true });
-    } finally {
-      terminal.kill('SIGTERM'); await wait(() => exited, scenario + ' owned cleanup', 5000); writeFileSync(join(folder, 'terminal.txt'), output); cleanup.push({ pid: terminal.pid, owned: true, exited });
-    }
-  }
+  // Supplemental Codex hook timelines: the installed shipped hook watcher (bundled node) against the existing synthetic
+  // hook engine. They replace the four retired embedded-owner timelines; see CONTROLS-FAILURES.md.
+  const timelines = await codexControlHookFixture({ node: join(env.VESTA_HOME, 'current/runtime/bin/node'), runtime: join(env.VESTA_HOME, 'current/app/experiments/codex-hook-watcher.ts'), directory: join(artifacts, 'codex-hook-timelines'), path });
+  cleanup.push(...timelines.cleanup);
+  for (const name of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input', 'delayed-prerecovery-input']) observations.push({ name, summaryFile: 'codex-hook-timelines/summary.json', synthetic: true });
 } catch (error) { failure = String(error); }
 finally {
   for (const owner of owners) {
@@ -332,16 +363,35 @@ finally {
     const until = Date.now() + 5000; while (!owner.exited && Date.now() < until) await sleep(50);
     if (!owner.exited) { owner.terminal.kill('SIGKILL'); await sleep(300); }
     cleanup.push({ pid: owner.pid, owned: true, exited: owner.exited });
-    if (owner.provider === 'codex') {
-      const runtime = join(owner.folder, 'codex-native-runtime.json'); if (existsSync(runtime)) cleanup.push(...JSON.parse(readFileSync(runtime, 'utf8')).cleanup);
-    }
   }
+  // Fixture-owned shared backend and hook observers: signalled only by exact pid+birth identity recorded from the fixture
+  // home and the product's own status/worker metadata, then verified exited. Nothing outside the fixture is touched.
+  try { daemon ??= existsSync(join(codex, 'app-server-daemon/daemon.pid')) ? daemonReceipt() : undefined; } catch (error) { failure ||= 'fixture backend identity unavailable: ' + error; }
+  const workers: any[] = [];
+  for (const entry of entries(statusDir).filter(entry => entry.isDirectory() && entry.name.startsWith('hook-'))) {
+    try { const row = JSON.parse(readFileSync(join(statusDir, entry.name, 'codex-native-status.json'), 'utf8')); if (row.nativeHome === realpathSync(codex) && row.diagnostics?.pid && row.diagnostics?.birth && !workers.some(w => w.pid === row.diagnostics.pid)) workers.push({ pid: row.diagnostics.pid, birth: row.diagnostics.birth, kind: 'watcher' }); } catch { /* absent or partial status */ }
+  }
+  for (const entry of entries(join(statusDir, 'hook-engines')).filter(entry => entry.isDirectory())) {
+    try { const row = JSON.parse(readFileSync(join(statusDir, 'hook-engines', entry.name, 'worker.json'), 'utf8')); if (row.pid && row.birth && !workers.some(w => w.pid === row.pid)) workers.push({ pid: row.pid, birth: row.birth, kind: 'watcher' }); } catch { /* worker already removed */ }
+  }
+  const owned = [...(daemon ? [{ pid: daemon.pid, birth: daemon.birth, kind: 'backend' }] : []), ...workers];
+  const updater = (() => { try { const record = JSON.parse(readFileSync(join(codex, 'app-server-daemon/daemon-updater.pid'), 'utf8')); return birth(record.pid) === record.processStartTime ? { pid: record.pid, birth: record.processStartTime, kind: 'updater' } : undefined; } catch { return undefined; } })();
+  if (updater) owned.push(updater);
+  for (const row of owned.filter(row => row.kind !== 'watcher' && alive(row))) { try { process.kill(row.pid, 'SIGTERM'); } catch { /* exited between identity check and signal */ } }
+  for (const row of owned) { const until = Date.now() + 10000; while (alive(row) && Date.now() < until) await sleep(100); }
+  for (const row of owned.filter(alive)) { try { process.kill(row.pid, 'SIGKILL'); } catch { /* exited */ } await sleep(300); }
+  for (const row of owned) cleanup.push({ pid: row.pid, birth: row.birth, kind: row.kind, owned: true, exited: !alive(row) });
+  const hookEvidence = join(artifacts, 'codex-hook'); mkdirSync(hookEvidence, { recursive: true });
+  const collect = (name: string) => entries(join(statusDir, 'hook-engines')).filter(entry => entry.isDirectory()).flatMap(entry => rows(join(statusDir, 'hook-engines', entry.name, name)).map(row => JSON.stringify(row))).map(line => line + '\n').join('');
+  writeFileSync(join(hookEvidence, 'events.jsonl'), collect('events.jsonl')); writeFileSync(join(hookEvidence, 'dispatches.jsonl'), collect('dispatches.jsonl'));
+  if (existsSync(join(config, '.vesta-setup-codex.json'))) copyFileSync(join(config, '.vesta-setup-codex.json'), join(artifacts, 'codex-setup-record.json'));
   for (const file of personal.filter(file => file.path !== profilePath)) file.after = existsSync(file.path) ? hash(file.path) : 'absent';
-  try { profileIntegrity.after = controlProfileSnapshot(readFileSync(profilePath)); personal.find(file => file.path === profilePath)!.after = profileIntegrity.after.sha256; verifyControlProfile(profileIntegrity.before, profileIntegrity.after); }
+  try { profileIntegrity.after = controlProfileSnapshot(readFileSync(profilePath)); personal.find(file => file.path === profilePath)!.after = profileIntegrity.after.sha256; profileIntegrity.changedKeys = verifyControlProfile(profileIntegrity.before, profileIntegrity.after); }
   catch { failure ||= 'Personal Claude profile integrity validation failed (values redacted)'; }
   writeFileSync(join(artifacts, 'summary.json'), JSON.stringify({ schema: 1, kind: 'native-controls', failure, binary: built.binary, binarySha256: hash(built.binary), receipt, promptCount, maximumNativeTurns: promptCount + 6, commands, observations, cleanup, installedFiles, personal,
     receiptFile: built.receipt, productionIdentityBefore: built.productionIdentityBefore, productionIdentityAfter: controlsArtifactAfter(built),
-    profileIntegrity, owners: owners.map(({ terminal, folder, ...owner }) => owner), sourceFiles: ['experiments/controls-native-e2e.ts', 'packaging/controls-artifact.ts', 'packaging/production-acceptance.ts', 'experiments/controls-acceptance.ts', 'experiments/controls-claude-host-fixture.ts', 'experiments/vesta-claude/hooks/register.ts', 'experiments/codex-native-owner.ts', 'cli/main.ts', 'cli/manage.ts', 'cli/controls.ts', 'experiments/watcher-policy.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
+    codexHook: { statusDir, nativeHome: realpathSync(codex), setupRecordFile: 'codex-setup-record.json', hooksTrustedFile: 'hooks-trusted.json', shellBefore, shellAfter: hash(shell), daemon, ledgerFile: 'codex-hook/dispatches.jsonl', journalFile: 'codex-hook/events.jsonl' },
+    profileIntegrity, owners: owners.map(({ terminal, folder, ...owner }) => owner), sourceFiles: ['experiments/controls-native-e2e.ts', 'experiments/CONTROLS-FAILURES.md', 'packaging/controls-artifact.ts', 'packaging/production-acceptance.ts', 'experiments/controls-acceptance.ts', 'experiments/controls-claude-host-fixture.ts', 'experiments/controls-codex-hook-fixture.ts', 'experiments/codex-hook-watcher-fixture.mjs', 'experiments/vesta-claude/hooks/register.ts', 'experiments/codex-hook-watcher.ts', 'experiments/codex-hook-state.ts', 'cli/main.ts', 'cli/manage.ts', 'cli/controls.ts', 'experiments/watcher-policy.ts'].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })) }, null, 2));
   sealEvidence(artifacts);
 }
 if (failure) throw new Error(failure + '; artifacts: ' + artifacts); verifyControls(artifacts);
