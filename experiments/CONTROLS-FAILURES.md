@@ -35,8 +35,11 @@ controls suite are unchanged. The failure inventory of CONTROL-001/RESET-001 in
    native turn, a native rollout `UserMessage` with the same `client_id` whose
    content is exactly `[{type:'text', text: controlMessage, text_elements: []}]`,
    the reply `K`, and exactly one such row per owner. Hook mode has no warm limit;
-   the driver stops on any second ledger row (hard guard) and waits for native
-   completion of the warm before issuing the next prompt.
+   the driver stops on any second ledger row (hard guard), waits for native
+   completion of each warm before the next prompt, and disables further Codex
+   eligibility (threshold, Codex only) as soon as all Codex warms are complete
+   rather than after the slower Claude owners (run 1 saw a second warm after
+   about one idle interval).
 7. A Vesta warm renews user activity or budget, a control change invents activity,
    or reset dispatches another automatic turn (userAt/turnId/session identity and
    ledger count must be unchanged across expiry, continuity and reset).

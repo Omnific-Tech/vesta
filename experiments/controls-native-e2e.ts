@@ -303,7 +303,11 @@ try {
   const freshSince = Date.now();
   await Promise.all(owners.map(owner => type(owner, 'Remember ' + owner.nonce + '. Reply with exactly ' + owner.nonce + '. Do not use tools.')));
   await Promise.all(owners.map(owner => capture(owner, 'fresh', value => !value.busy && value.tokens > 0 && value.userAt >= freshSince)));
-  await wait(() => owners.every(warmDone), 'one actual native custom warm per owner, completed', 90000);
+  await wait(() => owners.filter(owner => owner.provider === 'codex').every(warmDone), 'one actual native custom warm per Codex owner, completed', 90000);
+  // Hook mode has no warm limit: the observer re-warms every idle interval while eligible. Disable further Codex eligibility
+  // as soon as every Codex warm is complete, before the next idle interval, instead of after the slower Claude owners.
+  command(['config', '--provider', 'codex', '--threshold', '9007199254740991']);
+  await wait(() => owners.filter(owner => owner.provider === 'claude').every(warmDone), 'one actual native custom warm per Claude owner, completed', 90000);
   // Disable future eligibility without fabricating activity; shortened budget
   // expires from original user submission, not this config command.
   command(['config', '--threshold', '9007199254740991', '--budget-ms', '1']);
