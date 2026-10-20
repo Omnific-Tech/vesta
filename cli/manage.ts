@@ -6,6 +6,8 @@ import { directory, prepareVersion, readJson, saveJson, sha256, version } from '
 import { codexHookReadiness } from '../experiments/codex-native-ipc.ts';
 import { codexRegistration, restoreNativeCodex } from '../experiments/codex-native-setup.ts';
 import { controlConfig, claudeControlOptions } from '../experiments/watcher-policy.ts';
+import { runtimeOwners } from '../experiments/codex-runtime-status.ts';
+import { hookSetupStatus, preflightHookSetup } from '../experiments/codex-hook-setup.ts';
 
 export type Provider = { provider: 'claude' | 'codex'; configDir: string; shellFile: string };
 export const pluginId = 'vesta@vesta-local';
@@ -48,7 +50,7 @@ export function providers(args: string[], root: string, operation: string): Prov
     const shellFile = absolute(value(args, '--shell-file') ?? owned?.shellFile ?? (ownedOnly ? state?.shellFile : undefined) ?? join(homedir(), '.zshrc'));
     if (owned && (configDir !== owned.configDir || shellFile !== owned.shellFile)) throw new Error('Owned provider paths cannot be overridden: ' + name + '; use the recorded configuration and shell paths');
     if (ownedOnly) {
-      if (previous && !owned || state?.provider !== name || (name === 'claude' ? state.marketplaceOwned !== true : typeof state.native !== 'string' || !isAbsolute(state.native) || typeof state.block !== 'string' || !state.block.includes(start) || state.shellFile !== shellFile)) throw new Error('Valid owned provider setup required for repair: ' + name);
+      if (previous && !owned || state?.provider !== name || (name === 'claude' ? state.marketplaceOwned !== true : typeof state.native !== 'string' || !isAbsolute(state.native) || state.integrationMode !== 'hook' && (typeof state.block !== 'string' || !state.block.includes(start)) || state.shellFile !== shellFile)) throw new Error('Valid owned provider setup required for repair: ' + name);
     }
     return { provider: name, configDir, shellFile };
   });
@@ -69,6 +71,7 @@ export async function preflight(selected: Provider[], operation: string, warm = 
       if (installedClaude(p) && (!state || state.marketplaceOwned !== true)) throw new Error('Foreign Claude plugin ownership; refusing adoption');
       if (readJson(join(p.configDir, 'plugins/known_marketplaces.json'), {})['vesta-local'] && state?.marketplaceOwned !== true) throw new Error('Foreign Claude marketplace ownership; refusing adoption');
     } else {
+      await preflightHookSetup(state?.native ?? executable('codex')!, state, p.shellFile, operation);
       const shell = existsSync(p.shellFile) ? readFileSync(p.shellFile, 'utf8') : '';
       if (shell.includes(start) && (!state || state.shellFile !== p.shellFile || !shell.includes(state.block))) throw new Error('Codex shell ownership conflict');
       if (existsSync(join(p.configDir, 'vesta-codex.json')) && !state) throw new Error('Foreign Codex configuration ownership');
@@ -127,8 +130,8 @@ function validateClaude(p: Provider) {
   if (!installed || installed.version !== version || installed.errors?.length || installed.errorDetails?.length || !installed.installPath) throw new Error('Native Claude plugin registration is invalid: ' + JSON.stringify(installed?.errors ?? ['Missing expected user plugin/version']));
   native(command, ['plugin', 'validate', installed.installPath, '--strict'], p);
 }
-function setup(assets: string, p: Provider, operation: string, warm: boolean, root: string) {
-  const argv = ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', join(assets, 'app/experiments/setup.ts'), operation, '--provider', p.provider, '--config-dir', p.configDir, '--shell-file', p.shellFile, '--json', ...(warm ? ['--warm'] : []), ...(operation === 'install' ? ['--refresh'] : [])];
+function setup(assets: string, p: Provider, operation: string, warm: boolean, root: string, ownedOnly = false) {
+  const argv = ['--disable-warning=ExperimentalWarning', '--experimental-strip-types', join(assets, 'app/experiments/setup.ts'), operation, '--provider', p.provider, '--config-dir', p.configDir, '--shell-file', p.shellFile, '--json', ...(warm ? ['--warm'] : []), ...(operation === 'install' ? ['--refresh'] : []), ...(ownedOnly ? ['--owned-homes'] : [])];
   const result = spawnSync(join(assets, 'runtime/bin/node'), argv, { env: { ...process.env, CLAUDE_CONFIG_DIR: p.configDir,
     VESTA_MARKETPLACE_ROOT: join(root, 'marketplace'), VESTA_STABLE_NODE: join(root, 'current/runtime/bin/node'), VESTA_STABLE_ENTRYPOINT: join(root, 'current/app/experiments/codex-autoload.ts'), VESTA_RECORDED_NATIVE: nativeExecutable(p) }, encoding: 'utf8', timeout: 60000 });
   if (result.status !== 0) throw new Error(result.stderr || result.error?.message || 'Native setup failed');
@@ -139,7 +142,7 @@ async function snapshot(root: string, selected: Provider[]): Promise<SavedFile[]
   for (const p of selected) paths.push(stateFile(p), ...(p.provider === 'claude' ? ['settings.json', 'plugins/known_marketplaces.json', 'plugins/installed_plugins.json'].map(file => join(p.configDir, file)) : [p.shellFile, join(p.configDir, 'vesta-codex.json')]));
   return Promise.all([...new Set(paths)].map(async path => {
     const codex = selected.find(p => p.provider === 'codex' && stateFile(p) === path); const state = codex ? readJson(path) : undefined;
-    return { path, bytes: existsSync(path) ? readFileSync(path) : null, nativeCodex: state?.nativePluginId ? await codexRegistration(state.native, state) : undefined,
+    return { path, bytes: existsSync(path) ? readFileSync(path) : null, nativeCodex: state?.nativePluginId || state?.integrationMode === 'hook' ? await codexRegistration(state.native, state) : undefined,
       shellState: selected.find(p => p.provider === 'codex' && p.shellFile === path) ? stateFile(selected.find(p => p.provider === 'codex' && p.shellFile === path)!) : undefined };
   }));
 }
@@ -147,7 +150,7 @@ async function restore(saved: SavedFile[]) {
   const currentBlocks = new Map(saved.filter(file => file.shellState).map(file => [file.path, readJson(file.shellState!)?.block]));
   for (const file of saved.filter(file => file.path.endsWith('/.vesta-setup-codex.json'))) {
     const current = readJson(file.path) ?? (file.nativeCodex && file.bytes ? JSON.parse(file.bytes.toString()) : undefined);
-    if (current?.nativePluginId) await restoreNativeCodex(current.native, current, file.nativeCodex);
+    if (current?.nativePluginId || current?.integrationMode === 'hook') await restoreNativeCodex(current.native, current, file.nativeCodex);
   }
   for (const file of saved) {
     if (file.shellState) {
@@ -158,7 +161,8 @@ async function restore(saved: SavedFile[]) {
       if (block && current.includes(block)) restored = current.replace(block, previousBlock ?? '');
       else if (previousBlock && current.includes(previousBlock)) restored = current;
       else if (current.includes(start)) throw new Error('Shell ownership changed during compensation');
-      else if (previousBlock) restored = current + previousBlock;
+      else if (previousBlock && current === before.replace(previousBlock, '')) restored = before;
+      else if (previousBlock) throw new Error('Concurrent shell edits make exact block-placement compensation ambiguous');
       if (restored === '' && file.bytes === null) rmSync(file.path, { force: true });
       else { mkdirSync(dirname(file.path), { recursive: true }); writeFileSync(file.path, restored === current && current === before ? file.bytes! : restored); }
       continue;
@@ -203,6 +207,7 @@ export async function status(args: string[], root: string, selected?: Provider[]
   const integrations = [];
   for (const p of selected ?? providers(args, root, 'status')) {
     const state = readJson(stateFile(p)); const settings = readJson(join(p.configDir, p.provider === 'claude' ? 'settings.json' : 'vesta-codex.json'), {});
+    if (p.provider === 'codex') { integrations.push({ ...p, available: !!nativeExecutable(p), owned: !!state, ...(await hookSetupStatus(p.configDir, nativeExecutable(p)!, state)) }); continue; }
     const options = p.provider === 'claude' ? claudeControlOptions(settings) : settings;
     const config = controlConfig(p.provider, options, p.provider === 'claude');
     const shell = p.provider === 'codex' && existsSync(p.shellFile) ? readFileSync(p.shellFile, 'utf8') : '';
@@ -216,7 +221,7 @@ export async function status(args: string[], root: string, selected?: Provider[]
       warmEnabled: !config.paused && (p.provider === 'claude' ? options.warm === true && claudeReady : options.warm === true && ready.ready),
       ...(p.provider === 'claude' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !claudeReady, warmingSuspendedReason: claudeReady ? '' : 'Install and enable the owned Vesta Claude plugin, then restart Claude.' } : {}),
       ...(p.provider === 'codex' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !ready.ready,
-        warmingSuspendedReason: ready.ready ? '' : ready.reason, nativePluginId: state?.nativePluginId } : {}),
+        warmingSuspendedReason: ready.ready ? '' : ready.reason, nativePluginId: state?.nativePluginId, runtimeOwners: runtimeOwners(options.statusDir) } : {}),
       ...(config.paused ? { warmingSuspended: true, warmingSuspendedReason: 'Vesta warming is paused; resume keeps saved opt-in unchanged.' } : {}) });
   }
   return { version, root, installation, integrations };
@@ -255,7 +260,7 @@ export async function install(args: string[], root: string, repairing = false) {
             saveJson(settingsFile, current);
           }
         }
-        setup(assets, p, 'install', args.includes('--warm'), root);
+        setup(assets, p, 'install', args.includes('--warm'), root, repairing);
         if (p.provider === 'claude') validateClaude(p);
       }
       link(join(root, 'current'), 'versions/' + version); link(cliLink, join(root, 'current/bin/vesta'));
@@ -268,8 +273,9 @@ export async function install(args: string[], root: string, repairing = false) {
         for (const p of selected) integrations.push(...(await status(['status', '--provider', p.provider, '--config-dir', p.configDir, '--shell-file', p.shellFile], root)).integrations);
         return { version, root, repaired: selected.map(p => p.provider), restartClaude: selected.some(p => p.provider === 'claude'), restartCodex: selected.some(p => p.provider === 'codex'), integrations };
       }
-      return { version, root, installed: selected.map(p => p.provider), restartClaude: selected.some(p => p.provider === 'claude') };
+      return { version, root, installed: selected.map(p => p.provider), restartClaude: selected.some(p => p.provider === 'claude'), activate: 'Open a new terminal, or explicitly run unfunction codex in an existing zsh; review Vesta in native /hooks.' };
     } catch (error) {
+      if (String(error).includes('concurrent') && String(error).includes('ambiguous')) throw error;
       let rollbackError: unknown;
       try {
         caches.retain();

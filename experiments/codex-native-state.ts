@@ -5,6 +5,8 @@ import { join } from 'node:path';
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const birth = (pid: number) => { try { return execFileSync('/bin/ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8' }).trim(); } catch { return ''; } };
 export class NativeLease {
+  conflictBlocker: any = null; ambiguousBlocker: any = null;
+  blocker(row: any, kind: string) { return row && typeof row.ownerId === 'string' && /^[a-zA-Z0-9:_-]{1,128}$/.test(row.ownerId) && Number.isSafeInteger(row.pid) && row.pid > 0 && typeof row.birth === 'string' && row.birth.length > 0 && row.birth.length <= 128 && !/[\p{Cc}\p{Cs}]/u.test(row.birth) ? { ownerId: row.ownerId, pid: row.pid, birth: row.birth, kind } : null; }
   directory: string; owner: { pid: number; birth: string; ownerId: string }; held = new Set<string>(); seen = new Set<string>();
   constructor(home: string, ownerId: string) { this.directory = join(home, 'vesta-owner-leases'); mkdirSync(this.directory, { recursive: true, mode: 0o700 }); this.owner = { pid: process.pid, birth: birth(process.pid), ownerId }; this.unknown(true); }
   unknown(value: boolean) {
@@ -13,10 +15,11 @@ export class NativeLease {
     else { try { const row = JSON.parse(readFileSync(path, 'utf8')); if (row.ownerId === this.owner.ownerId && row.pid === process.pid) rmSync(path); } catch {} }
   }
   ambiguous() {
+    this.ambiguousBlocker = null;
     try {
       for (const name of readdirSync(this.directory).filter(name => name.endsWith('.unknown') && name !== this.owner.ownerId + '.unknown')) {
         const path = join(this.directory, name); const row = JSON.parse(readFileSync(path, 'utf8'));
-        if (!row.ownerId || !row.birth || !Number.isSafeInteger(row.pid) || this.alive(row)) return true;
+        if (!row.ownerId || !row.birth || !Number.isSafeInteger(row.pid) || this.alive(row)) { this.ambiguousBlocker = this.blocker(row, 'unknown'); return true; }
         rmSync(path);
       }
       return false;
@@ -24,6 +27,7 @@ export class NativeLease {
   }
   alive(row: any) { return Number.isSafeInteger(row?.pid) && row.pid > 0 && typeof row.birth === 'string' && row.birth.length > 0 && birth(row.pid) === row.birth; }
   acquire(threadId: string) {
+    this.conflictBlocker = null;
     if (!uuid.test(threadId)) return false;
     const path = join(this.directory, threadId + '.json'); const claim = join(this.directory, threadId + '.claim');
     const peer = () => { writeFileSync(join(this.directory, threadId + '.' + this.owner.ownerId + '.peer'), JSON.stringify({ ...this.owner, threadId }), { mode: 0o600 }); return false; };
@@ -31,11 +35,12 @@ export class NativeLease {
     try {
       if (existsSync(path)) { const row = JSON.parse(readFileSync(path, 'utf8')); if (row.ownerId === this.owner.ownerId && row.pid === process.pid) return true; }
       try { claimFd = openSync(claim, 'wx', 0o600); writeFileSync(claimFd, JSON.stringify(this.owner)); }
-      catch { return peer(); } // A crashed/unknown claim stays fail-closed rather than stealing another holder.
+      catch { try { this.conflictBlocker = this.blocker(JSON.parse(readFileSync(claim, 'utf8')), 'claim'); } catch {} return peer(); } // A crashed/unknown claim stays fail-closed rather than stealing another holder.
       if (existsSync(path)) {
         const row = JSON.parse(readFileSync(path, 'utf8'));
         if (row.ownerId === this.owner.ownerId && row.pid === process.pid) return true;
         if (this.alive(row)) {
+          this.conflictBlocker = this.blocker(row, 'lease');
           return peer();
         }
         if (!row.ownerId || !row.birth || !Number.isSafeInteger(row.pid)) return false;
@@ -52,14 +57,15 @@ export class NativeLease {
     }
   }
   conflict(threadId: string) {
+    this.conflictBlocker = null;
     try {
       const own = JSON.parse(readFileSync(join(this.directory, threadId + '.json'), 'utf8'));
-      if (own.ownerId !== this.owner.ownerId || own.pid !== process.pid) return true;
+      if (own.ownerId !== this.owner.ownerId || own.pid !== process.pid) { this.conflictBlocker = this.blocker(own, 'lease'); return true; }
       let conflict = false;
       for (const name of readdirSync(this.directory).filter(name => name.startsWith(threadId + '.') && name.endsWith('.peer'))) {
         const path = join(this.directory, name); const row = JSON.parse(readFileSync(path, 'utf8'));
         const fresh = !this.seen.has(row.ownerId); this.seen.add(row.ownerId);
-        const alive = this.alive(row); if (fresh || alive) conflict = true;
+        const alive = this.alive(row); if (fresh || alive) { conflict = true; this.conflictBlocker ??= this.blocker(row, 'peer'); }
         if (!alive && row.ownerId && row.birth && Number.isSafeInteger(row.pid)) rmSync(path);
       }
       return conflict;

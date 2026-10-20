@@ -50,9 +50,9 @@ export async function nativeRequest(native: string, method: 'hooks/list' | 'thre
     if (child.pid) lifecycle.cleaned?.({ pid: child.pid, owned: true, exited: child.exitCode !== null || child.signalCode !== null });
   }
 }
-export async function codexHookReadiness(native: string, cwd: string, command?: string) {
+export async function codexHookReadiness(native: string, cwd: string, command?: string, lifecycle: Parameters<typeof nativeRequest>[4] = {}) {
   try {
-    const result = await nativeRequest(native, 'hooks/list', { cwds: [cwd] });
+    const result = await nativeRequest(native, 'hooks/list', { cwds: [cwd] }, undefined, lifecycle);
     const hooks = result.data.flatMap((row: any) => row.hooks).filter((hook: any) => hook.pluginId === codexPluginId);
     const events = new Set(hooks.map((hook: any) => hook.eventName));
     const expected = ['sessionStart', 'sessionEnd', 'userPromptSubmit', 'stop', 'interrupt', 'postCompact'];

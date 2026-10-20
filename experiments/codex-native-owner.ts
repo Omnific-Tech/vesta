@@ -8,6 +8,7 @@ import { Watcher, controlConfig } from './watcher-policy.ts';
 import { nativeRequest } from './codex-native-ipc.ts';
 import { NativeLease, nativeTurn } from './codex-native-state.ts';
 import { TerminalInput } from './codex-terminal-input.ts';
+import { NativeDiagnostics } from './codex-native-diagnostics.ts';
 
 const split = process.argv.indexOf('--'); const options = process.argv.slice(2, split); const originalArgv = process.argv.slice(split + 1);
 const value = (flag: string) => { const index = options.indexOf(flag); return index < 0 ? undefined : options[index + 1]; };
@@ -33,6 +34,9 @@ const artifacts = resolve(value('--artifacts') ?? join(config.statusDir, process
 let lease: NativeLease;
 try { mkdirSync(artifacts, { recursive: true, mode: 0o700 }); writeFileSync(channel, '', { mode: 0o600 }); lease = new NativeLease(home, ownerId); }
 catch { passthrough(); }
+const diagnostics = new NativeDiagnostics(lease.owner);
+const conflict = (session: string) => { const result = lease.conflict(session); diagnostics.observedConflict(result, lease.conflictBlocker); return result; };
+const ambiguous = () => { const result = lease.ambiguous(); diagnostics.observedAmbiguity(result, lease.ambiguousBlocker); return result; };
 let inputSerial = 0; let submittedSerial = -1; let userAt: number | null = null; let submitArm: { serial: number; at: number; consumed: boolean } | undefined;
 let clean = false; let activeSession = ''; let activeTurn = ''; let epoch = 0; let warms = 0; let stopped = false; let observerFailed = false;
 let fileOffset = 0; let partial = '';
@@ -47,15 +51,24 @@ const trace = (kind: string, extra: any = {}) => {
   try {
     if (capture) appendFileSync(join(artifacts, 'codex-native-trace.jsonl'), JSON.stringify(row) + '\n');
     const status = join(artifacts, 'codex-native-status.json');
-    writeFileSync(status + '.tmp', JSON.stringify({ ...live, ownerId, sessionId: activeSession, warming: !observerFailed && !stopped && live.warm && !live.paused && !controlError,
-      warmConfigured: live.warm, warmEnabled: !observerFailed && !stopped && live.warm && !live.paused && !controlError,
-      warmingSuspendedReason: observerFailed ? 'Vesta native observer failed; restart this owner before warming.' : controlError || (live.paused ? 'Vesta warming is paused.' : ''),
-      minimumRuntimeVersion: '0.2.6', lastAction, resetReason, kind, state: watcher.state }), { mode: 0o600 }); renameSync(status + '.tmp', status);
-  } catch { observerFailed = true; clean = false; }
+    const enabled = !observerFailed && !stopped && !!activeSession && live.warm && !live.paused && !controlError && !diagnostics.conflict && !diagnostics.ambiguous;
+    writeFileSync(status + '.tmp', JSON.stringify({ ...live, ownerId, sessionId: activeSession, warming: enabled,
+      warmConfigured: live.warm, warmEnabled: enabled,
+      warmingSuspendedReason: stopped ? 'owner-ended' : observerFailed ? 'observer-failed' : controlError ? 'configuration-unavailable' : live.paused ? 'warming-paused' : !live.warm ? 'warming-disabled' : diagnostics.ambiguous ? 'ownership-ambiguous' : diagnostics.conflict ? 'lease-conflict' : !activeSession ? 'owner-unbound' : '',
+      minimumRuntimeVersion: '0.2.6', lastAction, resetReason, kind, state: watcher.state, diagnostics: diagnostics.snapshot(watcher.state, watcher.defaults.idleMs, activeSession) }), { mode: 0o600 }); renameSync(status + '.tmp', status);
+  } catch { observerFailed = true; clean = false; diagnostics.invalidate(); diagnostics.record('skip', 'observer-failed'); }
 };
 const event = (row: any) => {
-  try { const result = watcher.event({ at: Date.now(), ...row }); lastAction = result.action; trace('policy', { row: result }); return result; }
-  catch { observerFailed = true; clean = false; return { action: 'skip', state: watcher.state }; }
+  try { const result = watcher.event({ at: Date.now(), ...row }); lastAction = result.action;
+    if (['reconnect', 'control', 'turn-start', 'exit'].includes(row.type)) diagnostics.invalidate();
+    if (row.type === 'control') diagnostics.freshRequired = true;
+    if (row.type === 'turn-complete' && result.reason === 'completed response') diagnostics.measure(watcher.state, result.at);
+    if (['tick', 'dispatch'].includes(row.type)) {
+      const reason = result.action === 'reserve' ? 'reserve-eligible' : result.action === 'dispatch' ? 'dispatch-committed' : result.action === 'expired' ? 'inactivity-expired' : controlError ? 'configuration-unavailable' : live.paused ? 'warming-paused' : !live.warm ? 'warming-disabled' : diagnostics.freshRequired ? 'fresh-response-required' : watcher.state.busy ? 'owner-busy' : watcher.state.tokens === null ? 'input-measurement-unavailable' : watcher.state.tokens <= watcher.defaults.threshold ? 'input-below-threshold' : 'idle-wait';
+      diagnostics.record(result.action, reason, result.at);
+    }
+    trace('policy', { row: result }); return result; }
+  catch { observerFailed = true; clean = false; diagnostics.invalidate(); diagnostics.record('skip', 'observer-failed'); trace('observer-failed'); return { action: 'skip', state: watcher.state }; }
 };
 function readControls() {
   try {
@@ -76,7 +89,7 @@ function readControls() {
   }
 }
 const explicitResume = originalArgv.includes('resume') ? originalArgv.find(arg => /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(arg)) : undefined;
-if (explicitResume) { if (!lease.acquire(explicitResume)) trace('lease-conflict'); lease.unknown(false); }
+if (explicitResume) { const acquired = lease.acquire(explicitResume); diagnostics.observedConflict(!acquired, lease.conflictBlocker); if (!acquired) trace('lease-conflict'); lease.unknown(false); }
 const nativeArgv = ['--no-daemon', ...originalArgv];
 const terminal = pty.spawn(native, nativeArgv, { cwd: process.cwd(), env: { ...process.env as Record<string, string>, TERM: process.env.TERM ?? 'xterm-256color',
   VESTA_CODEX_OWNER_ID: ownerId, VESTA_CODEX_CHANNEL: channel, VESTA_CODEX_CAPTURE: capture ? '1' : '0' }, cols: process.stdout.columns ?? 120, rows: process.stdout.rows ?? 35, name: 'xterm-256color' });
@@ -125,7 +138,8 @@ function submitted(candidate: { input: any; at: number; serial: number }, client
     if (!submitArm || submitArm.consumed || submitArm.serial !== candidate.serial || !Number.isSafeInteger(candidate.at) || candidate.at < submitArm.at || candidate.at > Date.now()) { trace('unknown-submission'); return; }
     submitArm.consumed = true;
     const acquired = lease.acquire(row.session_id); lease.unknown(false);
-    if (!acquired) { trace('lease-conflict'); invalidate(); return; }
+    diagnostics.observedConflict(!acquired, lease.conflictBlocker);
+    if (!acquired) { diagnostics.record('skip', 'lease-conflict'); trace('lease-conflict'); invalidate(); return; }
     // Embedded native engines may retain old threads. Their leases stay until
     // native SessionEnd or owner exit, even after foreground eligibility moves.
     activeSession = row.session_id; epoch++; watcher = new Watcher('codex', settings, probe ? 'probe' : 'normal');
@@ -147,7 +161,7 @@ function completed(row: any) {
   if (!bound?.metric || !bound.clientId) return false;
   if (queued && bound.clientId !== queued.clientId) return true;
   event({ type: 'turn-complete', sessionId: activeSession, turnId: activeTurn, raw: bound.raw });
-  clean = submittedSerial === inputSerial && !lease.conflict(activeSession);
+  clean = submittedSerial === inputSerial && !conflict(activeSession);
   trace('response-complete', { ...(capture ? { text: row.last_assistant_message, metric: bound.metric } : {}), clientId: bound.clientId });
   return true;
 }
@@ -182,16 +196,19 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
       if (!candidates.has(turnId) && completed(stop.input)) pendingStops.delete(turnId);
       else if (Date.now() >= stop.deadline) {
         pendingStops.delete(turnId);
-        if (stop.input.session_id === activeSession && stop.input.turn_id === activeTurn) { invalidate(); trace('unknown-metric'); }
+        if (stop.input.session_id === activeSession && stop.input.turn_id === activeTurn) { invalidate(); diagnostics.missingMetric = true; trace('unknown-metric'); }
       }
     }
-    if (activeSession && lease.conflict(activeSession)) { trace('lease-conflict'); invalidate(); }
-    if (lease.ambiguous()) { trace('ownership-ambiguous'); return; }
-    if (!clean || decoder.pending || preparing || candidates.size || pendingStops.size || warms >= maxWarms || [...pending.values()].some(row => !row.consumed && row.sessionId === activeSession && row.epoch === epoch)) return;
+    if (activeSession && conflict(activeSession)) { diagnostics.record('skip', 'lease-conflict'); trace('lease-conflict'); invalidate(); }
+    if (ambiguous()) { diagnostics.record('skip', 'ownership-ambiguous'); trace('ownership-ambiguous'); return; }
+    const gate = !clean ? diagnostics.conflict ? 'lease-conflict' : controlError ? 'configuration-unavailable' : live.paused ? 'warming-paused' : !live.warm ? 'warming-disabled' : diagnostics.freshRequired ? 'fresh-response-required' : candidates.size ? 'submission-unresolved' : pendingStops.size ? 'completion-unresolved' : diagnostics.missingMetric ? 'input-measurement-unavailable' : !activeSession ? 'owner-unbound' : watcher.state.busy ? 'owner-busy' : 'input-ineligible'
+      : decoder.pending ? 'terminal-input-pending' : preparing ? 'queue-preparing' : candidates.size ? 'submission-unresolved' : pendingStops.size ? 'completion-unresolved' : warms >= maxWarms ? 'warm-limit-reached' : [...pending.values()].some(row => !row.consumed && row.sessionId === activeSession && row.epoch === epoch) ? 'warm-pending' : '';
+    if (gate) { diagnostics.record('skip', gate); trace('decision'); return; }
     const reserve = event({ type: 'tick' }); if (reserve.action !== 'reserve') return;
-    if (!clean || lease.conflict(activeSession)) return;
+    if (!clean || conflict(activeSession)) return;
     const queued: Pending = { sessionId: activeSession, clientId: randomUUID(), reservationId: reserve.state.reservationId, dispatchInputSerial: inputSerial, epoch, consumed: false };
     preparing = true;
+    diagnostics.record('skip', 'queue-preparing'); trace('decision');
     const revision = controlSignature; const message = live.message;
     const writer = nativeRequest(native, 'thread/queue/add', { threadId: queued.sessionId, clientUserMessageId: queued.clientId, input: [{ type: 'text', text: message, text_elements: [] }] },
       capture ? (direction, row) => trace('queue-' + direction, { row }) : undefined, {
@@ -199,7 +216,7 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
         authorize: async () => {
           while (decoder.pending && !stopped && !observerFailed && clean) await new Promise(done => setTimeout(done, 10));
           if (!readControls() || revision !== controlSignature || !live.warm || live.paused) return false;
-          if (stopped || observerFailed || !clean || inputSerial !== queued.dispatchInputSerial || activeSession !== queued.sessionId || epoch !== queued.epoch || lease.conflict(activeSession) || lease.ambiguous()) return false;
+          if (stopped || observerFailed || !clean || inputSerial !== queued.dispatchInputSerial || activeSession !== queued.sessionId || epoch !== queued.epoch || conflict(activeSession) || ambiguous()) return false;
           const dispatch = event({ type: 'dispatch', reservationId: queued.reservationId }); if (dispatch.action !== 'dispatch') return false;
           pending.set(queued.clientId, queued); warms++; trace('marker-dispatched', { pending: queued }); return true;
         },
@@ -208,14 +225,16 @@ const timer = setInterval(() => { if (stopped || observerFailed || tickBusy) ret
       .catch(error => {
         queued.consumed = true;
         if (!stopped && error.name !== 'AbortError') { event({ type: 'submit-failed' }); invalidate(); }
-        trace(error.name === 'AbortError' ? 'queue-cancelled' : 'queue-failed');
+        const reason = error.name === 'AbortError' ? 'queue-cancelled' : 'queue-failed';
+        diagnostics.record('cancel', reason); trace(reason);
       }).finally(() => { preparing = false; writers.delete(writer); });
     writers.add(writer);
-  })().catch(() => { observerFailed = true; clean = false; trace('observer-failed'); }).finally(() => { tickBusy = false; });
+  })().catch(() => { observerFailed = true; clean = false; diagnostics.invalidate(); diagnostics.record('skip', 'observer-failed'); trace('observer-failed'); }).finally(() => { tickBusy = false; });
 }, probe ? 50 : 1000);
 terminal.onExit(exit => { void (async () => {
   stopped = true; clearInterval(timer); if (inputTimer) clearTimeout(inputTimer); process.stdin.off('data', input); process.stdout.off('resize', resize);
   if (process.stdin.isTTY) process.stdin.setRawMode(!!originalRaw); process.stdin.pause(); abort.abort(); await Promise.allSettled([...writers]); lease.close(); rmSync(channel, { force: true });
+  diagnostics.invalidate(); diagnostics.record('ended', 'owner-ended'); trace('owner-ended');
   writeFileSync(join(artifacts, 'codex-native-runtime.json'), JSON.stringify({ managed: true, ownerId, originalArgv, nativeArgv, nativePid: terminal.pid,
-    warmEnabled: !observerFailed, mode: probe ? 'probe' : 'normal', defaults: watcher.defaults, warms, cleanup: [{ pid: terminal.pid, owned: true, exited: true }, ...writerCleanup] }, null, 2)); process.exitCode = exit.exitCode;
+    warmEnabled: false, mode: probe ? 'probe' : 'normal', defaults: watcher.defaults, warms, cleanup: [{ pid: terminal.pid, owned: true, exited: true }, ...writerCleanup] }, null, 2)); process.exitCode = exit.exitCode;
 })().catch(() => { process.exitCode = exit.exitCode; }); });
