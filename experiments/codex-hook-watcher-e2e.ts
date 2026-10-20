@@ -57,7 +57,13 @@ try {
   assert.ok(existsSync(runtime), 'missing-runtime: experiments/codex-hook-watcher.ts has not been implemented');
   await run('basic', async (r, m) => { const phase = Date.now(); await r.command({ kind: 'submit', session: thread }); await r.worker(); await warmed(r, phase); await observe(r, m, 'warmed'); await sleep(3500); await observe(r, m, 'budget'); await sleep(1200); await observe(r, m, 'expired'); }, { budgetMs: 3000 });
   await run('busy', async (r, m) => { const turn = await r.command({ kind: 'submit', session: thread, complete: false }); await r.worker(); await r.command({ kind: 'complete', ...turn, continuation: true }); await sleep(1300); await observe(r, m, 'blocked'); await r.command({ kind: 'complete', ...turn }); await warmed(r); await observe(r, m, 'warmed'); });
-  await run('threshold', async (r, m) => { await r.command({ kind: 'submit', session: thread, tokens: 100000 }); await r.worker(); await sleep(1300); await observe(r, m, 'blocked'); await r.command({ kind: 'submit', session: thread }); await warmed(r); await observe(r, m, 'warmed'); });
+  await run('threshold', async (r, m) => {
+    const turn = await r.command({ kind: 'submit', session: thread, tokens: 100000 }); await r.worker(); await sleep(1300); const before = await observe(r, m, 'blocked');
+    for (const event of ['SessionStart', 'UserPromptSubmit', 'PostCompact', 'Stop', 'SessionEnd']) await r.command({ kind: 'event', event, ...turn, transcriptPath: join(r.nativeHome, 'separate-agent.jsonl') });
+    await sleep(200); const after = await observe(r, m, 'foreign');
+    for (const field of ['userAt', 'warmAt', 'tokens', 'generation', 'busy']) assert.equal(after.statuses[0].state[field], before.statuses[0].state[field], 'separate transcript preserves owned ' + field);
+    await r.command({ kind: 'submit', session: thread }); await warmed(r); await observe(r, m, 'warmed');
+  }, { budgetMs: 10000 });
   await run('controls', async (r, m) => { await r.command({ kind: 'submit', session: thread }); await r.worker(); const c = json(r.config); save(r.config, { ...c, paused: true, controlRevision: 1, controlChangedAt: Date.now() }); await sleep(1300); await observe(r, m, 'blocked'); writeFileSync(r.config, '{invalid'); await sleep(1100); save(r.config, { ...c, controlRevision: 2, controlChangedAt: Date.now() }); await sleep(1100); assert.equal(r.queues().length, 0, 'controls need fresh response'); await r.command({ kind: 'submit', session: thread }); await warmed(r); await observe(r, m, 'warmed'); }, { budgetMs: 10000 });
   await run('worker-death', async (r, m) => { await r.command({ kind: 'submit', session: thread }); const first = await r.worker(); assert.ok(alive(first)); process.kill(first.pid, 'SIGTERM'); await until(() => !alive(first), 'watcher TERM'); await observe(r, m, 'term'); await r.command({ kind: 'submit', session: thread }); const next: any = await until(() => r.states().find(s => s.diagnostics.pid !== first.pid), 'replacement watcher'); const other = { pid: next.diagnostics.pid, birth: next.diagnostics.birth, kind: 'watcher' }; owned.push(other); assert.ok(alive(other)); process.kill(other.pid, 'SIGKILL'); await until(() => !alive(other), 'watcher KILL'); await observe(r, m, 'kill'); const phase = Date.now(); await r.command({ kind: 'submit', session: thread }); await warmed(r, phase); await observe(r, m, 'warmed'); }, { budgetMs: 10000 });
   await run('invalidation', async (r, m) => { const t = await r.command({ kind: 'submit', session: thread }); await r.worker(); for (const event of ['Interrupt', 'PostCompact', 'SessionEnd']) await r.command({ kind: 'event', event, ...t }); await r.command({ kind: 'event', event: 'Stop', ...t }); await sleep(1400); await observe(r, m, 'blocked'); });
@@ -117,6 +123,23 @@ try {
   await run('transcript-foreign-owner', async (r, m) => {
     await r.command({ kind: 'submit', session: thread }); await sleep(1600); const mark = await observe(r, m, 'blocked'); mark.claims = claimRows(r);
   }, {}, { NODE_OPTIONS: '--import=' + join(here, 'codex-hook-watcher-uid-fault.mjs') });
+  await run('context-completions', async (r, m) => {
+    const first = await r.command({ kind: 'submit', session: thread, complete: false }); await r.worker();
+    await until(() => r.states()[0]?.state.busy && r.states()[0]?.state.userAt !== null, 'active bound turn');
+    await r.command({ kind: 'event', event: 'PostCompact', ...first }); await r.command({ kind: 'complete', ...first, tokens: 100000 });
+    await sleep(1300); await observe(r, m, 'equal'); assert.equal(r.queues().length, 0);
+    const below = await r.command({ kind: 'submit', session: thread, complete: false }); await r.command({ kind: 'event', event: 'SessionStart', session: thread, source: 'resume' }); await r.command({ kind: 'complete', ...below, tokens: 99999 });
+    await sleep(1300); await observe(r, m, 'below'); assert.equal(r.queues().length, 0);
+    const active = await r.command({ kind: 'submit', session: thread, complete: false }); await until(() => r.states()[0]?.state.turnId === active.turn && r.states()[0]?.state.userAt !== null, 'resumed active turn bound');
+    await r.command({ kind: 'event', event: 'SessionStart', session: thread, source: 'resume' }); await r.command({ kind: 'complete', ...active }); await warmed(r); await observe(r, m, 'warmed');
+  }, { budgetMs: 12000 });
+  await run('own-recovery', async (r, m) => {
+    await r.command({ kind: 'submit', session: thread }); const worker = await r.worker(); await warmed(r); const before = await observe(r, m, 'before');
+    const own = lines(join(r.nativeHome, 'submissions.jsonl')).find(s => before.queues.some((q: any) => q.row.params.clientUserMessageId === s.client)); assert.ok(own);
+    process.kill(worker.pid, 'SIGTERM'); await until(() => !alive(worker), 'observer stopped for own replay');
+    await r.command({ kind: 'event', event: 'UserPromptSubmit', session: thread, turn: own.turn }); await r.command({ kind: 'event', event: 'Stop', session: thread, turn: own.turn });
+    await until(() => r.states()[0]?.diagnostics.pid !== worker.pid, 'observer recovered'); await sleep(1200); await observe(r, m, 'recovered');
+  }, { budgetMs: 10000 });
   failure = cases.filter(c => c.failure).map(c => c.name + ': ' + c.failure).join('; ');
 } catch (error) { failure = String(error); }
 finally {

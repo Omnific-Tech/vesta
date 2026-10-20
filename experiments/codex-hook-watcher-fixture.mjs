@@ -77,7 +77,7 @@ if (process.argv.includes('app-server')) {
       if (command.kind === 'concurrent-start') result = await start(command.session, 4);
       if (command.kind === 'submit') result = await submit(command);
       if (command.kind === 'complete') result = await complete(command);
-      if (command.kind === 'event') result = await hook(command.event, command.session, command.turn, command.source ? { source: command.source } : {});
+      if (command.kind === 'event') result = await hook(command.event, command.session, command.turn, { ...(command.source ? { source: command.source } : {}), ...(command.transcriptPath ? { transcript_path: command.transcriptPath } : {}) });
       process.send?.({ id: command.id, result });
     }).catch(error => { process.send?.({ id: command.id, error: String(error) }); });
   });

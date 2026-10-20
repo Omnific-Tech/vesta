@@ -42,7 +42,7 @@ for (const provider of ['claude', 'codex']) {
   add(provider, 'no-real-user', [e('turn-start', 1, { sessionId: S, turnId: T, source: 'other' }), e('turn-complete', 2, { sessionId: S, turnId: T, source: 'other', raw: raw(provider, 100001) }), e('tick', 12)], [{ index: 2, action: 'skip' }]);
   add(provider, 'idle-boundary', [...ready(provider), e('tick', 11), e('tick', 12)], [{ index: 3, action: 'skip' }, { index: 4, action: 'reserve' }]);
   add(provider, 'budget-boundary', [...ready(provider), e('tick', 100)], [{ index: 3, action: 'expired', state: { pending: false } }]);
-  add(provider, 'input-resets-idle', [...ready(provider), e('activity', 11), e('tick', 12), e('tick', 21)], [{ index: 4, action: 'skip' }, { index: 5, action: 'reserve', state: { userAt: 11 } }]);
+  add(provider, 'input-preserves-completion-idle', [...ready(provider), e('activity', 11), e('tick', 12)], [{ index: 4, action: 'reserve', state: { userAt: 11, warmAt: 2 } }]);
   add(provider, 'input-cancels-reserved-warm', [...ready(provider), e('tick', 12), e('activity', 13), e('dispatch', 14)], [{ index: 4, action: 'cancel', state: { pending: false, userAt: 13 } }, { index: 5, action: 'skip' }]);
   add(provider, 'dispatch-commits-reservation', [...ready(provider), e('tick', 12), e('dispatch', 13), e('activity', 14)], [{ index: 4, action: 'dispatch', state: { pending: false, dispatched: true } }, { index: 5, action: 'observe', state: { userAt: 14, dispatched: true } }]);
   add(provider, 'dispatch-once-only', [...ready(provider), e('tick', 12), e('dispatch', 13), e('dispatch', 14)], [{ index: 4, action: 'dispatch' }, { index: 5, action: 'skip' }]);
@@ -57,6 +57,7 @@ for (const provider of ['claude', 'codex']) {
   add(provider, 'busy-postpones', [...ready(provider), e('turn-start', 3, { sessionId: S, turnId: 'busy', source: 'other' }), e('tick', 12), e('turn-complete', 20, { sessionId: S, turnId: 'busy', source: 'other', raw: raw(provider, 100001) }), e('tick', 29), e('tick', 30)], [{ index: 4, action: 'busy' }, { index: 6, action: 'skip' }, { index: 7, action: 'reserve' }]);
   add(provider, 'busy-invalidates-reservation', [...ready(provider), e('tick', 12), e('turn-start', 13, { sessionId: S, turnId: 'busy', source: 'other' }), e('dispatch', 14)], [{ index: 4, action: 'cancel', state: { pending: false, busy: true } }, { index: 5, action: 'busy' }]);
   for (const type of ['compact', 'reconnect']) {
+    add(provider, type + '-active-any-origin-completion', [...ready(provider), e('turn-start', 3, { sessionId: S, turnId: 'meta', source: 'other' }), e(type, 4), e('turn-complete', 5, { sessionId: S, turnId: 'meta', raw: raw(provider, 100001) }), e('tick', 15)], [{ index: 5, action: 'observe', state: { tokens: 100001 } }, { index: 6, action: 'reserve' }]);
     add(provider, type + '-invalidates', [...ready(provider), e('tick', 12), e(type, 13), e('dispatch', 14), e('tick', 30)], [{ index: 4, action: 'cancel', state: { pending: false, generation: 2 } }, { index: 5, action: 'skip' }, { index: 6, action: 'skip' }]);
     add(provider, type + '-fresh-response-restores', [...ready(provider), e(type, 3), e('turn-start', 4, { sessionId: S, turnId: 'fresh', source: 'user' }), e('turn-complete', 5, { sessionId: S, turnId: 'fresh', source: 'user', raw: raw(provider, 100001) }), e('tick', 15)], [{ index: 6, action: 'reserve' }]);
   }

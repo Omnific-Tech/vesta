@@ -146,6 +146,55 @@ export async function claudeControlHostFixture(input: { binary: string; modulePa
     await fire('session.end', { reason: 'exit' });
     reloadScenarios.push({ variant, sessionId, before, restored, completed });
   }
-  const summary = { kind: 'simulated-native-host-actual-shipped-claude-module', binary: input.binary, binarySha256: digest(input.binary), modulePath: input.modulePath, moduleSha256: digest(input.modulePath), logFile: 'host.jsonl', scenarios, reloadScenarios };
+  const clockScenarios: any[] = [];
+  for (const variant of ['meta', 'equal', 'below', 'active-resume', 'active-reload', 'idle-reload-meta', 'ended-resume-meta', 'active-warm-reload', 'foreign', 'budget', 'controls'] as const) {
+    currentStage = 'clock-' + variant;
+    cli(['resume']); cli(['config', '--idle-ms', '800', '--budget-ms', '4000', '--threshold', '100000']);
+    let now = Date.now() + 1; let tokens = 200000; let handlers = new Map<string, Function>();
+    const sessionId = 'clock-' + variant; const store = new Map<string, any>(); const submissions: any[] = []; const timers: any[] = [];
+    const host = {
+      env: { get: async (name: string) => input.env[name] }, fs: { read: async (path: string) => readFileSync(path, 'utf8') },
+      session: { id: async () => sessionId, usage: async () => ({ context: { tokens } }) }, command: { register: async () => undefined },
+      store: { get: async (key: string) => store.get(key), set: async (key: string, value: any) => { store.set(key, structuredClone(value)); record('clock-status', { variant, value }); } },
+      clock: { now: async () => now, sleep: async () => undefined, every: (_ms: number, callback: Function) => { const row = { callback, cancelled: false }; timers.push(row); return { cancel: () => { row.cancelled = true; } }; } },
+      prompt: { submit: async (value: any) => { submissions.push(value); record('clock-submit', { variant, value }); } },
+    };
+    const load = async (generation: number) => { handlers = new Map(); const module = await import(pathToFileURL(input.modulePath).href + '?clock=' + variant + generation); module.register((name: string, fn: Function) => handlers.set(name, fn), JSON.parse(readFileSync(settingsPath, 'utf8')).pluginConfigs['vesta@vesta-local'].options); };
+    const fire = async (name: string, value: any = {}) => { record('clock-event', { name, value, clock: now }); return handlers.get(name)!(host, value, async (e: any) => e); };
+    const state = () => structuredClone(store.get('status:' + sessionId));
+    const tick = async () => { for (const row of timers.filter(row => !row.cancelled)) await row.callback(); };
+    await load(0); await fire('session.start'); await fire('prompt.submit', { origin: { kind: 'composer' } }); await fire('turn.start', { turnId: 'seed', text: 'seed' }); await fire('turn.complete', { turnId: 'seed', reason: 'answer' });
+    const seed = state();
+    if (variant === 'idle-reload-meta') { for (const row of timers) row.cancelled = true; await load(1); await fire('session.start'); }
+    if (variant === 'ended-resume-meta') { await fire('session.end', { reason: 'resume' }); await load(1); await fire('session.start'); }
+    let turnId = 'meta'; let text = 'background';
+    if (variant === 'active-warm-reload') { now += 800; await tick(); assert.equal(submissions.length, 1); const message = submissions[0].text; turnId = 'warm-reload'; text = "The vesta plugin sent a message:\n" + message + "\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above."; }
+    const initialSubmissions = submissions.length;
+    now += 10; await fire('session.compact');
+    await fire('turn.start', { turnId, text, isMeta: true });
+    if (variant === 'active-resume') { await fire('session.end', { reason: 'resume' }); await fire('session.start', { source: 'resume' }); }
+    if (variant === 'active-reload' || variant === 'active-warm-reload') { for (const row of timers) row.cancelled = true; await load(2); await fire('session.start'); }
+    if (variant === 'controls') { cli(['config', '--message', 'VESTA_CHANGED_CLOCK']); now = Math.max(now, Date.now()) + 1; await tick(); for (const row of timers) row.cancelled = true; await load(1); await fire('session.start'); }
+    const busy = state(); now += 900; await tick(); assert.equal(submissions.length, initialSubmissions, 'busy blocks warming');
+    if (variant === 'equal') tokens = 100000; if (variant === 'below') tokens = 99999;
+    await fire('turn.complete', { turnId, reason: 'answer' }); const completed = state();
+    if (variant === 'foreign') {
+      now += 500; tokens = 1;
+      for (const extra of [{ isSidechain: true }, { agentId: 'subagent' }, { sessionId: 'foreign-session' }]) { await fire('prompt.submit', { origin: { kind: 'composer' }, ...extra }); await fire('turn.start', { turnId: 'foreign', ...extra }); await fire('turn.complete', { turnId: 'foreign', reason: 'answer', ...extra }); }
+      assert.equal(state().warmAt, completed.warmAt); assert.equal(state().tokens, completed.tokens); assert.equal(state().userAt, completed.userAt);
+    }
+    assert.equal(completed.tokens, variant === 'controls' ? null : tokens === 1 ? 200000 : tokens);
+    now = completed.warmAt + 799; await fire('prompt.edit'); await tick(); assert.equal(submissions.length, initialSubmissions, 'completion starts idle'); now += 1; await tick();
+    assert.equal(submissions.length, initialSubmissions + (['equal', 'below', 'controls'].includes(variant) ? 0 : 1), 'any-origin completion qualifies strictly above threshold');
+    if (variant === 'budget') {
+      const budgetAt = state().userAt;
+      let consumed = 0;
+      for (let i = 0; i < 6; i++) { const text = submissions[consumed]?.text; if (text) { consumed++; await fire('turn.start', { turnId: 'warm-' + i, text: "The vesta plugin sent a message:\n" + text + "\n\nThis is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above." }); await fire('turn.complete', { turnId: 'warm-' + i, reason: 'answer' }); } now += 800; await tick(); assert.equal(state().userAt, budgetAt, 'warm completion never renews budget'); }
+      await fire('turn.start', { turnId: 'warm-0', text: 'replayed-owned-turn' }); await fire('turn.complete', { turnId: 'warm-0', reason: 'answer' }); assert.equal(state().userAt, budgetAt, 'old owned turn replay never renews budget');
+      const count = submissions.length; now += 800; await tick(); assert.equal(submissions.length, count, 'expired budget blocks subsequent warming');
+    }
+    clockScenarios.push({ variant, seed, busy, completed, final: state(), submissions }); await fire('session.end', { reason: 'exit' });
+  }
+  const summary = { kind: 'simulated-native-host-actual-shipped-claude-module', binary: input.binary, binarySha256: digest(input.binary), modulePath: input.modulePath, moduleSha256: digest(input.modulePath), logFile: 'host.jsonl', scenarios, reloadScenarios, clockScenarios };
   writeFileSync(join(input.directory, 'summary.json'), JSON.stringify(summary, null, 2)); return summary;
 }

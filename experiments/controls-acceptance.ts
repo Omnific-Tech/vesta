@@ -229,6 +229,27 @@ export function verifyControls(directory: string) {
     assert.equal(scenario.completed.userAt, scenario.before.userAt); assert.equal(scenario.completed.busy, false);
     assert.equal(scenario.completed.tokens, scenario.variant === 'fresh-user' ? 200000 : null);
   }
+  assert.deepEqual(host.clockScenarios.map((row: any) => row.variant), ['meta', 'equal', 'below', 'active-resume', 'active-reload', 'idle-reload-meta', 'ended-resume-meta', 'active-warm-reload', 'foreign', 'budget', 'controls']);
+  for (const scenario of host.clockScenarios) {
+    const values = hostRows.filter((row: any) => row.kind === 'clock-status' && row.variant === scenario.variant).map((row: any) => row.value);
+    for (const value of [scenario.seed, scenario.busy, scenario.completed, scenario.final]) assert.ok(values.some((raw: any) => JSON.stringify(raw) === JSON.stringify(value)), 'clock assertion tied to actual module store call');
+    assert.equal(scenario.busy.busy, true, 'owned in-flight turn blocks dispatch');
+    assert.equal(scenario.completed.busy, false);
+    assert.ok(scenario.completed.warmAt > scenario.seed.warmAt, 'meta completion advances owned idle clock');
+    if (scenario.variant === 'active-warm-reload') assert.equal(scenario.busy.userAt, scenario.seed.userAt, 'recovered Vesta turn never renews activity budget');
+    else assert.ok(scenario.busy.userAt > scenario.seed.userAt, 'non-Vesta meta turn renews activity budget');
+    const expectedTokens = scenario.variant === 'controls' ? null : scenario.variant === 'equal' ? 100000 : scenario.variant === 'below' ? 99999 : 200000;
+    assert.equal(scenario.completed.tokens, expectedTokens);
+    const submitted = hostRows.filter((row: any) => row.kind === 'clock-submit' && row.variant === scenario.variant).map((row: any) => row.value);
+    assert.deepEqual(scenario.submissions, submitted, 'clock delivery tied to actual native submit calls');
+    if (['equal', 'below', 'controls'].includes(scenario.variant)) assert.equal(submitted.length, 0, 'strict threshold and controls consent block');
+    else assert.ok(submitted.length > 0, 'any-origin eligible completion warms');
+    if (scenario.variant === 'foreign') { assert.equal(scenario.final.warmAt, scenario.completed.warmAt); assert.equal(scenario.final.tokens, scenario.completed.tokens); }
+    if (scenario.variant === 'budget') {
+      assert.ok(scenario.final.warmAt > scenario.completed.warmAt, 'completed keepalive restarts idle');
+      assert.equal(scenario.final.lastAction, 'expired', 'continued keepalive completions cannot extend budget');
+    }
+  }
   for (const name of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input', 'delayed-prerecovery-input']) {
     const observation = e.observations.find((row: any) => row.name === name); assert.equal(observation.synthetic, true);
     const trace = rawRows(observation.traceFile); assert.ok(trace.some((row: any) => row.kind === 'response-complete'));
