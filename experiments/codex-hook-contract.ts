@@ -35,7 +35,8 @@ const sources = ['experiments/CODEX-HOOK-WATCHER-FAILURES.md', 'experiments/code
 function files(path: string): string[] { return readdirSync(path).flatMap(name => { const p = join(path, name); const st = lstatSync(p); assert.ok(!st.isSymbolicLink(), 'retained evidence has no symlinks'); return st.isDirectory() ? files(p) : [p]; }); }
 export function seal(path: string, summary: any) {
   save(join(path, 'summary.json'), summary);
-  save(join(path, 'receipt.json'), { schema: 1, sources: sources.map(file => ({ path: file, sha256: existsSync(join(root, file)) ? sha(join(root, file)) : null })), files: files(path).filter(file => relative(path, file) !== 'receipt.json').map(file => ({ path: relative(path, file), sha256: sha(file) })) });
+  save(join(path, 'receipt.json'), { schema: 1, sources: sources.map(file => ({ path: file, sha256: existsSync(join(root, file)) ? sha(join(root, file)) : null })), // Native Codex keeps syncing its plugin catalog into CODEX_HOME/.tmp after the run; that scratch is not evidence.
+    files: files(path).filter(file => relative(path, file) !== 'receipt.json' && !/(^|\/)codex\/\.tmp\//.test(relative(path, file))).map(file => ({ path: relative(path, file), sha256: sha(file) })) });
 }
 function verifySynthetic(path: string, summary: any) {
   const required = ['basic', 'busy', 'threshold', 'controls', 'worker-death', 'invalidation', 'attribution', 'identity', 'writer-race', 'foreign-parent', 'shared-transcript', 'malformed-journal', 'native-exit', 'hooks-untrusted', 'hooks-disabled', 'concurrent-first', 'resume-ended-thread', 'trust-recovery', 'project-readiness', 'transcript-symlinked-sessions', 'transcript-escape', 'transcript-final-symlink', 'transcript-foreign-owner'];
