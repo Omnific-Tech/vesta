@@ -67,7 +67,9 @@ try {
     const reset = integration(JSON.parse(run('reset-' + suffix, linked, ['reset', '--provider', 'codex'])), 'codex');
     resetDefaults(reset, 'codex'); assert.equal(reset.warmConfigured, warm); assert.ok(reset.controlRevision > configured.controlRevision);
     const inspected = integration(JSON.parse(run('inspect-' + suffix, linked, ['config', '--provider', 'codex'])), 'codex');
-    assert.deepEqual(inspected, reset, 'published controls persisted');
+    // runtimeOwners is a live scan stamped per call; every other field must persist.
+    const { runtimeOwners: _inspectedOwners, ...persisted } = inspected; const { runtimeOwners: _resetOwners, ...expected } = reset;
+    assert.deepEqual(persisted, expected, 'published controls persisted');
     controls.push({ warm, paused, configured, reset, inspected });
   }
   const status = JSON.parse(run('status', linked, args('status')));
