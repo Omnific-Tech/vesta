@@ -29,6 +29,15 @@
 //   permit partial reset writes; reset must reject rather than repair corruption;
 // - running owners retain an old metric, renew user activity/budget, restart or
 //   dispatch another automatic turn after actual compiled reset restores defaults.
+// HOOK-MODE PORT failure enumeration (details and oracle mapping: CONTROLS-FAILURES.md):
+// - Codex owners are judged by removed wrapper artifacts instead of the hook watcher's
+//   real per-thread status; control fields are authored rather than observed (they are
+//   derived only from retained config bytes whose digest equals the status
+//   controlSignature); owners are bound by guess instead of unique rollout nonce;
+// - a warm lacks a durable ledger row, the same native client id with the exact custom
+//   body, or renews user activity; hooks/setup retain a wrapper or edit the shell file;
+// - fixture-owned daemon/observer processes leak or are signalled without birth identity;
+// - the four supplemental timelines are dropped, or run anything but the installed hook bytes.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -36,11 +45,27 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { claudePluginBody } from './marker-acceptance.ts';
 import { existsSync } from 'node:fs';
+import { digest as signatureDigest } from './codex-hook-state.ts';
+import { controlConfig } from './watcher-policy.ts';
 
 export const controlMessage = 'VESTA_CUSTOM_CONTROL_🪔';
 export const controlFields = ['paused', 'controlRevision', 'idleMs', 'budgetMs', 'threshold', 'message'] as const;
 export const digest = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
-export const codexControlSnapshot = (value: any) => ({ ...value.state, ...Object.fromEntries(controlFields.map(key => [key, value[key] ?? value.state?.[key]])), warmingSuspendedReason: value.warmingSuspendedReason, lastAction: value.lastAction, ownerId: value.ownerId });
+// Hook watcher status has no top-level paused/controlRevision/message. They are the live
+// config's values only when the observer proves it applied exactly that config: its
+// controlSignature must equal the digest of controlConfig(config bytes). A valid config the
+// observer has not applied yet yields undefined (never captured); an invalid or absent
+// config yields a value without control fields (only the suspension reason is meaningful).
+export function codexControlSnapshot(statusBytes: string | Buffer, controlBytes: string | Buffer) {
+  const status = JSON.parse(String(statusBytes));
+  if (status.integrationMode !== 'hook' || !status.state || typeof status.state !== 'object') return undefined;
+  let live: any; try { live = controlConfig('codex', JSON.parse(String(controlBytes))); } catch { live = undefined; }
+  const bound = live !== undefined && status.controlSignature === signatureDigest(JSON.stringify(live));
+  if (live !== undefined && !bound) return undefined;
+  return JSON.parse(JSON.stringify({ ...status.state, ...(bound ? { paused: live.paused, controlRevision: live.controlRevision, message: live.message } : {}),
+    idleMs: status.idleMs, budgetMs: status.budgetMs, threshold: status.threshold, warmingSuspendedReason: status.warmingSuspendedReason,
+    lastAction: status.diagnostics?.lastDecision?.action, ownerId: status.ownerId }));
+}
 const sha = (bytes: string | Buffer) => createHash('sha256').update(bytes).digest('hex');
 function canonical(value: any): string {
   if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
@@ -131,9 +156,16 @@ export function verifyControls(directory: string) {
       for (const phase of ['paused', 'resumed', 'configured', 'fresh', 'expired', 'continuity', 'reset-before', 'reset']) assert.ok(snapshots.some((s: any) => s.phase === phase), provider + ' native snapshot ' + phase);
       const paused = snapshots.find((s: any) => s.phase === 'paused');
       for (const snapshot of snapshots) {
-        const raw = JSON.parse(readFileSync(join(directory, snapshot.rawFile), 'utf8'));
+        const rawText = readFileSync(join(directory, snapshot.rawFile), 'utf8'); const raw = JSON.parse(rawText);
         assert.equal(digest(join(directory, snapshot.rawFile)), snapshot.rawSha256);
-        assert.deepEqual(snapshot.value, provider === 'claude' ? raw['status:' + owner.sessionId] : codexControlSnapshot(raw), 'snapshot came from retained native store/status bytes');
+        if (provider === 'claude') assert.deepEqual(snapshot.value, raw['status:' + owner.sessionId], 'snapshot came from retained native store bytes');
+        else {
+          assert.equal(digest(join(directory, snapshot.controlFile)), snapshot.controlSha256, 'retained config bytes');
+          assert.deepEqual(snapshot.value, codexControlSnapshot(rawText, readFileSync(join(directory, snapshot.controlFile))), 'snapshot came from retained hook status and applied config bytes');
+          assert.equal(raw.integrationMode, 'hook'); assert.equal(raw.sessionId, owner.sessionId, 'status names the PTY-bound native thread');
+          assert.equal(raw.nativeHome, e.codexHook.nativeHome, 'status from the fixture native home'); assert.equal(raw.nativePid, e.codexHook.daemon.pid, 'status from the fixture-owned backend');
+          assert.equal(raw.nativeBirth, e.codexHook.daemon.birth); assert.equal(raw.ownerId, snapshot.value.ownerId); assert.ok(raw.ownerId.startsWith('hook-'));
+        }
       }
       const resumed = snapshots.findLast((s: any) => s.phase === 'resumed');
       const configured = snapshots.find((s: any) => s.phase === 'configured');
@@ -169,12 +201,18 @@ export function verifyControls(directory: string) {
         assert.equal(texts.filter(text => text === 'K').length, 1);
         assert.ok(answers.every(row => row.message.content.every((b: any) => ['text', 'thinking', 'redacted_thinking'].includes(b.type))));
       } else {
-        const trace = rawRows(owner.traceFile); const dispatch = trace.filter((row: any) => row.kind === 'marker-dispatched');
-        assert.equal(dispatch.length, 1); assert.equal(dispatch[0].activeSession, owner.sessionId);
-        const requests = trace.filter((row: any) => row.kind === 'queue-request' && row.row.method === 'thread/queue/add');
-        assert.equal(requests.length, 1); assert.equal(requests[0].row.params.threadId, owner.sessionId);
-        assert.deepEqual(requests[0].row.params.input, [{ type: 'text', text: controlMessage, text_elements: [] }]);
-        assert.ok(trace.some((row: any) => row.kind === 'warm-attributed' && row.pending.clientId === requests[0].row.params.clientUserMessageId));
+        // Hook mode: durable ledger row (before the native turn) + same native client id carrying the exact custom body.
+        const ledger = rawRows(e.codexHook.ledgerFile).filter((row: any) => row.sessionId === owner.sessionId);
+        assert.equal(ledger.length, 1, 'exactly one durable dispatch for the owner thread'); assert.equal(ledger[0].schema, 1);
+        assert.equal(ledger[0].ownerId, snapshots[0].value.ownerId);
+        const submitted = transcript.filter((row: any) => row.type === 'event_msg' && row.payload?.type === 'item_completed' && row.payload.item?.type === 'UserMessage');
+        const queued = submitted.filter((row: any) => row.payload.item.client_id === ledger[0].clientId);
+        assert.equal(queued.length, 1, 'native turn carries the ledger client id'); assert.equal(queued[0].payload.thread_id, owner.sessionId);
+        assert.deepEqual(queued[0].payload.item.content, [{ type: 'text', text: controlMessage, text_elements: [] }]);
+        assert.ok(ledger[0].at <= queued[0].payload.started_at_ms, 'durable identity precedes native warm');
+        assert.equal(submitted.filter((row: any) => JSON.stringify(row.payload.item.content).includes(controlMessage)).length, 1, 'custom body only in the one attributed warm');
+        const hooks = rawRows(e.codexHook.journalFile).filter((row: any) => row.input.session_id === owner.sessionId).map((row: any) => row.input.hook_event_name);
+        for (const name of ['SessionStart', 'UserPromptSubmit', 'Stop']) assert.ok(hooks.includes(name), 'actual native hook journaled: ' + name);
         const texts = transcript.filter((row: any) => row.type === 'response_item' && row.payload.role === 'assistant' && row.payload.phase === 'final_answer').map((row: any) => row.payload.content.map((b: any) => b.text ?? '').join('').trim());
         const warm = texts.indexOf('K'); assert.ok(warm > 0); assert.equal(texts[warm - 1], owner.nonce); assert.equal(texts[warm + 1], owner.nonce);
         assert.equal(texts.filter((text: string) => text === 'K').length, 1);
@@ -250,17 +288,40 @@ export function verifyControls(directory: string) {
       assert.equal(scenario.final.lastAction, 'expired', 'continued keepalive completions cannot extend budget');
     }
   }
-  for (const name of ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input', 'delayed-prerecovery-input']) {
-    const observation = e.observations.find((row: any) => row.name === name); assert.equal(observation.synthetic, true);
-    const trace = rawRows(observation.traceFile); assert.ok(trace.some((row: any) => row.kind === 'response-complete'));
-    const queue = join(directory, observation.queueFile); assert.equal(existsSync(queue) ? rawRows(observation.queueFile).length : 0, 0);
-    assert.equal(trace.filter((row: any) => row.kind === 'marker-dispatched').length, 0);
-    if (name === 'threshold-equality') assert.ok(trace.some((row: any) => row.kind === 'policy' && row.row.state.tokens === 209848));
-    else if (name === 'precommit-cancel') { assert.ok(trace.some((row: any) => row.kind === 'queue-process' && row.at <= observation.changedAt)); assert.ok(trace.some((row: any) => row.kind === 'queue-cancelled' && row.at >= observation.changedAt)); }
-    else {
-      assert.ok(trace.some((row: any) => row.kind === 'user-input' && row.at < observation.changedAt));
-      assert.equal(trace.findLast((row: any) => row.kind === 'policy' && row.row.type === 'turn-complete').row.state.tokens, null);
-      if (name === 'delayed-prerecovery-input') assert.ok(controlFileError(JSON.parse(readFileSync(join(directory, observation.malformedStatusFile), 'utf8')).warmingSuspendedReason));
+  // Supplemental Codex hook timelines: installed shipped watcher + synthetic engine, never real model turns.
+  const timelineNames = ['threshold-equality', 'precommit-cancel', 'delayed-prechange-input', 'delayed-prerecovery-input'];
+  const installedWatcher = e.installedFiles.find((file: any) => file.assetPath === 'app/experiments/codex-hook-watcher.ts' && file.path.includes('/current/app/')); assert.ok(installedWatcher);
+  const tl = (path: string) => join('codex-hook-timelines', path);
+  const timelines = JSON.parse(readFileSync(join(directory, 'codex-hook-timelines/summary.json'), 'utf8'));
+  assert.equal(timelines.kind, 'synthetic-hook-engine-shipped-watcher'); assert.equal(timelines.runtime, installedWatcher.path); assert.equal(timelines.runtimeSha256, installedWatcher.sha256, 'timelines executed the installed shipped watcher');
+  assert.equal(digest(timelines.engineFile), timelines.engineSha256); assert.deepEqual(timelines.scenarios.map((row: any) => row.name), timelineNames);
+  const iso = (row: any) => Date.parse(row.timestamp);
+  for (const name of timelineNames) {
+    const observation = e.observations.find((row: any) => row.name === name); assert.equal(observation.synthetic, true); assert.equal(observation.summaryFile, 'codex-hook-timelines/summary.json');
+    const s = timelines.scenarios.find((row: any) => row.name === name); const status = s.finalStatus; const decisions = status.diagnostics.decisions.map((row: any) => row.reason);
+    const queueFile = join(directory, tl(s.nativeHome), 'queue.jsonl'); assert.equal(existsSync(queueFile) ? rawRows(join(tl(s.nativeHome), 'queue.jsonl')).length : 0, 0, name + ' prevents native queue write'); assert.equal(s.finalQueue, 0);
+    assert.equal(status.integrationMode, 'hook'); assert.equal(status.nativePid, s.engine.pid); assert.equal(status.sessionId, s.session);
+    const journal = rawRows(tl(s.journalFile)); assert.ok(journal.every((row: any) => row.nativePid === s.engine.pid && row.schema === 1));
+    const packets = (event: string, turn?: string) => journal.filter((row: any) => row.input.hook_event_name === event && (!turn || row.input.turn_id === turn));
+    assert.ok(packets('UserPromptSubmit').length > 0 && packets('Stop').length > 0, name + ' actual shipped ingress journaled hooks');
+    const turnStart = (turn: string) => iso(rawRows(join(tl(s.nativeHome), 'sessions', s.session + '.jsonl')).find((row: any) => row.type === 'turn_context' && row.payload.turn_id === turn));
+    if (name === 'threshold-equality') {
+      assert.equal(s.threshold, 100000); assert.equal(status.threshold, 100000); assert.equal(status.state.tokens, 100000, 'measured exactly the threshold'); assert.equal(status.diagnostics.lastMeasurement.inputTokens, 100000);
+      assert.ok(decisions.includes('input-below-threshold'), 'strict threshold gate observed');
+    } else if (name === 'precommit-cancel') {
+      assert.ok(s.initializeRows.length > s.baselineInitialize); assert.ok(s.initializeRows[s.baselineInitialize].at <= s.changedAt, 'queue writer was initialising before the pause');
+      assert.equal(s.finalConfig.paused, true); assert.equal(s.finalConfig.controlRevision, 1);
+      assert.ok(status.diagnostics.decisions.some((row: any) => row.reason === 'queue-cancelled' && row.at >= s.changedAt), 'authorization cancelled before queue write'); assert.equal(status.state.tokens, null);
+    } else {
+      assert.ok(!status.diagnostics.lastMeasurement?.current, 'no current measurement from delayed input'); assert.equal(status.state.tokens, null); assert.ok(decisions.includes('fresh-response-required'));
+      const turn = s.turn; const packet = packets('UserPromptSubmit', turn); assert.equal(packet.length, 1, 'submit hook journaled once');
+      assert.ok(turnStart(turn) >= s.metadataAt, 'native metadata is written after the control change/recovery'); assert.equal(status.state.turnId, turn); assert.equal(status.state.busy, false);
+      if (name === 'delayed-prechange-input') { assert.ok(packet[0].at < s.changedAt, 'submit hook precedes the control change'); assert.ok(s.metadataAt > s.changedAt); assert.equal(s.finalConfig.controlRevision, 1); }
+      else {
+        assert.ok(controlFileError(s.invalidStatus.warmingSuspendedReason)); assert.ok(controlFileError(s.invalidPendingStatus.warmingSuspendedReason));
+        assert.equal(packets('UserPromptSubmit', s.lost).length, 0, 'ingress fails open while config is invalid: no journal row'); assert.ok(s.lostAt <= s.restoredAt && s.restoredAt < s.lostMetadataAt);
+        assert.ok(packet[0].at < s.invalidAt && s.invalidAt < s.recoveredAt && s.recoveredAt < s.metadataAt, 'pending submit hook precedes invalidation and recovery');
+      }
     }
   }
   for (const file of e.installedFiles) {
@@ -268,7 +329,20 @@ export function verifyControls(directory: string) {
     assert.ok(asset); assert.equal(file.sha256, asset.sha256, 'executed embedded candidate bytes');
   }
   assert.ok(e.installedFiles.some((file: any) => file.assetPath.endsWith('/vesta-claude/hooks/register.ts')));
-  assert.ok(e.installedFiles.some((file: any) => file.assetPath.endsWith('/codex-native-owner.ts')));
+  // The Codex plugin copy that native actually executes, and the installed package copies, are the receipt's hook bytes.
+  for (const assetPath of ['app/experiments/codex-hook-watcher.ts', 'app/experiments/codex-hook-state.ts', 'app/experiments/watcher-policy.ts']) {
+    assert.ok(e.installedFiles.some((file: any) => file.assetPath === assetPath && file.path.includes('/current/app/')), 'installed package copy: ' + assetPath);
+    assert.ok(e.installedFiles.some((file: any) => file.assetPath === assetPath && file.path.includes('/codex-native-assets/')), 'native-executed plugin copy: ' + assetPath);
+  }
+  // Hook-mode integration contract: six trusted native hooks, no wrapper block, untouched caller shell file, no Vesta launch variables.
+  const hook = e.codexHook; const setup = JSON.parse(readFileSync(join(directory, hook.setupRecordFile), 'utf8'));
+  assert.equal(setup.integrationMode, 'hook'); assert.equal(setup.block, ''); assert.equal(hook.shellBefore, hook.shellAfter, 'install leaves the caller shell file untouched');
+  const trusted = JSON.parse(readFileSync(join(directory, hook.hooksTrustedFile), 'utf8')).data.flatMap((row: any) => row.hooks).filter((row: any) => row.pluginId === 'vesta@vesta-local');
+  assert.equal(trusted.length, 6); assert.ok(trusted.every((row: any) => row.trustStatus === 'trusted' && row.enabled === true));
+  for (const owner of e.owners.filter((row: any) => row.provider === 'codex')) assert.deepEqual(owner.wrapperVariables, [], 'Codex TUI launched without Vesta wrapper variables');
+  assert.equal(hook.daemon.executableSha256, hook.daemon.pinnedSha256, 'backend daemon is the pinned native binary'); assert.ok(hook.daemon.executable.startsWith(hook.nativeHome + '/'), 'backend executable lives in the fixture home');
+  assert.ok(e.cleanup.some((row: any) => row.kind === 'backend' && row.pid === hook.daemon.pid), 'fixture-owned backend cleanup receipt');
+  assert.ok(e.cleanup.some((row: any) => row.kind === 'watcher'), 'fixture-owned hook observer cleanup receipt');
   for (const child of e.cleanup) { assert.ok(child.pid > 0); assert.equal(child.owned, true); assert.equal(child.exited, true); }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
