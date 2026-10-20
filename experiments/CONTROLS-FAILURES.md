@@ -63,6 +63,15 @@ controls suite are unchanged. The failure inventory of CONTROL-001/RESET-001 in
 10. The executed Codex hook bytes differ from the production receipt. The installed
     package copies and the plugin copy that native actually executes must hash to
     receipt assets (`codex-hook-watcher.ts`, `codex-hook-state.ts`, `watcher-policy.ts`).
+11. The personal `~/.claude.json` check fails on writes Vesta never made. Live
+    Claude sessions on the same machine rewrite engine counters there
+    (`promptQueueUseCount`, `cachedGrowthBookFeaturesAt`, `pluginUsage`) while the
+    run is in progress; the fixtures use their own config dirs. A whole-profile hash
+    therefore fails on an idle-free developer machine (run 5). The check must still
+    fail when Vesta touches the profile: every path whose key or string value names
+    Vesta (outside `pluginUsage`, which keeps its per-entry checks) must hash equal
+    before and after, and no personal Vesta usage entry may appear or change.
+    Changed top-level key names are recorded as evidence (names only, no values).
 
 ## Oracle mapping and intentional changes
 
