@@ -44,7 +44,7 @@ function download(version: string) {
 }
 const args = (operation: string) => [operation, '--provider', 'codex', '--config-dir', config, '--shell-file', shell, '--json'];
 try {
-  const baselineVersion = '0.2.5';
+  const baselineVersion = '0.2.6';
   const current = download(releaseVersion); const old = download(baselineVersion);
   const receiptFile = join(artifacts, releaseVersion, 'build-receipt.json');
   run('download-current-receipt', '/usr/bin/curl', ['--disable', '--fail', '--location', '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '10', '--max-time', '90', '-o', receiptFile, 'https://github.com/Omnific-Tech/vesta/releases/download/v' + releaseVersion + '/build-receipt.json']);
@@ -67,7 +67,9 @@ try {
     const reset = integration(JSON.parse(run('reset-' + suffix, linked, ['reset', '--provider', 'codex'])), 'codex');
     resetDefaults(reset, 'codex'); assert.equal(reset.warmConfigured, warm); assert.ok(reset.controlRevision > configured.controlRevision);
     const inspected = integration(JSON.parse(run('inspect-' + suffix, linked, ['config', '--provider', 'codex'])), 'codex');
-    assert.deepEqual(inspected, reset, 'published controls persisted');
+    // runtimeOwners is a live scan stamped per call; every other field must persist.
+    const { runtimeOwners: _inspectedOwners, ...persisted } = inspected; const { runtimeOwners: _resetOwners, ...expected } = reset;
+    assert.deepEqual(persisted, expected, 'published controls persisted');
     controls.push({ warm, paused, configured, reset, inspected });
   }
   const status = JSON.parse(run('status', linked, args('status')));

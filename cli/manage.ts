@@ -202,12 +202,13 @@ function preserveClaudeCaches(root: string, selected: Provider[]) {
   } catch (error) { rmSync(directory, { recursive: true, force: true }); throw error; }
   return { retain: () => { for (const cache of caches) if (!existsSync(cache.path)) cpSync(cache.backup, cache.path, { recursive: true }); }, cleanup: () => rmSync(directory, { recursive: true, force: true }) };
 }
+const replyRule = (message: string) => 'When a Vesta cache keepalive message has the exact body ' + JSON.stringify(message) + ' (including inside the native Claude plugin-message envelope), reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.';
 export async function status(args: string[], root: string, selected?: Provider[]) {
   const installation = readJson(join(root, 'installation.json'));
   const integrations = [];
   for (const p of selected ?? providers(args, root, 'status')) {
     const state = readJson(stateFile(p)); const settings = readJson(join(p.configDir, p.provider === 'claude' ? 'settings.json' : 'vesta-codex.json'), {});
-    if (p.provider === 'codex') { integrations.push({ ...p, available: !!nativeExecutable(p), owned: !!state, ...(await hookSetupStatus(p.configDir, nativeExecutable(p)!, state)) }); continue; }
+    if (p.provider === 'codex') { const hook = await hookSetupStatus(p.configDir, nativeExecutable(p)!, state); integrations.push({ ...p, available: !!nativeExecutable(p), owned: !!state, ...hook, replyRule: replyRule(hook.message) }); continue; }
     const options = p.provider === 'claude' ? claudeControlOptions(settings) : settings;
     const config = controlConfig(p.provider, options, p.provider === 'claude');
     const shell = p.provider === 'codex' && existsSync(p.shellFile) ? readFileSync(p.shellFile, 'utf8') : '';
@@ -217,7 +218,7 @@ export async function status(args: string[], root: string, selected?: Provider[]
     const claudeReady = p.provider === 'claude' && installedClaude(p) && settings.enabledPlugins?.[pluginId] !== false;
     integrations.push({ ...p, available: !!nativeExecutable(p), owned: !!state, installed: p.provider === 'claude' ? installedClaude(p) : !!state?.block && shell.includes(state.block),
       ...config, minimumRuntimeVersion: '0.2.6', runtimeUpgrade: 'Restart sessions running Vesta before 0.2.6 once after upgrading; live controls cannot retrofit older owners.',
-      replyRule: 'When a Vesta cache keepalive message has the exact body ' + JSON.stringify(config.message) + ' (including inside the native Claude plugin-message envelope), reply with only the uppercase letter K. Do not use tools, ask questions, add commentary, or perform any other work.',
+      replyRule: replyRule(config.message),
       warmEnabled: !config.paused && (p.provider === 'claude' ? options.warm === true && claudeReady : options.warm === true && ready.ready),
       ...(p.provider === 'claude' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !claudeReady, warmingSuspendedReason: claudeReady ? '' : 'Install and enable the owned Vesta Claude plugin, then restart Claude.' } : {}),
       ...(p.provider === 'codex' ? { warmConfigured: options.warm === true, warmingSuspended: options.warm === true && !ready.ready,

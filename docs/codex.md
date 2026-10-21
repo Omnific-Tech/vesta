@@ -2,30 +2,34 @@
 
 [All provider guides](README.md) · [Install Vesta](../README.md#install)
 
-Unreleased source uses trusted native hooks to start a detached background
+Version 0.3.0 uses trusted native hooks to start a detached metadata-only
 watcher. Launch Codex directly, including through Pulse or other account launchers.
 Vesta does not launch or wrap interactive Codex, take a PTY, intercept keystrokes,
-relay native signals, modify arguments or override notifications. Published
-[v0.2.6](releases/v0.2.6.md) retains its earlier terminal-owner integration; these
-source changes have not been released or installed into personal accounts.
+relay native signals, modify arguments or override notifications. Earlier
+[v0.2.6](releases/v0.2.6.md) used a terminal-owner integration. Running legacy
+owners retain that behavior until they exit; restart after upgrading.
 
 ## Setup and migration
 
 Install the K-only rule in the applicable global instruction file, accounting for
-`AGENTS.override.md`, then select the intended `CODEX_HOME` and run source setup:
+`AGENTS.override.md`, then select the intended `CODEX_HOME` and install:
 
 ```sh
-node --experimental-strip-types experiments/setup.ts install --provider codex --warm
+vesta install --provider codex --warm
 ```
 
-Native hooks are registered even without `--warm`; warming stays off by default.
+The standalone install includes the complete hook runtime; no source checkout or
+separate Node installation is needed. Native hooks are registered even without
+`--warm`; warming stays off by default.
 Review and trust only Vesta's SessionStart, SessionEnd, UserPromptSubmit, Stop,
 Interrupt and PostCompact entries in native `/hooks`. Disabled native features
 and untrusted hooks suspend warming. Setup never edits auth, instructions or
 notify settings, and never automatically trusts a changed hook command.
 
 Fresh setup leaves shell files untouched. Migration removes only the exact owned
-legacy block, preserving unrelated bytes and placement. Edited, duplicate,
+legacy block, preserving unrelated bytes and placement. Setup rolls back owned
+registration/configuration and shell placement on failure; compensation failures
+are reported. Edited, duplicate,
 incomplete or unowned blocks reject before native registration changes. Existing
 parent shells can retain already defined functions: open a new terminal or run
 `unfunction codex` in that existing zsh. Sourcing the edited file alone does not
@@ -39,6 +43,25 @@ Uninstall preflights all owned homes. There are no account scans, auth copies or
 trust-state copies. Native hooks already correctly installed and trusted in an
 unowned home can run; status distinguishes actual registration/readiness from
 manager ownership and never adopts registrations during a read.
+
+For every xswap/Pulse account, run explicit installation with that account's
+`CODEX_HOME`, then launch Codex in that home and review Vesta in `/hooks`. The
+reply rule is also required in the instructions that account actually loads.
+
+```sh
+CODEX_HOME=/absolute/account-home vesta install --provider codex --warm
+CODEX_HOME=/absolute/account-home codex
+```
+
+Shared `config.toml` can expose Vesta to a second home before it is owned. Explicit
+install may adopt that registration only when its catalog is exactly a validated
+catalog already owned by this installation; foreign sources reject. Trust must
+still be reviewed per home and is never copied. Until explicit adoption, status
+labels a visible registration `inherited`.
+
+An xswap sessions-directory symlink is supported only when the transcript's
+resolved path stays within the resolved sessions tree. Paths escaping that tree
+are rejected; sharing a sessions tree does not establish live eligibility.
 
 ## Controls and activity
 
@@ -85,7 +108,12 @@ worker. Terminating the observer leaves native Codex alive. Native shared backen
 can survive TUI exit: Codex 0.163 defaults to a 30-minute idle unload delay, and a
 20-minute warm may extend residency until the user budget expires. Immediate
 terminal-exit detection is not provided by these hooks. Launchers need no mandatory
-Vesta detach call for ordinary backend shutdown.
+Vesta detach call for ordinary backend shutdown. For one backend per terminal
+session, launch `codex --no-daemon`, or add `alias codex='codex --no-daemon'` to
+your shell configuration after removing the old Vesta function. Vesta does not
+add this flag. A native `-c` override such as the notification overrides used by
+Pulse/xswap selects an embedded backend in the TUI, so those launches follow
+the TUI's lifetime rather than the shared daemon's idle delay.
 
 Vesta uses a transient native stdio client for initialize/initialized and
 thread/queue/add, never starting or resuming another conversation. It records the
@@ -109,8 +137,12 @@ configuration uses faster polling for isolated E2E fixtures.
 
 ## Status and verification
 
-Status labels hook and legacy-terminal modes, current native home and registered
-versus owned homes. Setup readiness is separate from runtime eligibility.
+Status reports `integrationMode`, `currentNativeHome` and `registeredHomes`.
+Each home has separate `registered`, `owned`, `inherited` and `ready` fields:
+native visibility does not imply manager ownership or trusted readiness.
+`warmConfigured` is saved opt-in; integration `warmEnabled` is effective setup
+readiness, including pause and native trust. `runtimeOwners` describes actual
+observer attachment and eligibility. Legacy owners are labeled separately.
 Snapshots identify native backend and observer PIDs separately and retain bounded,
 privacy-safe decision history and current/historical measurements. A matching
 PID/birth does not prove a stalled worker is progressing; inspect observedAt.

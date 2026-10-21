@@ -1,7 +1,9 @@
 # One-time native CLI setup
 
-Version 0.2.6 adds persistent `vesta pause|resume|reset` and live
-`vesta config [--idle-ms N] [--budget-ms N] [--threshold N] [--message TEXT]`.
+Version 0.3.0 ships the hook-only Codex integration. Persistent
+`vesta pause|resume|reset` and live
+`vesta config [--idle-ms N] [--budget-ms N] [--threshold N] [--message TEXT]`
+remain available, as introduced in 0.2.6.
 Select `--provider claude|codex|all` (`both` remains a compatibility alias), or omit it for owned
 integrations only. Controls use recorded paths and preserve opt-in and unknown
 settings. `vesta reset --provider all` restores each provider's default interval,
@@ -9,23 +11,24 @@ budget, threshold, message and unpaused state while preserving warm opt-in,
 installation, recorded paths, unknown settings and native trust/auth. Reset
 rejects malformed JSON, containers or invalid existing control values before
 writing any selected provider. Changed resume/config/reset controls require a fresh real prompt and reply without renewing
-the user budget. Runtime 0.2.6 uses a one-second polling timer and rechecks before
+the user budget. The runtime uses a one-second polling timer and rechecks before
 native commit; host/I/O delays can delay observation, and already committed messages may finish. Restart older sessions once after
 upgrading. See [Claude controls](../docs/claude.md) and
 [Codex controls](../docs/codex.md), including the custom-text reply rule.
 
-Unreleased source uses detached native hook watchers and the durable queue.
+Version 0.3.0 uses detached metadata-only native hook watchers and the durable queue.
 Migration removes the exactly owned shell wrapper; open a new terminal or run
 `unfunction codex` in existing zsh after setup. Sourcing alone does not remove an
-already defined function. Published 0.2.6 retains its earlier terminal owner;
+already defined function. Version 0.2.6 used its earlier terminal owner;
 see its historical [release notes](../docs/releases/v0.2.6.md).
 
 The CLI also accepts `setup` as an alias for `install`. To restore
 an existing integration, run `vesta repair`, or use
 `repair --warm` to opt selected owned providers into warming. Plain repair keeps
 each provider's saved warm setting, custom timers and unrelated preferences.
-It restores missing owned registrations and complete missing shell blocks while
-rejecting foreign registrations or edited owned blocks.
+It restores missing owned registrations while rejecting foreign registrations
+or edited owned blocks. Codex migration removes its exact old wrapper rather
+than recreating it, with rollback of owned changes on failure.
 
 Repair uses recorded standalone providers and paths. Before standalone setup,
 it can migrate source-owned setup records from `~/.config/vesta` and the Claude
@@ -37,17 +40,18 @@ Claude/Codex restart requirements; native `/hooks` review and global feature
 settings remain under your control. Disabled Claude plugins stay disabled.
 Existing sessions keep their current runtime until you exit and relaunch them.
 
-An unchanged-version update repairs missing owned registrations or shell blocks
+An unchanged-version update repairs missing owned registrations
 using the installed immutable manager; healthy integrations remain unchanged even
 when native hook trust is pending. Older v0.2.1 installations need `vesta update`
-or a fresh v0.2.6 download and `install` before these commands and the native owner
-are available. For v0.2.0, download and install v0.2.6 to replace its older updater.
+or a fresh v0.3.0 download and `install`. For v0.2.0, download and install v0.3.0
+to replace its older updater.
 
 Use the standalone macOS arm64 release, existing subscription logins, and installed
-native Claude/Codex executables. Vesta embeds pinned Node 22.17.1 and native PTY
-assets; end users need no runtime installation or source checkout. Native support
-was verified against Claude Code 2.1.296 and Codex CLI 0.162.0, then the observed
-0.162.1 patch update. Public downloads and updates use HTTPS curl without
+native Claude/Codex executables. Vesta bundles its runtime and the full native
+hook dependency closure; end users need no runtime installation or source
+checkout. Earlier terminal-owner verification used Claude Code 2.1.296 and Codex
+CLI 0.162.0/0.162.1; the hook watcher targets native Codex 0.163 behavior.
+Public downloads and updates use HTTPS curl without
 GitHub authentication. Follow the [installation instructions](../README.md#install)
 for the download and checksum check, then run:
 
@@ -72,14 +76,20 @@ plugin’s native data store. The shared installed package does not store sessio
 configuration, prompts, measurements, or status files. Native first-load type
 declaration generation may initialize the package before this immutability check.
 
-Unreleased source registers Codex native hooks without a shell wrapper. Fresh
+Version 0.3.0 registers Codex native hooks without a shell wrapper. Fresh
 installation leaves shell bytes untouched; migration removes only the exact owned
 legacy block. Open a new terminal or run `unfunction codex` in an existing zsh;
 sourcing the edited file alone does not remove a previously defined function.
 Launch the native executable directly with its original arguments and account
-environment. Trusted hooks bootstrap the detached backend observer. Vesta takes
-no PTY, intercepts no input and adds no `--no-daemon`, `--remote`, notify override
-or CODEX_HOME overlay. Published 0.2.6 keeps its earlier local terminal owner.
+environment. Trusted hooks bootstrap the detached metadata-only backend observer.
+Vesta takes no PTY, intercepts no input, controls no native signals and adds no
+`--no-daemon`, `--remote`, notify override or CODEX_HOME overlay.
+
+Native shared daemons may outlive their terminal by about 30 minutes, and warming
+can extend residency until the activity budget expires. Use `codex --no-daemon`,
+optionally via `alias codex='codex --no-daemon'`, for one backend per terminal
+session. Native `-c` overrides, including Pulse/xswap notification overrides,
+select an embedded backend in the TUI. Vesta preserves that native selection.
 
 | Native Codex form | Behavior |
 | --- | --- |
@@ -108,9 +118,20 @@ Vesta's native `/hooks` entries; it never bypasses global hook trust. Status rep
 Native registration/asset ownership is recorded independently of shell ownership.
 Retained runtime/hook assets keep running owners valid through native cache removal.
 
-Unreleased source status also exposes a separate `runtimeOwners` report for
-Codex. Restart source owners to publish the new metadata; published 0.2.6 and
-already running owners remain legacy. Integration `warmEnabled` means setup
+Explicitly install with each account's `CODEX_HOME`, including every xswap/Pulse
+home, then review Vesta in native `/hooks` in that home. Shared `config.toml` can
+expose a registration to a second home; explicit install adopts it only if its
+catalog exactly matches a validated catalog already owned by this installation.
+Status reads never adopt homes. Controls stay shared, while trust and instructions
+must be reviewed per home; repair/update touch recorded owned homes only.
+An xswap sessions-directory symlink is accepted only when the transcript's
+resolved path is contained in the resolved sessions tree.
+
+Status exposes `integrationMode`, `currentNativeHome` and `registeredHomes` with
+separate `registered`, `owned`, `inherited` and `ready` states, plus a separate
+`runtimeOwners` report for Codex. Inherited means native hooks are visible in an
+unowned home; it does not imply trust or adoption. Restart older owners to publish
+new metadata; already running legacy owners remain legacy. Integration `warmEnabled` means setup
 readiness. Owner diagnostics explain observed attachment, current/historical
 measurement, idle deadline, bounded decision history and suspension reasons.
 PID/birth liveness does not guarantee a fresh heartbeat: inspect `observedAt`.
@@ -121,7 +142,7 @@ native hooks without a Vesta wrapper. See [Codex diagnostics](../docs/codex.md)
 for fields and ownership limits.
 
 Defaults remain Claude 50 minutes idle, Codex 20 minutes idle, and a four-hour
-user inactivity budget. Source Codex measures that budget from the latest verified
+user inactivity budget. Codex measures that budget from the latest verified
 non-Vesta submission, including another tool's submitted message. Typing, drafts,
 scrolling and navigation are not observed. Each successful completed reply starts
 a fresh idle interval. Claude's activity policy is unchanged.
@@ -206,11 +227,14 @@ artifact directory. The installed Claude fixture uses the normal native
 VT repaint fragments. Its final repeatable proof targets that native renderer;
 it uses the installed plugin registry and no separate Claude launcher or plugin
 directory flag. Earlier remote Codex fixtures and `watcher-run.ts codex` remain
-historical research. Current native source and packaged E2E require actual timed
+historical research. The earlier terminal-owner native source and packaged E2E required actual timed
 nonce/K/resume/K/nonce responses, native queue client IDs, post-dispatch draft
 protection, managed-owner collision skipping, dry latest/picker/cross-directory
 resume identities, sibling-server liveness and personal-file integrity.
 Probe timings/thresholds do not change installation defaults.
+Current hook-only runtime and migration acceptance contracts are linked in the
+[Codex guide](../docs/codex.md#status-and-verification); earlier terminal-owner
+receipts do not establish hook-only behavior.
 The installed Claude marker proof retains the strict production threshold with
 genuine native input above 100,000 tokens and a configured ten-second idle
 interval. It uses an isolated global CLAUDE.md and exactly nonce/K/nonce answers;

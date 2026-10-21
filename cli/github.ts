@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { readJson, sha256, version } from './assets.ts';
 import { compare, executable, pluginId, preflight, providers, value, withLock } from './manage.ts';
 import { codexRegistration } from '../experiments/codex-native-setup.ts';
+import { legacyShell, ownedNativeHomes } from '../experiments/codex-hook-setup.ts';
 import { nativeRequest } from '../experiments/codex-native-ipc.ts';
 
 const repository = 'Omnific-Tech/vesta'; const assetName = 'vesta-darwin-arm64';
@@ -32,13 +33,21 @@ export async function update(args: string[], root: string) {
         for (const p of targets) {
           if (p.provider === 'codex') {
             const state = readJson(join(p.configDir, '.vesta-setup-codex.json'));
-            if (!state?.block || !existsSync(p.shellFile) || !readFileSync(p.shellFile, 'utf8').includes(state.block)) { lagging = true; continue; }
+            // Hook mode records registrations per native home and owns no shell block.
+            const hook = state?.integrationMode === 'hook';
+            // A leftover owned legacy block still needs migration; an edited one is a conflict.
+            if (hook && legacyShell(state, p.shellFile).removed) { lagging = true; continue; }
+            if (!hook && (!state?.block || !existsSync(p.shellFile) || !readFileSync(p.shellFile, 'utf8').includes(state.block))) { lagging = true; continue; }
             if (readJson(join(p.configDir, 'vesta-codex.json'), {}).warm !== true) continue;
             const effective = await nativeRequest(state.native, 'config/read', { includeLayers: false });
             if (effective.config.features?.plugins === false || effective.config.features?.hooks === false) continue;
-            if (!state.nativePluginId || !state.nativeMarketplaceRoot?.includes('/codex-native-assets/' + installed + '-')) { lagging = true; continue; }
-            const registration = await codexRegistration(state.native, state);
-            if (!registration.plugin || !registration.marketplace) lagging = true;
+            const rows = hook ? ownedNativeHomes(state) : [state];
+            if (!rows.length) { lagging = true; continue; }
+            for (const row of rows) {
+              if (!row.nativePluginId || !row.nativeMarketplaceRoot?.includes('/codex-native-assets/' + installed + '-')) { lagging = true; break; }
+              const registration = hook ? await codexRegistration(state.native, row, row.nativeCodexHome, state.nativeHomes) : await codexRegistration(state.native, state);
+              if (!registration.plugin || !registration.marketplace) { lagging = true; break; }
+            }
             continue;
           }
           const registered = readJson(join(p.configDir, 'plugins/installed_plugins.json'), {}).plugins?.[pluginId]?.find((row: any) => row.scope === 'user')?.version;

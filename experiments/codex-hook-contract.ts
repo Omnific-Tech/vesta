@@ -33,9 +33,11 @@ export function fixtureEnvironment(home: string, extra: Record<string, string> =
 }
 const sources = ['experiments/CODEX-HOOK-WATCHER-FAILURES.md', 'experiments/codex-hook-contract.ts', 'experiments/codex-hook-watcher-fixture.mjs', 'experiments/codex-hook-watcher-uid-fault.mjs', 'experiments/codex-hook-watcher-e2e.ts', 'experiments/codex-hook-native-e2e.ts', 'experiments/codex-hook-watcher.ts', 'experiments/codex-hook-state.ts', 'experiments/watcher-policy.ts', 'experiments/codex-native-state.ts', 'experiments/codex-native-ipc.ts', 'experiments/codex-native-diagnostics.ts'];
 function files(path: string): string[] { return readdirSync(path).flatMap(name => { const p = join(path, name); const st = lstatSync(p); assert.ok(!st.isSymbolicLink(), 'retained evidence has no symlinks'); return st.isDirectory() ? files(p) : [p]; }); }
+// Native Codex keeps syncing its plugin catalog into CODEX_HOME/.tmp after the run; that scratch is not evidence.
+const evidence = (path: string) => files(path).map(file => relative(path, file)).filter(file => file !== 'receipt.json' && !/(^|\/)codex\/\.tmp\//.test(file));
 export function seal(path: string, summary: any) {
   save(join(path, 'summary.json'), summary);
-  save(join(path, 'receipt.json'), { schema: 1, sources: sources.map(file => ({ path: file, sha256: existsSync(join(root, file)) ? sha(join(root, file)) : null })), files: files(path).filter(file => relative(path, file) !== 'receipt.json').map(file => ({ path: relative(path, file), sha256: sha(file) })) });
+  save(join(path, 'receipt.json'), { schema: 1, sources: sources.map(file => ({ path: file, sha256: existsSync(join(root, file)) ? sha(join(root, file)) : null })), files: evidence(path).map(file => ({ path: file, sha256: sha(join(path, file)) })) });
 }
 function verifySynthetic(path: string, summary: any) {
   const required = ['basic', 'busy', 'threshold', 'controls', 'worker-death', 'invalidation', 'attribution', 'identity', 'writer-race', 'foreign-parent', 'shared-transcript', 'malformed-journal', 'native-exit', 'hooks-untrusted', 'hooks-disabled', 'concurrent-first', 'resume-ended-thread', 'trust-recovery', 'project-readiness', 'transcript-symlinked-sessions', 'transcript-escape', 'transcript-final-symlink', 'transcript-foreign-owner'];
@@ -89,7 +91,7 @@ function verifySynthetic(path: string, summary: any) {
 export function verify(path: string) {
   const receipt = json(join(path, 'receipt.json')); assert.equal(receipt.schema, 1);
   assert.deepEqual(receipt.sources.map((f: any) => f.path), sources, 'complete source/oracle receipt');
-  assert.deepEqual(files(path).map(file => relative(path, file)).filter(file => file !== 'receipt.json').sort(), receipt.files.map((f: any) => f.path).sort(), 'exact sealed file set');
+  assert.deepEqual(evidence(path).sort(), receipt.files.map((f: any) => f.path).sort(), 'exact sealed file set');
   for (const f of receipt.files) { assert.ok(resolve(path, f.path).startsWith(resolve(path) + '/')); assert.equal(sha(join(path, f.path)), f.sha256, 'artifact hash: ' + f.path); }
   for (const f of receipt.sources) assert.equal(existsSync(join(root, f.path)) ? sha(join(root, f.path)) : null, f.sha256, 'source hash: ' + f.path);
   const summary = json(join(path, 'summary.json')); assert.equal(summary.schema, 1); assert.ok(['synthetic', 'native'].includes(summary.kind), 'known executable oracle'); assert.equal(summary.failure, '', summary.failure);
