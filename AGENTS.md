@@ -11,6 +11,10 @@
   incompatible.
 - Commit small coherent changes frequently with descriptive, very short
   conventional commit messages.
+- Use descriptive names for state, parameters and locals; reserve abbreviations
+  for conventional loop indices and native host idioms such as Claude's `$`.
+- Name persisted/configuration/event metadata types at module boundaries, and
+  explain ownership, compensation and asynchronous guard intent where it is subtle.
 
 ## Roles
 

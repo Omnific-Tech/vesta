@@ -1,10 +1,21 @@
 import { Watcher, controlConfig, claudeControlOptions } from './policy.ts';
 
-let configuredOptions;
-let watcher;
+type ClaudeConfiguration = ReturnType<typeof controlConfig>;
+type PromptOrigin = { kind: string; name?: string };
+type ActiveTurnMetadata = {
+  source: 'user' | 'other' | 'warm';
+  sessionId: string;
+  turnId: string;
+  submittedAt: number;
+  controlRevision: number;
+  signature: string;
+};
+
+let configuredOptions: Parameters<typeof controlConfig>[1];
+let watcher: Watcher | undefined;
 let sessionId = '';
-let timer;
-let config;
+let timer: { cancel(): void } | undefined;
+let config: ClaudeConfiguration;
 let configPath = '';
 let signature = '';
 let configError = '';
@@ -13,15 +24,15 @@ let nativeEnabled = true;
 let lastAction = 'start';
 let resetReason = 'start';
 let nextReset = '';
-let warmPending;
-let nextPromptOrigin;
-let nextUserSubmittedAt;
+let committedMessage: string | undefined;
+let pendingPromptOrigin: PromptOrigin | undefined;
+let pendingUserSubmittedAt: number | undefined;
 let turnSource = '';
-let userTurn;
-let transcriptPath;
-let warmTurns = new Set<string>();
+let activeTurnMetadata: ActiveTurnMetadata | undefined;
+let transcriptPath: string | undefined;
+let attributedWarmTurns = new Set<string>();
 let polling = Promise.resolve();
-let tickBusy = false;
+let timerTickInProgress = false;
 const envelope = message =>
   'The vesta plugin sent a message:\n' +
   message +
@@ -50,17 +61,20 @@ const status = () => ({
   consent: watcher.consentState(),
   configurationUnavailable: !!configError,
   transcriptPath,
-  warmTurnIds: [...warmTurns],
-  ...(userTurn && watcher.activeTurnEligible()
-    ? { activeTurn: userTurn, ...(userTurn.source === 'user' ? { activeUserTurn: userTurn } : {}) }
+  warmTurnIds: [...attributedWarmTurns],
+  ...(activeTurnMetadata && watcher.activeTurnEligible()
+    ? {
+        activeTurn: activeTurnMetadata,
+        ...(activeTurnMetadata.source === 'user' ? { activeUserTurn: activeTurnMetadata } : {}),
+      }
     : {}),
-  ...(warmPending !== undefined ? { committedMessage: warmPending } : {}),
+  ...(committedMessage !== undefined ? { committedMessage } : {}),
 });
 const persist = async ($, target = watcher, id = sessionId) => {
   if (target !== watcher || id !== sessionId) return;
   await $.store.set('status:' + id, status());
 };
-const event = async ($, type, extra = {}, target = watcher, id = sessionId) => {
+const recordEvent = async ($, type, extra = {}, target = watcher, id = sessionId) => {
   if (!target) return;
   const at = await $.clock.now();
   if (target !== watcher || id !== sessionId) return;
@@ -104,7 +118,7 @@ const readControls = ($, target = watcher, id = sessionId) => {
         signature = nextSignature;
         configError = '';
         if (changed) resetReason = 'controls';
-        await event(
+        await recordEvent(
           $,
           'control',
           { config: next, enabled: next.warm && !next.paused && enabled, changedAt },
@@ -121,7 +135,7 @@ const readControls = ($, target = watcher, id = sessionId) => {
         configError =
           'Vesta configuration unavailable or invalid; restore readable settings.json, then submit a fresh prompt and reply.';
         resetReason = 'configuration-error';
-        await event($, 'control', { enabled: false, changedAt: errorAt }, target, id);
+        await recordEvent($, 'control', { enabled: false, changedAt: errorAt }, target, id);
       }
       return false;
     }
@@ -150,13 +164,13 @@ const ensure = async $ => {
     configPath = '';
     resetReason = nextReset || (old ? 'reload' : 'start');
     nextReset = '';
-    warmPending = undefined;
-    nextPromptOrigin = undefined;
-    nextUserSubmittedAt = undefined;
+    committedMessage = undefined;
+    pendingPromptOrigin = undefined;
+    pendingUserSubmittedAt = undefined;
     turnSource = '';
-    userTurn = undefined;
+    activeTurnMetadata = undefined;
     transcriptPath = undefined;
-    warmTurns = new Set();
+    attributedWarmTurns = new Set();
     const created = watcher;
     const now = await $.clock.now();
     if (
@@ -196,10 +210,10 @@ const ensure = async $ => {
         old.warmTurnIds.length <= 1024 &&
         old.warmTurnIds.every(value => typeof value === 'string' && value.length > 0)
       )
-        warmTurns = new Set(old.warmTurnIds);
+        attributedWarmTurns = new Set(old.warmTurnIds);
       if (typeof old.committedMessage === 'string') {
         try {
-          warmPending = controlConfig('claude', { message: old.committedMessage }).message;
+          committedMessage = controlConfig('claude', { message: old.committedMessage }).message;
         } catch {
           /* malformed committed metadata never attributes a warm */
         }
@@ -213,7 +227,7 @@ const ensure = async $ => {
       // Reload must not erase the causal recovery barrier for prompts captured
       // during the failed configuration interval.
       errorAt = now;
-      await event(
+      await recordEvent(
         $,
         'control',
         { config, enabled: config.warm && !config.paused && nativeEnabled, changedAt: now },
@@ -247,9 +261,9 @@ const ensure = async $ => {
     ) {
       // Restore only eligible active provenance under the exact same controls.
       // Usage is never restored; the native completion must provide fresh usage.
-      userTurn = provenance;
+      activeTurnMetadata = provenance;
       turnSource = provenance.source;
-      await event(
+      await recordEvent(
         $,
         'turn-start',
         {
@@ -268,12 +282,12 @@ const ensure = async $ => {
       // Poll even while a prior native submit is awaiting its host response.
       if (
         !(await readControls($, owner, ownerSession)) ||
-        tickBusy ||
+        timerTickInProgress ||
         owner !== watcher ||
         ownerSession !== sessionId
       )
         return;
-      tickBusy = true;
+      timerTickInProgress = true;
       try {
         if (
           (await $.session.id()) !== ownerSession ||
@@ -283,8 +297,8 @@ const ensure = async $ => {
           return;
         // Retain all attributed IDs. At capacity, stop dispatching rather than
         // forgetting an old Vesta turn and later counting its replay as activity.
-        if (warmTurns.size >= 1024) return;
-        const reserve = await event($, 'tick', {}, owner, ownerSession);
+        if (attributedWarmTurns.size >= 1024) return;
+        const reserve = await recordEvent($, 'tick', {}, owner, ownerSession);
         if (
           !reserve ||
           reserve.action !== 'reserve' ||
@@ -304,7 +318,7 @@ const ensure = async $ => {
           owner.state.ended
         )
           return;
-        const dispatch = await event(
+        const dispatch = await recordEvent(
           $,
           'dispatch',
           { reservationId: reserve.state.reservationId },
@@ -320,7 +334,7 @@ const ensure = async $ => {
           revision !== signature
         )
           return;
-        // event(dispatch) awaits native clock/store APIs. Re-read after those
+        // recordEvent(dispatch) awaits native clock/store APIs. Re-read after those
         // awaits, immediately before committing the native submission.
         if (
           !(await readControls($, owner, ownerSession)) ||
@@ -335,7 +349,7 @@ const ensure = async $ => {
           return;
         // Keep the exact old payload until native turn.start attributes it, even
         // if a later control change invalidates future warming eligibility.
-        warmPending = message;
+        committedMessage = message;
         await persist($, owner, ownerSession);
         if (
           !(await readControls($, owner, ownerSession)) ||
@@ -348,7 +362,7 @@ const ensure = async $ => {
           owner.state.userAt !== dispatch.state.userAt
         ) {
           if (owner === watcher && ownerSession === sessionId) {
-            warmPending = undefined;
+            committedMessage = undefined;
             await persist($, owner, ownerSession);
           }
           return;
@@ -356,21 +370,28 @@ const ensure = async $ => {
         try {
           await $.prompt.submit({ text: message });
         } catch {
-          if (owner === watcher && ownerSession === sessionId) warmPending = undefined;
-          await event($, 'submit-failed', {}, owner, ownerSession);
+          if (owner === watcher && ownerSession === sessionId) committedMessage = undefined;
+          await recordEvent($, 'submit-failed', {}, owner, ownerSession);
         }
       } finally {
-        tickBusy = false;
+        timerTickInProgress = false;
       }
     });
   } else await readControls($);
 };
-const ownedTurn = async ($, e) => {
-  if (e.isSidechain || e.is_sidechain || e.agentId || e.agent_id || e.origin?.kind === 'subagent')
+const ownedTurn = async ($, event) => {
+  if (
+    event.isSidechain ||
+    event.is_sidechain ||
+    event.agentId ||
+    event.agent_id ||
+    event.origin?.kind === 'subagent'
+  )
     return false;
   const id = await $.session.id();
-  if ((e.sessionId && e.sessionId !== id) || (e.session_id && e.session_id !== id)) return false;
-  const path = e.transcriptPath ?? e.transcript_path;
+  if ((event.sessionId && event.sessionId !== id) || (event.session_id && event.session_id !== id))
+    return false;
+  const path = event.transcriptPath ?? event.transcript_path;
   if (id === sessionId && transcriptPath && path && path !== transcriptPath) return false;
   return true;
 };
@@ -380,117 +401,119 @@ export function register(on, options) {
     watcher = undefined;
     sessionId = '';
     nextReset = 'reload';
-    warmPending = undefined;
-    nextPromptOrigin = undefined;
+    committedMessage = undefined;
+    pendingPromptOrigin = undefined;
   }
   configuredOptions = options;
-  on('session.start', async ($, e, next) => {
-    if (!(await ownedTurn($, e))) return next(e);
-    const resumed = e.source === 'resume' || e.reason === 'resume';
+  on('session.start', async ($, event, next) => {
+    if (!(await ownedTurn($, event))) return next(event);
+    const resumed = event.source === 'resume' || event.reason === 'resume';
     if (resumed) nextReset = 'resume';
     await ensure($);
-    if (resumed) await event($, 'reconnect');
+    if (resumed) await recordEvent($, 'reconnect');
     await $.command.register({
       name: 'vesta-status',
       description: 'Show this session’s Vesta metadata without a model request',
     });
-    return next(e);
+    return next(event);
   });
-  on('command.run', async ($, e, next) => {
-    if (!(await ownedTurn($, e))) return next(e);
+  on('command.run', async ($, event, next) => {
+    if (!(await ownedTurn($, event))) return next(event);
     await ensure($);
-    if (['composer', 'bridge'].includes(e.origin.kind))
-      await event($, 'activity', { source: 'user' });
-    if (e.command === 'vesta-status') return { text: 'VESTA_STATUS ' + JSON.stringify(status()) };
-    if (['clear', 'resume', 'branch'].includes(e.command)) nextReset = e.command;
-    if (e.command === 'reload-plugins') {
+    if (['composer', 'bridge'].includes(event.origin.kind))
+      await recordEvent($, 'activity', { source: 'user' });
+    if (event.command === 'vesta-status')
+      return { text: 'VESTA_STATUS ' + JSON.stringify(status()) };
+    if (['clear', 'resume', 'branch'].includes(event.command)) nextReset = event.command;
+    if (event.command === 'reload-plugins') {
       nextReset = 'reload';
       timer?.cancel();
-      await event($, 'exit');
+      await recordEvent($, 'exit');
     }
-    return next(e);
+    return next(event);
   });
-  on('prompt.edit', async ($, e, next) => {
-    if (!(await ownedTurn($, e))) return next(e);
+  on('prompt.edit', async ($, event, next) => {
+    if (!(await ownedTurn($, event))) return next(event);
     await ensure($);
-    await event($, 'activity', { source: 'user' });
-    return next(e);
+    await recordEvent($, 'activity', { source: 'user' });
+    return next(event);
   });
-  on('prompt.submit', async ($, e, next) => {
-    if (!(await ownedTurn($, e))) return next(e);
+  on('prompt.submit', async ($, event, next) => {
+    if (!(await ownedTurn($, event))) return next(event);
     const submittedAt = await $.clock.now();
     await ensure($);
-    nextPromptOrigin = e.origin;
-    if (['composer', 'bridge'].includes(e.origin.kind)) {
-      nextUserSubmittedAt = submittedAt;
-      await event($, 'activity', { source: 'user' });
+    pendingPromptOrigin = event.origin;
+    if (['composer', 'bridge'].includes(event.origin.kind)) {
+      pendingUserSubmittedAt = submittedAt;
+      await recordEvent($, 'activity', { source: 'user' });
     }
-    return next(e);
+    return next(event);
   });
-  on('turn.start', async ($, e, next) => {
-    if (!(await ownedTurn($, e))) return next(e);
+  on('turn.start', async ($, event, next) => {
+    if (!(await ownedTurn($, event))) return next(event);
     await ensure($);
-    transcriptPath ||= e.transcriptPath ?? e.transcript_path;
-    if (watcher.state.turnId === e.turnId || warmTurns.has(e.turnId)) return next(e);
+    transcriptPath ||= event.transcriptPath ?? event.transcript_path;
+    if (watcher.state.turnId === event.turnId || attributedWarmTurns.has(event.turnId))
+      return next(event);
     const own =
-      warmPending !== undefined &&
-      e.text === envelope(warmPending) &&
-      (!nextPromptOrigin ||
-        (nextPromptOrigin.kind === 'plugin' && nextPromptOrigin.name === 'vesta'));
-    if (own) warmTurns.add(e.turnId);
+      committedMessage !== undefined &&
+      event.text === envelope(committedMessage) &&
+      (!pendingPromptOrigin ||
+        (pendingPromptOrigin.kind === 'plugin' && pendingPromptOrigin.name === 'vesta'));
+    if (own) attributedWarmTurns.add(event.turnId);
     const source = own
       ? 'warm'
-      : nextPromptOrigin && ['composer', 'bridge'].includes(nextPromptOrigin.kind)
+      : pendingPromptOrigin && ['composer', 'bridge'].includes(pendingPromptOrigin.kind)
         ? 'user'
         : 'other';
     turnSource = source;
-    const submittedAt = nextUserSubmittedAt ?? (await $.clock.now());
-    nextPromptOrigin = undefined;
-    nextUserSubmittedAt = undefined;
-    if (own) warmPending = undefined;
-    if (!own && source !== 'user') await event($, 'activity', { source: 'user' });
-    userTurn = {
+    const submittedAt = pendingUserSubmittedAt ?? (await $.clock.now());
+    pendingPromptOrigin = undefined;
+    pendingUserSubmittedAt = undefined;
+    if (own) committedMessage = undefined;
+    if (!own && source !== 'user') await recordEvent($, 'activity', { source: 'user' });
+    activeTurnMetadata = {
       source,
       sessionId,
-      turnId: e.turnId,
+      turnId: event.turnId,
       submittedAt,
       controlRevision: config.controlRevision,
       signature,
     };
-    await event($, 'turn-start', { sessionId, turnId: e.turnId, source, submittedAt });
-    return next(e);
+    await recordEvent($, 'turn-start', { sessionId, turnId: event.turnId, source, submittedAt });
+    return next(event);
   });
-  on('turn.complete', async ($, e, next) => {
-    if (!(await ownedTurn($, e))) return next(e);
-    const result = await next(e);
+  on('turn.complete', async ($, event, next) => {
+    if (!(await ownedTurn($, event))) return next(event);
+    const result = await next(event);
     await ensure($);
-    await event($, 'turn-complete', {
+    await recordEvent($, 'turn-complete', {
       sessionId,
-      turnId: e.turnId,
-      raw: e.reason === 'answer' ? await $.session.usage() : null,
+      turnId: event.turnId,
+      raw: event.reason === 'answer' ? await $.session.usage() : null,
     });
     return result;
   });
-  on('session.compact', async ($, e, next) => {
-    if (await ownedTurn($, e)) await event($, 'compact');
-    return next(e);
+  on('session.compact', async ($, event, next) => {
+    if (await ownedTurn($, event)) await recordEvent($, 'compact');
+    return next(event);
   });
-  on('session.attach', async ($, e, next) => {
-    if (await ownedTurn($, e)) await event($, 'reconnect');
-    return next(e);
+  on('session.attach', async ($, event, next) => {
+    if (await ownedTurn($, event)) await recordEvent($, 'reconnect');
+    return next(event);
   });
-  on('session.detach', async ($, e, next) => {
-    if (await ownedTurn($, e)) await event($, 'reconnect');
-    return next(e);
+  on('session.detach', async ($, event, next) => {
+    if (await ownedTurn($, event)) await recordEvent($, 'reconnect');
+    return next(event);
   });
-  on('session.end', async ($, e, next) => {
-    if (!(await ownedTurn($, e))) return next(e);
+  on('session.end', async ($, event, next) => {
+    if (!(await ownedTurn($, event))) return next(event);
     timer?.cancel();
-    warmPending = undefined;
-    nextPromptOrigin = undefined;
-    nextUserSubmittedAt = undefined;
-    await event($, 'exit');
-    if (['clear', 'resume'].includes(e.reason)) nextReset ||= e.reason;
-    return next(e);
+    committedMessage = undefined;
+    pendingPromptOrigin = undefined;
+    pendingUserSubmittedAt = undefined;
+    await recordEvent($, 'exit');
+    if (['clear', 'resume'].includes(event.reason)) nextReset ||= event.reason;
+    return next(event);
   });
 }
