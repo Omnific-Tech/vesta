@@ -4,4 +4,4 @@
 node_modules/
 dist/
 packaging/.cache/
-cli/payload.tar.gz
+src/cli/payload.tar.gz
