@@ -1,7 +1,7 @@
 // Real shipped hook watcher, driven by the shared synthetic native engine.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   alive,
@@ -76,6 +76,11 @@ export async function diagnosticEngine(folder: string) {
   };
   const timer = setInterval(() => {
     try {
+      if (existsSync(statusDir))
+        for (const name of readdirSync(statusDir)) {
+          const file = join(statusDir, name, 'codex-native-status.json');
+          if (existsSync(file)) json(file);
+        }
       const found = state();
       if (found) {
         json(found.file);

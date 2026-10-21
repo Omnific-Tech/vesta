@@ -136,8 +136,7 @@ function status(row: any) {
   assert.ok(row.nativePid > 0 && row.nativeBirth);
   assert.notEqual(row.diagnostics.pid, row.nativePid);
   const d = row.diagnostics;
-  if (d.lastMeasurement?.current)
-    assert.equal(d.idleDeadline, Math.max(row.state.userAt, row.state.warmAt) + row.idleMs);
+  if (d.lastMeasurement?.current) assert.equal(d.idleDeadline, row.state.warmAt + row.idleMs);
   else assert.equal(d.idleDeadline, null, 'invalid measurement has no idle deadline');
   privacy(row);
 }
@@ -308,7 +307,8 @@ function verify(directory: string) {
 if (process.argv[2] === '--verify') verify(resolve(process.argv[3]!));
 else {
   const directory = resolve(
-    process.argv[2] ?? join(root, 'harness/runs/codex-diagnostics/artifacts'),
+    process.argv[2] ??
+      join(process.env.TELOS_RUN_DIR ?? 'harness/runs/codex-diagnostics', 'artifacts'),
   );
   assert.ok(!existsSync(directory) || !readdirSync(directory).length, 'fresh artifact directory');
   mkdirSync(directory, { recursive: true });
@@ -553,6 +553,13 @@ else {
     failure = String(error);
   } finally {
     sealEvidence(directory);
+    const manifestPath = join(directory, 'operational-symlinks.json');
+    const manifest = json(manifestPath);
+    manifest.links = manifest.links.map(link => ({
+      path: link.path,
+      target: relative(directory, resolve(dirname(join(directory, link.path)), link.target)),
+    }));
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
     const artifactFiles = files(directory).map(file => ({ path: retain(file), sha256: sha(file) }));
     writeFileSync(
       join(directory, 'summary.json'),

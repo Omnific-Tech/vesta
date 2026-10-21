@@ -5,15 +5,16 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { join, resolve } from 'node:path';
 import {
   buildRelocated,
+  executable,
   hash,
   nativeBin,
-  nextReleaseVersion,
   nodeFlags,
   releaseVersion,
   root,
   sealEvidence,
 } from './e2e-common.ts';
 import { verifyBuildReceipt } from './release-acceptance.ts';
+import { verifyMigration } from './codex-hook-migration-contract.ts';
 
 const artifacts = resolve(
   process.argv[2] ??
@@ -25,10 +26,6 @@ mkdirSync(artifacts, { recursive: true });
 const startedAt = Date.now();
 const built = buildRelocated(artifacts);
 const receipt = verifyBuildReceipt(built.receipt, built.binary);
-const candidateDir = join(artifacts, 'update-candidate');
-mkdirSync(candidateDir);
-const candidate = buildRelocated(candidateDir, nextReleaseVersion);
-verifyBuildReceipt(candidate.receipt, candidate.binary, nextReleaseVersion, true);
 const path = nativeBin(join(artifacts, 'native-bin'));
 const commands: any[] = [];
 const cases: any[] = [];
@@ -37,9 +34,6 @@ try {
   for (const [name, provider, variant] of [
     ['claude-lifecycle', 'claude', undefined],
     ['claude-marker', 'claude', '--marker'],
-    ['codex-read-only', 'codex', undefined],
-    ['codex-yolo', 'codex', '--yolo'],
-    ['codex-yolo-sandbox', 'codex', '--yolo-sandbox'],
   ] as const) {
     const directory = join(artifacts, name);
     const argv = [
@@ -53,7 +47,6 @@ try {
       ...process.env,
       PATH: path,
       VESTA_E2E_CLI: built.binary,
-      ...(name === 'codex-yolo' ? { VESTA_E2E_UPDATE_CLI: candidate.binary } : {}),
     };
     const result = spawnSync(process.execPath, argv, {
       cwd: root,
@@ -79,41 +72,42 @@ try {
       file.path.includes('/owned-install/versions/' + releaseVersion + '/app/'),
     );
     assert.ok(shipped.some((file: any) => file.path.endsWith('/watcher-policy.ts')));
-    assert.ok(
-      shipped.some((file: any) =>
-        file.path.endsWith(
-          provider === 'claude' ? '/vesta-claude/hooks/register.ts' : '/watcher-run.ts',
-        ),
-      ),
-    );
+    assert.ok(shipped.some((file: any) => file.path.endsWith('/vesta-claude/hooks/register.ts')));
     for (const file of shipped) {
       const relative = 'app/' + file.path.split('/app/')[1];
       const asset = receipt.assets.find((asset: any) => asset.path === relative);
       assert.ok(asset, 'live source exists in embedded payload manifest');
       assert.equal(file.sha256, asset.sha256);
     }
-    const shell = provider === 'codex' ? evidence.codex.managedArgv : undefined;
-    if (provider === 'codex') {
-      const block = readFileSync(join(directory, 'installed-zshrc'), 'utf8');
-      assert.ok(
-        block.includes('/owned-install/current/runtime/bin/node') &&
-          block.includes('/owned-install/current/app/src/codex/codex-autoload.ts'),
-        'sourced function retains stable next-launch references',
-      );
-      assert.ok(
-        !block.includes(built.removedBuildDirectory) && !block.includes(join(root, 'src/')),
-        'installed command does not reference the build checkout',
-      );
-    }
     cases.push({
       name,
       binarySha256: hash(built.binary),
       sourceFiles: shipped,
       summaryFile: name + '/summary.json',
-      nativeArgv: shell,
     });
   }
-  assert.equal(cases.length, 5);
+  const migrationDir = join(artifacts, 'codex-hook-installation');
+  const migration = spawnSync(
+    process.execPath,
+    [
+      ...nodeFlags,
+      join(root, 'test/e2e/codex-hook-migration-e2e.ts'),
+      '--native',
+      executable('codex'),
+      '--artifacts',
+      migrationDir,
+    ],
+    { cwd: root, env: process.env, encoding: 'utf8', timeout: 300000 },
+  );
+  writeFileSync(join(artifacts, 'codex-hook-installation.stdout'), migration.stdout ?? '');
+  writeFileSync(join(artifacts, 'codex-hook-installation.stderr'), migration.stderr ?? '');
+  assert.equal(migration.status, 0, migration.stderr || migration.error?.message);
+  verifyMigration(migrationDir);
+  cases.push({
+    name: 'codex-hook-installation',
+    summaryFile: 'codex-hook-installation/summary.json',
+  });
+  assert.equal(cases.length, 3);
 } catch (error) {
   failure = String(error);
 } finally {

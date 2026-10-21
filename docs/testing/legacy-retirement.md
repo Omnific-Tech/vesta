@@ -20,7 +20,7 @@ CLI scanner scenarios through the compiled CLI and source setup entrypoint.
 | dirty-input | Retired outer terminal draft classifier; hook `invalidation` and `writer-race` retain accepted-prompt cancellation. |
 | decoder-pending | Retired outer terminal report decoder; hook runtime never inspects terminal bytes. |
 | queue-preparing | Hook `writer-race` proves cancellation while the actual transport initializes. |
-| queue-failed | Actual hook transport initialization exits 23; no queue and diagnostic failure reason retained. |
+| queue-failed | Actual hook queue transport exits 23; no queue and diagnostic failure reason retained. |
 | submission-unresolved | Hook `attribution` and `context-completions` require exact transcript submission binding. |
 | completion-unresolved | Hook `context-completions` rejects unfinished or unusable completions. |
 | missing-metric | Hook `context-completions` rejects missing metrics without inventing eligibility. |

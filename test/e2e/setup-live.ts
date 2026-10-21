@@ -12,7 +12,6 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -26,22 +25,13 @@ import { parseClaudeStatuses } from './setup-acceptance.ts';
 import { globalInstructions, noncePrompt } from './marker-acceptance.ts';
 
 const provider = process.argv[2];
-assert.ok(provider === 'claude' || provider === 'codex');
+assert.ok(provider === 'claude', 'Codex native hooks use the hook-native/TUI/Pulse gates');
 const yolo = process.argv[4] ?? (process.argv[3]?.startsWith('--') ? process.argv[3] : undefined);
 assert.ok(
-  yolo === undefined ||
-    (provider === 'codex' && ['--yolo', '--yolo-sandbox'].includes(yolo)) ||
-    (provider === 'claude' && yolo === '--marker'),
+  yolo === undefined || (provider === 'claude' && yolo === '--marker'),
   'optional native proof variant',
 );
 const here = dirname(fileURLToPath(import.meta.url));
-const releaseVersion: string = JSON.parse(
-  readFileSync(join(here, '../../package.json'), 'utf8'),
-).version;
-const nextReleaseVersion = releaseVersion
-  .split('.')
-  .map((part, index) => (index === 2 ? Number(part) + 1 : part))
-  .join('.');
 const artifacts = resolve(
   (process.argv[3]?.startsWith('--') ? undefined : process.argv[3]) ??
     join(process.env.TELOS_RUN_DIR ?? 'harness/runs/setup-live-' + provider, 'artifacts'),
@@ -116,20 +106,12 @@ const tree = (path: string) =>
         return [p.slice(path.length + 1), hash(p)];
       }),
   );
-const personal =
-  provider === 'claude'
-    ? [
-        join(homedir(), '.claude/settings.json'),
-        join(homedir(), '.claude.json'),
-        join(homedir(), '.claude/.credentials.json'),
-        join(homedir(), '.claude/CLAUDE.md'),
-      ]
-    : [
-        join(homedir(), '.codex/config.toml'),
-        join(homedir(), '.codex/auth.json'),
-        join(homedir(), '.zshrc'),
-        join(homedir(), '.codex/AGENTS.md'),
-      ];
+const personal = [
+  join(homedir(), '.claude/settings.json'),
+  join(homedir(), '.claude.json'),
+  join(homedir(), '.claude/.credentials.json'),
+  join(homedir(), '.claude/CLAUDE.md'),
+];
 personal.push(join(homedir(), '.local/bin/vesta'));
 const personalProfilePath = join(homedir(), '.claude.json');
 let personalProfileBefore: ClaudeProfileSnapshot | undefined;
@@ -224,10 +206,6 @@ function run(command: string, argv: string[], input?: string) {
   }
   if (process.env.VESTA_E2E_CLI && argv.includes('install') && !packagedSourceRoot) {
     packagedSourceRoot = realpathSync(join(env.VESTA_HOME!, 'current/app'));
-    if (provider === 'codex') {
-      copyFileSync(shellFile, join(artifacts, 'installed-zshrc'));
-      e.rawFiles.push('installed-zshrc');
-    }
   }
   return result.stdout;
 }
@@ -261,58 +239,6 @@ async function type(entry: (typeof terminals)[number], command: string) {
   entry.terminal.write('\r');
 }
 const statuses = (file: string) => parseClaudeStatuses(text(file));
-const modalActions: {
-  warningOffset: number;
-  selectionOffset: number;
-  submitOffset: number;
-  detectedAt: number;
-  selectedAt: number;
-  composerAt: number;
-}[] = [];
-async function keepCodexModel(entry: (typeof terminals)[number], model: string) {
-  const captured = text(entry.file);
-  const output = stripVTControlCharacters(captured);
-  const warning = output.lastIndexOf('Approaching rate limits');
-  if (warning < 0 || output.lastIndexOf('› Ask Codex to do anything') > warning) return;
-  const menu = output.slice(warning);
-  assert.ok(
-    menu.includes('› 1. Switch to gpt-6-luna') && menu.includes('2. Keep current model'),
-    'only the observed native warning is handled',
-  );
-  const warningOffset = captured.lastIndexOf('Approaching rate limits');
-  assert.ok(warningOffset >= 0);
-  const detectedAt = Date.now();
-  const selectionOffset = captured.length;
-  entry.terminal.write('\x1b[B');
-  await waitFor(
-    () =>
-      /›\s*2\.\s*Keep current model/.test(
-        stripVTControlCharacters(text(entry.file).slice(selectionOffset)),
-      ),
-    'native Keep current model selected',
-  );
-  const selectedAt = Date.now();
-  const submitOffset = text(entry.file).length;
-  entry.terminal.write('\r');
-  await waitFor(() => {
-    const fresh = stripVTControlCharacters(text(entry.file).slice(submitOffset));
-    const footer = fresh.match(
-      /\b(GPT-[A-Za-z0-9.-]+)\s+(?:default|low|medium|high|xhigh|max|ultra)\s*·/i,
-    );
-    return (
-      fresh.includes('› Ask Codex to do anything') &&
-      footer?.[1]?.toLowerCase() === model.toLowerCase()
-    );
-  }, 'fresh native composer with requested model');
-  modalActions.push({
-    warningOffset,
-    selectionOffset,
-    submitOffset,
-    detectedAt,
-    selectedAt,
-    composerAt: Date.now(),
-  });
-}
 const statusRequests: {
   rawFile: string;
   at: number;
@@ -574,140 +500,6 @@ try {
       pluginTreeAfter: tree(installed.installPath),
       sessionKeys: [...observed.map(row => row.storeKey), optIn.storeKey],
     };
-  } else {
-    env.CODEX_HOME = configDir;
-    const nonce = 'VESTA-' + randomUUID();
-    const instructionPath = join(configDir, 'AGENTS.md');
-    writeFileSync(instructionPath, globalInstructions(nonce));
-    copyFileSync(instructionPath, join(artifacts, 'global-AGENTS.md'));
-    e.rawFiles.push('global-AGENTS.md');
-    const auth = join(homedir(), '.codex/auth.json');
-    if (existsSync(auth)) symlinkSync(auth, join(configDir, 'auth.json'));
-    const personalConfig = join(homedir(), '.codex/config.toml');
-    const model = (existsSync(personalConfig) ? readFileSync(personalConfig, 'utf8') : '').match(
-      /^model\s*=\s*"([^"\n]+)"/m,
-    )?.[1];
-    assert.ok(model, 'existing native model selection');
-    writeFileSync(
-      join(configDir, 'config.toml'),
-      `model = ${JSON.stringify(model)}\n[projects.${JSON.stringify(fixture)}]\ntrust_level = "trusted"\n`,
-    );
-    env.VESTA_WATCHER_TEST_OPTIONS = JSON.stringify([
-      '--probe',
-      '--warm',
-      '--capture-native',
-      '--probe-threshold',
-      '0',
-      '--max-warms',
-      '1',
-      '--idle-ms',
-      '1500',
-      '--budget-ms',
-      '180000',
-      '--artifacts',
-      artifacts,
-    ]);
-    run(process.execPath, [
-      '--experimental-strip-types',
-      join(here, '../../src/cli/setup.ts'),
-      'install',
-      '--provider',
-      'codex',
-      '--config-dir',
-      configDir,
-      '--shell-file',
-      shellFile,
-      '--json',
-    ]);
-    const installed = JSON.parse(readFileSync(join(configDir, 'vesta-codex.json'), 'utf8'));
-    const defaults = {
-      warm: installed.warm,
-      idleMs: installed.idleMs,
-      budgetMs: installed.budgetMs,
-    };
-    const originalArgv = [
-      '-m',
-      model,
-      '-C',
-      fixture,
-      ...(yolo
-        ? ['--yolo', ...(yolo === '--yolo-sandbox' ? ['-s', 'read-only'] : [])]
-        : ['-a', 'never', '-s', 'read-only']),
-      '--no-alt-screen',
-    ];
-    const owner = launch(
-      'zsh',
-      ['-f', '-c', 'source "$1"; shift; codex "$@"', 'vesta-e2e', shellFile, ...originalArgv],
-      'codex-owner.txt',
-    );
-    await waitFor(
-      () => rows('watcher-lifecycle.jsonl').find(row => row.kind === 'owner-ready'),
-      'managed native owner',
-    );
-    e.codex = {
-      originalArgv,
-      managedArgv: [],
-      nonce,
-      protocolFile: 'codex-protocol.jsonl',
-      traceFile: 'watcher-trace.jsonl',
-      lifecycleFile: 'watcher-lifecycle.jsonl',
-      instruction: { path: instructionPath, rawFile: 'global-AGENTS.md', nonce },
-      ownerTranscriptFile: 'codex-owner.txt',
-      configFile: 'codex-final-config.toml',
-      modalActions,
-      defaults,
-      yoloVariant: yolo ? (yolo === '--yolo-sandbox' ? 'sandbox' : 'plain') : undefined,
-      expected: {
-        model,
-        cwd: fixture,
-        sandbox: yolo ? 'danger-full-access' : 'read-only',
-        approvalPolicy: 'never',
-      },
-    };
-    await type(owner, noncePrompt);
-    const completed = () =>
-      rows('codex-protocol.jsonl').filter(
-        row => row.method === 'turn/completed' && row.params?.turn?.status === 'completed',
-      );
-    await waitFor(() => completed().length >= 2, 'managed policy-driven warm');
-    if (process.env.VESTA_E2E_UPDATE_CLI) {
-      run(process.env.VESTA_E2E_UPDATE_CLI, [
-        'install',
-        '--provider',
-        'codex',
-        '--config-dir',
-        configDir,
-        '--shell-file',
-        shellFile,
-        '--json',
-      ]);
-      assert.ok(
-        realpathSync(join(env.VESTA_HOME!, 'current')).endsWith('/versions/' + nextReleaseVersion),
-        'new binary refresh activated the new immutable version',
-      );
-      run(process.env.VESTA_E2E_UPDATE_CLI, [
-        'uninstall',
-        '--config-dir',
-        configDir,
-        '--shell-file',
-        shellFile,
-        '--json',
-      ]);
-      assert.ok(
-        !existsSync(join(env.VESTA_HOME!, 'current')),
-        'activation removed while original native owner remains alive',
-      );
-      assert.ok(
-        existsSync(join(env.VESTA_HOME!, 'versions', releaseVersion, 'runtime/bin/node')),
-        'original running owner runtime retained',
-      );
-    }
-    await keepCodexModel(owner, model);
-    await type(
-      owner,
-      'What nonce did I ask you to remember? Reply with exactly that nonce. Do not use tools.',
-    );
-    await waitFor(() => completed().length === 3, 'managed native continuity');
   }
 } catch (error) {
   failure = String(error);
@@ -720,20 +512,8 @@ try {
     }
   }
   const cleanupDeadline = Date.now() + 10000;
-  let runtime: any;
   while (Date.now() < cleanupDeadline) {
-    if (provider === 'codex') {
-      try {
-        runtime = JSON.parse(text('watcher-runtime.json'));
-      } catch {
-        /* owner cleanup still writing */
-      }
-    }
-    if (
-      !terminals.some(entry => !entry.exited) &&
-      (provider !== 'codex' || !terminals.length || runtime)
-    )
-      break;
+    if (!terminals.some(entry => !entry.exited)) break;
     await sleep(100);
   }
   for (const entry of terminals) {
@@ -745,41 +525,6 @@ try {
     }
     e.cleanup.push({ pid: entry.terminal.pid, owned: true, exited: entry.exited });
   }
-  if (provider === 'codex' && runtime) {
-    e.cleanup.push(...runtime.cleanup);
-    for (const command of runtime.commands) {
-      if (command.includes('--remote') && !command.includes('queue')) {
-        if (e.codex) e.codex.managedArgv = command.slice(1);
-        continue;
-      }
-      e.commands.push({
-        argv: command,
-        role: command.includes('proxy')
-          ? 'observer'
-          : command.includes('queue')
-            ? 'queue'
-            : 'server',
-      });
-    }
-    e.rawFiles.push(
-      'codex-protocol.jsonl',
-      'watcher-trace.jsonl',
-      'watcher-lifecycle.jsonl',
-      'watcher-runtime.json',
-    );
-  }
-  if (provider === 'codex' && existsSync(join(configDir, 'config.toml'))) {
-    copyFileSync(join(configDir, 'config.toml'), join(artifacts, 'codex-final-config.toml'));
-    e.rawFiles.push('codex-final-config.toml');
-  }
-  if (
-    provider === 'codex' &&
-    existsSync(shellFile) &&
-    !existsSync(join(artifacts, 'installed-zshrc'))
-  ) {
-    copyFileSync(shellFile, join(artifacts, 'installed-zshrc'));
-    e.rawFiles.push('installed-zshrc');
-  }
   e.sourceFiles = [
     'src/cli/setup.ts',
     'test/e2e/setup-live.ts',
@@ -787,14 +532,10 @@ try {
     'test/e2e/marker-acceptance.ts',
     'src/cli/watcher-run.ts',
     'src/shared/watcher-policy.ts',
-    ...(provider === 'claude'
-      ? [
-          'src/claude/vesta-claude/hooks/register.ts',
-          'src/claude/vesta-claude/hooks/policy.ts',
-          'src/claude/vesta-claude/.claude-plugin/plugin.json',
-          'src/claude/vesta-claude/hooks/hooks.json',
-        ]
-      : ['src/codex/codex-autoload.ts']),
+    'src/claude/vesta-claude/hooks/register.ts',
+    'src/claude/vesta-claude/hooks/policy.ts',
+    'src/claude/vesta-claude/.claude-plugin/plugin.json',
+    'src/claude/vesta-claude/hooks/hooks.json',
   ]
     .map(file => {
       const packaged = join(packagedSourceRoot ?? '', file);

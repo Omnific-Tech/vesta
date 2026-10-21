@@ -4,7 +4,6 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stripVTControlCharacters } from 'node:util';
 import { parseClaudeStatuses, verifyClaudeAutoload } from './setup-acceptance.ts';
 import { marker, verifyInstruction, claudePluginBody, noncePrompt } from './marker-acceptance.ts';
 import type { InstructionEvidence } from './marker-acceptance.ts';
@@ -39,7 +38,7 @@ export type ClaudeProfileIntegrity = {
 export type SetupLiveEvidence = {
   schema: 1;
   kind: 'native-installed-launch';
-  provider: 'claude' | 'codex';
+  provider: 'claude';
   startedAt: number;
   endedAt: number;
   configDir: string;
@@ -49,6 +48,7 @@ export type SetupLiveEvidence = {
   cleanup: { pid: number; owned: boolean; exited: boolean }[];
   rawFiles: string[];
   claudeProfileIntegrity?: ClaudeProfileIntegrity;
+  codex?: never;
   claudeMarker?: {
     instruction: InstructionEvidence;
     rolloutFile: string;
@@ -74,37 +74,11 @@ export type SetupLiveEvidence = {
     pluginTreeAfter: Record<string, string>;
     sessionKeys: string[];
   };
-  codex?: {
-    originalArgv: string[];
-    managedArgv: string[];
-    nonce: string;
-    protocolFile: string;
-    traceFile: string;
-    ownerTranscriptFile: string;
-    configFile: string;
-    modalActions: {
-      warningOffset: number;
-      selectionOffset: number;
-      submitOffset: number;
-      detectedAt: number;
-      selectedAt: number;
-      composerAt: number;
-    }[];
-    lifecycleFile: string;
-    instruction: InstructionEvidence;
-    yoloVariant?: 'plain' | 'sandbox';
-    defaults?: { warm: boolean; idleMs: number; budgetMs: number };
-    expected: {
-      model: string;
-      cwd: string;
-      sandbox: 'read-only' | 'danger-full-access';
-      approvalPolicy: 'never';
-    };
-  };
 };
 export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string) {
   assert.equal(e.schema, 1);
   assert.equal(e.kind, 'native-installed-launch');
+  assert.equal(e.provider, 'claude');
   assert.ok(e.endedAt >= e.startedAt && e.endedAt - e.startedAt <= 240000);
   assert.ok(e.personalFiles.length >= 2);
   for (const file of e.personalFiles) {
@@ -119,16 +93,6 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
       e.sourceFiles.some(file => file.path.endsWith('/hooks/register.ts')),
       'actual plugin adapter source fingerprinted',
     );
-  else {
-    assert.ok(
-      e.sourceFiles.some(file => file.path.endsWith('/watcher-run.ts')),
-      'actual managed owner adapter fingerprinted',
-    );
-    assert.ok(
-      e.sourceFiles.some(file => file.path.endsWith('/codex-autoload.ts')),
-      'installed shell adapter fingerprinted',
-    );
-  }
   for (const file of e.sourceFiles)
     assert.equal(createHash('sha256').update(readFileSync(file.path)).digest('hex'), file.sha256);
   assert.ok(e.cleanup.length >= (e.claudeMarker ? 1 : 3));
@@ -457,216 +421,6 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
     );
     return;
   }
-  assert.ok(e.codex);
-  assert.equal(e.claude, undefined);
-  const c = e.codex;
-  verifyInstruction(c.instruction, 'codex', e.configDir, directory);
-  assert.equal(c.instruction.nonce, c.nonce);
-  assert.equal(owners.length, 1);
-  assert.deepEqual(
-    owners[0]!.argv.slice(-c.originalArgv.length),
-    c.originalArgv,
-    'normal command receives the original CLI arguments',
-  );
-  const transport = c.managedArgv.indexOf('--remote');
-  assert.ok(transport >= 0);
-  assert.ok(c.managedArgv[transport + 1]?.startsWith('unix://'));
-  const nativeArgs = [...c.managedArgv];
-  nativeArgs.splice(transport, 2);
-  assert.deepEqual(
-    nativeArgs,
-    c.originalArgv,
-    'managed path adds transport only; no dropped flags or forced defaults',
-  );
-  assert.ok(
-    c.originalArgv.includes('-m') &&
-      c.originalArgv.includes('-C') &&
-      c.originalArgv.includes('--no-alt-screen'),
-  );
-  if (c.expected.sandbox === 'danger-full-access') {
-    assert.ok(c.originalArgv.includes('--yolo'), 'verified native alias retained');
-    assert.ok(!c.originalArgv.includes('-a'), 'native yolo/approval conflict remains native');
-    assert.ok(c.yoloVariant === 'plain' || c.yoloVariant === 'sandbox');
-    if (c.yoloVariant === 'sandbox') {
-      const sandbox = c.originalArgv.indexOf('-s');
-      assert.ok(sandbox >= 0);
-      assert.equal(
-        c.originalArgv[sandbox + 1],
-        'read-only',
-        'sandbox precedence variant retains actual conflicting sandbox request',
-      );
-    } else assert.ok(!c.originalArgv.includes('-s'), 'plain yolo variant');
-    assert.deepEqual(
-      c.defaults,
-      { warm: false, idleMs: 1200000, budgetMs: 14400000 },
-      'yolo does not change installation defaults',
-    );
-  } else assert.ok(c.originalArgv.includes('-a') && c.originalArgv.includes('-s'));
-  assert.ok(
-    e.commands.some(command => command.role === 'server' && command.argv.includes('--listen')),
-  );
-  assert.ok(
-    e.commands.some(command => command.role === 'observer' && command.argv.includes('proxy')),
-  );
-  const protocol = rows(c.protocolFile);
-  const lifecycle = rows(c.lifecycleFile);
-  const trace = rows(c.traceFile);
-  const owner = lifecycle.find(row => row.kind === 'owner-ready');
-  assert.ok(owner?.sessionId && owner.ownerPid);
-  const ownerCapture = raw(c.ownerTranscriptFile);
-  const ownerText = stripVTControlCharacters(ownerCapture);
-  const footers = [
-    ...ownerText.matchAll(
-      /\b(GPT-[A-Za-z0-9.-]+)\s+(?:default|low|medium|high|xhigh|max|ultra)\s*·/gi,
-    ),
-  ];
-  assert.ok(footers.length > 0, 'native owner model footer retained');
-  for (const footer of footers)
-    assert.equal(
-      footer[1]!.toLowerCase(),
-      c.expected.model.toLowerCase(),
-      'native owner never selects an alternate model',
-    );
-  assert.equal(
-    raw(c.configFile).match(/^model\s*=\s*"([^"\n]+)"/m)?.[1],
-    c.expected.model,
-    'isolated native model preference unchanged',
-  );
-  for (const action of c.modalActions) {
-    assert.ok(
-      action.warningOffset >= 0 &&
-        action.warningOffset < action.selectionOffset &&
-        action.selectionOffset < action.submitOffset &&
-        action.submitOffset < ownerCapture.length,
-    );
-    assert.ok(
-      action.detectedAt >= e.startedAt &&
-        action.selectedAt >= action.detectedAt &&
-        action.composerAt >= action.selectedAt &&
-        action.composerAt <= e.endedAt,
-    );
-    const warning = stripVTControlCharacters(
-      ownerCapture.slice(action.warningOffset, action.selectionOffset),
-    );
-    assert.ok(
-      warning.includes('Approaching rate limits') &&
-        warning.includes('› 1. Switch to gpt-6-luna') &&
-        warning.includes('2. Keep current model'),
-    );
-    assert.match(
-      stripVTControlCharacters(ownerCapture.slice(action.selectionOffset, action.submitOffset)),
-      /›\s*2\.\s*Keep current model/,
-      'actual native option2 selection before Enter',
-    );
-    const composer = stripVTControlCharacters(ownerCapture.slice(action.submitOffset));
-    assert.ok(
-      composer.includes('› Ask Codex to do anything'),
-      'native composer restored before continuity',
-    );
-  }
-  for (const row of protocol) {
-    const thread = row.result?.thread ?? row.params?.thread;
-    if (thread?.id === owner.sessionId && thread.model)
-      assert.equal(thread.model, c.expected.model, 'exact owned thread model unchanged');
-    if (
-      row.method === 'thread/settings/updated' &&
-      row.params?.threadId === owner.sessionId &&
-      row.params.threadSettings?.model
-    )
-      assert.equal(row.params.threadSettings.model, c.expected.model);
-  }
-  const metadata = protocol.find(
-    row =>
-      row.result?.thread?.id === owner.sessionId &&
-      row.result?.approvalPolicy !== undefined &&
-      row.result?.sandbox !== undefined,
-  )?.result;
-  assert.ok(metadata, 'native server returned exact owning thread metadata');
-  assert.equal(metadata.thread.cwd, c.expected.cwd);
-  assert.equal(metadata.thread.model, c.expected.model);
-  assert.equal(metadata.approvalPolicy, c.expected.approvalPolicy);
-  if (c.expected.sandbox === 'danger-full-access') {
-    // Native SandboxPolicy::DangerFullAccess has unrestricted network access and
-    // serializes as this unit variant, without a separate networkAccess field.
-    assert.deepEqual(
-      metadata.sandbox,
-      { type: 'dangerFullAccess' },
-      'native unrestricted filesystem/network policy',
-    );
-  } else {
-    assert.equal(metadata.sandbox.type, 'readOnly', 'native protocol wire sandbox');
-    assert.equal(metadata.sandbox.networkAccess, false);
-  }
-  const turns = protocol.filter(
-    row =>
-      row.method === 'turn/completed' &&
-      row.params?.threadId === owner.sessionId &&
-      row.params.turn.status === 'completed',
-  );
-  assert.equal(turns.length, 3, 'initial, one bounded warm, later normal user continuity');
-  const answer = (row: any) =>
-    row.params.turn.items
-      .filter((item: any) => item.type === 'agentMessage')
-      .map((item: any) => item.text)
-      .join('')
-      .trim();
-  assert.equal(answer(turns[0]), c.nonce);
-  assert.equal(answer(turns[1]), 'K');
-  assert.equal(answer(turns[2]), c.nonce);
-  const warmId = turns[1].params.turn.id;
-  const queued = e.commands.filter(command => command.role === 'queue');
-  assert.equal(queued.length, 1);
-  assert.equal(
-    queued[0]!.argv[queued[0]!.argv.indexOf('--message') + 1],
-    marker,
-    'outgoing native queue body is literal marker',
-  );
-  const warmInput = protocol.filter(
-    row =>
-      row.method === 'item/started' &&
-      row.params?.turnId === warmId &&
-      row.params.item.type === 'userMessage',
-  );
-  assert.equal(warmInput.length, 1);
-  assert.deepEqual(
-    warmInput[0].params.item.content,
-    [{ type: 'text', text: marker, text_elements: [] }],
-    'exact native warm input',
-  );
-  assert.equal(
-    protocol.filter(
-      row =>
-        row.method === 'item/started' &&
-        row.params?.turnId === warmId &&
-        !['userMessage', 'agentMessage', 'reasoning'].includes(row.params.item.type),
-    ).length,
-    0,
-  );
-  const dispatch = trace.filter(row => row.action === 'dispatch');
-  assert.equal(dispatch.length, 1);
-  assert.equal(dispatch[0].state.sessionId, owner.sessionId);
-  assert.equal(dispatch[0].state.busy, false);
-  assert.ok(
-    dispatch[0].state.tokens > 0 && dispatch[0].state.tokens < 100000,
-    'bounded probe uses native small context, never production threshold',
-  );
-  assert.ok(
-    protocol.some(
-      row =>
-        row.method === 'thread/tokenUsage/updated' &&
-        row.params?.threadId === owner.sessionId &&
-        row.params?.tokenUsage?.last?.inputTokens === dispatch[0].state.tokens,
-    ),
-  );
-  assert.ok(
-    trace.some(row => row.type === 'activity' && row.state.userAt !== null),
-    'actual typed input observed',
-  );
-  assert.ok(
-    trace.some(row => row.action === 'ended'),
-    'watcher stops with native owner',
-  );
-  assert.equal(lifecycle.filter(row => row.kind === 'keepalive-submitted').length, 1);
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   assert.ok(process.argv[2], 'usage: setup-live-acceptance.ts summary.json');
