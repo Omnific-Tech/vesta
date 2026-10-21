@@ -56,6 +56,13 @@ retained configuration ownership before reaching its no-state uninstall return.
 This preexisting product bug is recorded separately; the idempotence assertion
 and red evidence remain. Cleanup does not change the product guard ordering.
 
+The disarm fixture previously wrote Claude warm options without installed plugin
+metadata, although current status correctly requires a user-tier registration.
+Its synthetic status input now includes an explicit isolated registration and a
+copy of the checked-in plugin. Source and compiled status must preserve these
+bytes and report the configured warm state. This fixture does not claim a native
+installation occurred; actual installation remains covered by native gates.
+
 Keep the entire hook migration contract, including owned legacy block removal,
 edited/unowned/duplicate conflicts, compensation, retained assets and legacy hook
 channel containment. Keep command/TTY forwarding and disarm/status assertions.

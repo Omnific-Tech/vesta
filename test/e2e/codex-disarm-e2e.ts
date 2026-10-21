@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -120,6 +121,26 @@ try {
       },
     }),
   );
+  // Synthetic read-only status input, not proof of a native installation.
+  const pluginPath = join(claudeDir, 'plugins/fixture-status-plugin');
+  cpSync(join(root, 'src/claude/vesta-claude'), pluginPath, { recursive: true });
+  const registryPath = join(claudeDir, 'plugins/installed_plugins.json');
+  writeFileSync(
+    registryPath,
+    JSON.stringify({
+      version: 2,
+      plugins: {
+        'vesta@vesta-local': [
+          {
+            scope: 'user',
+            installPath: pluginPath,
+            version: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version,
+          },
+        ],
+      },
+    }),
+  );
+  const claudeBefore = [hash(settingsPath), hash(registryPath)];
   const claude = setup('status', 'claude');
   assert.equal(claude.warmEnabled, true);
   assert.equal(claude.idleMs, 3000000);
@@ -155,6 +176,11 @@ try {
   contained(cliStatus('codex', configDir), true);
   cases.push('cli-status-truthful');
   assert.equal(cliStatus('claude', claudeDir).warmEnabled, true);
+  assert.deepEqual(
+    [hash(settingsPath), hash(registryPath)],
+    claudeBefore,
+    'Claude status preserves fixture metadata',
+  );
   cases.push('claude-cli-unaffected');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   writeFileSync(configPath, JSON.stringify({ ...config, warm: false }));
