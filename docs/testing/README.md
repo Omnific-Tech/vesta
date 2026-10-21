@@ -5,6 +5,7 @@ in `test/e2e/`. Run commands below from the repository root. Failure contracts a
 collected here without removing their original cases:
 
 - [Source layout](source-layout-failures.md)
+- [Legacy wrapper retirement](legacy-retirement.md)
 - [Claude profiles](CLAUDE-PROFILE-FAILURES.md)
 - [Codex diagnostics](CODEX-DIAGNOSTIC-FAILURES.md)
 - [Codex hook watcher](CODEX-HOOK-WATCHER-FAILURES.md)
