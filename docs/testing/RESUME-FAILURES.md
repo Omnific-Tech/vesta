@@ -1,5 +1,11 @@
 # Native resume investigation contracts
 
+Historical investigation. The legacy `codex-hooks-probe.ts` workflow has been
+retired. Current native TUI, resume and Pulse proofs live in the
+[migration contracts](CODEX-HOOK-MIGRATION-FAILURES.md) and
+[Pulse contracts](CODEX-PULSE-SWITCH-FAILURES.md). Original cases below are retained
+as design evidence rather than current executable commands.
+
 Authored before product changes. `codex-hooks-probe.ts` is an investigative E2E
 contract, not the Vesta implementation. It installs only in a disposable
 CODEX_HOME, approves only its fixture hook hashes through native configuration,

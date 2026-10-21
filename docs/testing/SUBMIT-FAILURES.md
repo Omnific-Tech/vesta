@@ -1,5 +1,10 @@
 # SUBMIT-001 failure and acceptance contracts
 
+Historical terminal-owner contract. The wrapper and its input suite have been
+retired; current submission ordering is verified through native hook journals
+under the [hook watcher contracts](CODEX-HOOK-WATCHER-FAILURES.md). The original
+cases and commands below document the earlier implementation.
+
 Authored before product changes. Codex inactivity means time since the last
 verified user submission. Typing, navigation, selection, focus and pointer input
 do not renew the idle clock or four-hour budget. Claude policy is out of scope.

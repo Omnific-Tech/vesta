@@ -1,5 +1,11 @@
 # IDLE-001 failure and acceptance contracts
 
+Historical terminal-owner contract. Its keystroke decoder and wrapper suites
+have been retired. Current hook behavior and executable evidence are covered by
+[hook watcher contracts](CODEX-HOOK-WATCHER-FAILURES.md) and
+[migration contracts](CODEX-HOOK-MIGRATION-FAILURES.md). The original cases below
+remain as historical design evidence, not commands for the current runtime.
+
 Authored before decoder implementation. Existing threshold, idle timing, budget,
 native owner identity, queue protocol and trust behavior remain unchanged.
 Historical personal stdin was not recorded; these reproduce independently

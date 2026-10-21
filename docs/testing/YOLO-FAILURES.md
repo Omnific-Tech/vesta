@@ -1,5 +1,11 @@
 # Verified Codex --yolo contracts
 
+Historical terminal-owner proof. The Codex branch of `setup-live.ts` and managed
+owner have been retired. Current forwarding and
+[native TUI contracts](CODEX-HOOK-MIGRATION-FAILURES.md) verify that hook-only
+integration preserves native arguments. The original version-specific cases
+below document the earlier wrapper rather than the current launch path.
+
 Authored before product implementation. Scope is the exact `--yolo` alias on
 otherwise verified interactive calls. Arbitrary flags and the long bypass spelling
 remain native pass-through.

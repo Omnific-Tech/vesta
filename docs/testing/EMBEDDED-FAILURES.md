@@ -1,5 +1,11 @@
 # Embedded native owner feasibility contracts
 
+Historical prototype contract. The managed terminal owner and its feasibility
+probe have been retired. Current backend identity and TUI isolation are verified
+by the [hook watcher](CODEX-HOOK-WATCHER-FAILURES.md) and
+[migration](CODEX-HOOK-MIGRATION-FAILURES.md) contracts. The original cases below
+remain historical evidence.
+
 Authored before prototype implementation. Containment remains active in product.
 Candidate: registered native hooks, native TUI with `--no-daemon`, and a managed
 PTY; no `--remote`, CODEX_HOME overlay, permission rewriting, or trust bypass.

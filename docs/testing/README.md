@@ -12,18 +12,24 @@ collected here without removing their original cases:
 - [Pulse switching](CODEX-PULSE-SWITCH-FAILURES.md)
 - [Native controls](CONTROLS-FAILURES.md)
 - [Containment](DISARM-FAILURES.md)
-- [Embedded owner](EMBEDDED-FAILURES.md)
-- [Idle input](IDLE-FAILURES.md)
+- [Embedded owner](EMBEDDED-FAILURES.md) (historical)
+- [Idle input](IDLE-FAILURES.md) (historical)
 - [Keepalive marker](MARKER-FAILURES.md)
 - [Native registration](NATIVE-SETUP-FAILURES.md)
-- [Native resume](RESUME-FAILURES.md)
-- [Submission attribution](SUBMIT-FAILURES.md)
-- [Codex --yolo](YOLO-FAILURES.md)
+- [Native resume](RESUME-FAILURES.md) (historical)
+- [Submission attribution](SUBMIT-FAILURES.md) (historical)
+- [Codex --yolo](YOLO-FAILURES.md) (historical terminal-owner proof)
 - [Standalone packaging](PACKAGING-FAILURES.md)
 - [Owned repair](REPAIR-FAILURES.md)
 - [Production release](PRODUCTION-FAILURES.md)
 
 ## One-time native autoload
+
+This section records the earlier terminal-owner integration. That autoload,
+terminal owner and their dependent diagnostic tools have been retired. Use the
+[current setup reference](../setup.md) for the installed hook-only integration.
+The disposable probes and manual research watcher below remain separate tools;
+they do not wrap ordinary installed Codex launches.
 
 On the tested macOS arm64/zsh platform, use Node 22.17.1+, Claude Code 2.1.296 and
 Codex CLI 0.162.0/0.162.1 with their existing subscription logins:

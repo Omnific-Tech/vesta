@@ -92,8 +92,8 @@ Intentional oracle changes (no hook-mode meaning for the legacy form):
 
 - Wrapper terminal input decoding (`user-input` trace from decoded keystrokes) does
   not exist: native hooks report submission. The ordering claim is preserved by the
-  journal packet timestamp; keystroke decoding remains covered by the legacy owner
-  suites (`codex-native-input-e2e.ts`), which still ship but are not the default.
+  journal packet timestamp. The legacy owner and its keystroke suites have now
+  been retired; terminal drafts are intentionally outside hook-only observation.
 - The supplemental timelines use the shipped hook watcher with the synthetic hook
   engine (`codex-hook-watcher-fixture.mjs`) instead of the legacy embedded owner with
   `codex-native-input-fixture.mjs`. They stay marked synthetic and never stand in for
