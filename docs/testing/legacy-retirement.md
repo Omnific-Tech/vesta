@@ -63,6 +63,12 @@ copy of the checked-in plugin. Source and compiled status must preserve these
 bytes and report the configured warm state. This fixture does not claim a native
 installation occurred; actual installation remains covered by native gates.
 
+The former disarm oracle required suspension even with warming disabled. Current
+hook behavior on main reports `warmConfigured:false`, `warmEnabled:false` and
+`warmingSuspended:false` for disabled warming. The oracle now requires suspension
+only when warming is configured but unavailable; it preserves configuration,
+timing and read-only checks. The earlier failing artifact remains retained.
+
 Keep the entire hook migration contract, including owned legacy block removal,
 edited/unowned/duplicate conflicts, compensation, retained assets and legacy hook
 channel containment. Keep command/TTY forwarding and disarm/status assertions.

@@ -88,7 +88,7 @@ const setup = (operation: string, provider = 'codex', warm = false) =>
 function contained(status: any, configured: boolean) {
   assert.equal(status.warmEnabled, false, 'Codex warming cannot be reported active');
   assert.equal(status.warmConfigured, configured, 'configured preference retained separately');
-  assert.equal(status.warmingSuspended, true, 'temporary containment explicit');
+  assert.equal(status.warmingSuspended, configured, 'only configured warming is suspended');
   assert.match(
     status.warmingSuspendedReason,
     /resume|native|permission/i,
