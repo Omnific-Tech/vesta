@@ -7,13 +7,18 @@ let generation = 0;
 async function record($, data) {
   records.push({ ...data, sessionId: await $.session.id(), at: await $.clock.now() });
   await $.fs.write('mod-observations.json', JSON.stringify(records, null, 2));
-  if (contextMode) await $.fs.write('mod-observations.jsonl', records.map(row => JSON.stringify(row)).join('\n') + '\n');
+  if (contextMode)
+    await $.fs.write(
+      'mod-observations.jsonl',
+      records.map(row => JSON.stringify(row)).join('\n') + '\n',
+    );
 }
 export function register(on) {
   on('session.start', async ($, e, next) => {
     contextMode = await $.fs.exists('context-mode');
     await record($, { kind: 'owner-ready', surface: e.surface });
-    if (contextMode) await record($, { kind: 'context-startup', generation, usage: await $.session.usage() });
+    if (contextMode)
+      await record($, { kind: 'context-startup', generation, usage: await $.session.usage() });
     return next(e);
   });
   on('tool.call', async ($, e, next) => {
@@ -24,24 +29,43 @@ export function register(on) {
   on('turn.start', async ($, e, next) => {
     tools = 0;
     await record($, { kind: 'turn-start', turnId: e.turnId, text: e.text });
-    if (contextMode) await record($, { kind: 'context-invalidated', turnId: e.turnId, generation, idle: false });
+    if (contextMode)
+      await record($, { kind: 'context-invalidated', turnId: e.turnId, generation, idle: false });
     return next(e);
   });
   on('turn.complete', async ($, e, next) => {
     const result = await next(e);
     count += 1;
-    await record($, { kind: 'turn-complete', turnId: e.turnId, text: e.answer, reason: e.reason, toolEvents: tools, ...(contextMode ? { generation, usage: await $.session.usage() } : {}) });
+    await record($, {
+      kind: 'turn-complete',
+      turnId: e.turnId,
+      text: e.answer,
+      reason: e.reason,
+      toolEvents: tools,
+      ...(contextMode ? { generation, usage: await $.session.usage() } : {}),
+    });
     if (contextMode && e.reason === 'answer' && count < 3) {
       $.clock.after(1500, async () => {
         try {
           if (count === 2) {
             generation += 1;
             await record($, { kind: 'compact-start', generation, usage: await $.session.usage() });
-            const result = await $.session.compact({ instructions: 'Keep only the remembered VESTA nonce.' });
-            await record($, { kind: 'compact-complete', generation, result, usage: await $.session.usage() });
+            const result = await $.session.compact({
+              instructions: 'Keep only the remembered VESTA nonce.',
+            });
+            await record($, {
+              kind: 'compact-complete',
+              generation,
+              result,
+              usage: await $.session.usage(),
+            });
           }
-          await $.prompt.submit({ text: 'Recall the VESTA nonce. Reply with only that nonce. Do not use tools.' });
-        } catch (error) { await record($, { kind: 'native-rejection', text: String(error) }); }
+          await $.prompt.submit({
+            text: 'Recall the VESTA nonce. Reply with only that nonce. Do not use tools.',
+          });
+        } catch (error) {
+          await record($, { kind: 'native-rejection', text: String(error) });
+        }
       });
       return result;
     }
