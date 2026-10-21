@@ -26,11 +26,11 @@ if (process.platform !== 'darwin' || process.arch !== 'arm64')
   throw new Error('This build targets macOS arm64 only');
 const packageMeta = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const plugin = JSON.parse(
-  readFileSync(join(root, 'experiments/vesta-claude/.claude-plugin/plugin.json'), 'utf8'),
+  readFileSync(join(root, 'src/claude/vesta-claude/.claude-plugin/plugin.json'), 'utf8'),
 );
 const catalog = JSON.parse(readFileSync(join(root, '.claude-plugin/marketplace.json'), 'utf8'));
 const codexPlugin = JSON.parse(
-  readFileSync(join(root, 'experiments/vesta-codex/.codex-plugin/plugin.json'), 'utf8'),
+  readFileSync(join(root, 'src/codex/vesta-codex/.codex-plugin/plugin.json'), 'utf8'),
 );
 if (
   plugin.version !== packageMeta.version ||
@@ -99,26 +99,26 @@ try {
   const files = [
     'package.json',
     '.claude-plugin/marketplace.json',
-    'experiments/setup.ts',
-    'experiments/codex-hook-setup.ts',
-    'experiments/codex-native-identity.ts',
-    'experiments/codex-hook-watcher.ts',
-    'experiments/codex-hook-state.ts',
-    'experiments/codex-autoload.ts',
-    'experiments/codex-native-owner.ts',
-    'experiments/codex-native-diagnostics.ts',
-    'experiments/codex-runtime-status.ts',
-    'experiments/codex-terminal-input.ts',
-    'experiments/codex-native-state.ts',
-    'experiments/codex-native-ipc.ts',
-    'experiments/codex-native-setup.ts',
-    'experiments/watcher-run.ts',
-    'experiments/watcher-policy.ts',
+    'src/cli/setup.ts',
+    'src/codex/codex-hook-setup.ts',
+    'src/codex/codex-native-identity.ts',
+    'src/codex/codex-hook-watcher.ts',
+    'src/codex/codex-hook-state.ts',
+    'src/codex/codex-autoload.ts',
+    'src/codex/codex-native-owner.ts',
+    'src/codex/codex-native-diagnostics.ts',
+    'src/codex/codex-runtime-status.ts',
+    'src/codex/codex-terminal-input.ts',
+    'src/codex/codex-native-state.ts',
+    'src/codex/codex-native-ipc.ts',
+    'src/codex/codex-native-setup.ts',
+    'src/cli/watcher-run.ts',
+    'src/shared/watcher-policy.ts',
   ];
   for (const directory of [
-    'experiments/vesta-claude',
-    'experiments/vesta-codex',
-    'experiments/watcher-claude',
+    'src/claude/vesta-claude',
+    'src/codex/vesta-codex',
+    'src/claude/watcher-claude',
   ])
     for (const entry of readdirSync(join(root, directory), {
       recursive: true,
@@ -149,8 +149,8 @@ try {
   catalog.plugins[0].version = version;
   for (const [file, value] of [
     ['package.json', packageMeta],
-    ['experiments/vesta-claude/.claude-plugin/plugin.json', plugin],
-    ['experiments/vesta-codex/.codex-plugin/plugin.json', codexPlugin],
+    ['src/claude/vesta-claude/.claude-plugin/plugin.json', plugin],
+    ['src/codex/vesta-codex/.codex-plugin/plugin.json', codexPlugin],
     ['.claude-plugin/marketplace.json', catalog],
   ] as const)
     writeFileSync(join(payload, 'app', file), JSON.stringify(value, null, 2) + '\n');
@@ -162,14 +162,14 @@ try {
     });
   const manifest = { schema: 1, version, platform: 'darwin-arm64', assets };
   writeFileSync(join(payload, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-  const payloadFile = join(root, 'cli/payload.tar.gz');
+  const payloadFile = join(root, 'src/cli/payload.tar.gz');
   command('/usr/bin/tar', ['-czf', payloadFile, '-C', payload, ...readdirSync(payload)]);
   mkdirSync(dirname(out), { recursive: true });
   command(process.execPath, [
     'build',
     '--compile',
     '--target=bun-darwin-arm64',
-    join(root, 'cli/main.ts'),
+    join(root, 'src/cli/main.ts'),
     '--outfile',
     out,
     '--define',
