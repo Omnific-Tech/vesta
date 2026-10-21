@@ -10,8 +10,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { providers, status, withLock } from './manage.ts';
-import type { Provider } from './manage.ts';
+import { status, withLock } from './manage.ts';
+import { providers } from './providers.ts';
+import type { Provider } from './providers.ts';
 import { controlConfig, controlKeys, claudeControlOptions } from '../shared/watcher-policy.ts';
 
 const flags = new Set([

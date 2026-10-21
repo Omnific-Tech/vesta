@@ -10,7 +10,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { readJson, sha256, version } from './assets.ts';
-import { compare, executable, pluginId, preflight, providers, value, withLock } from './manage.ts';
+import { compare, withLock } from './manage.ts';
+import { executable, pluginId, preflight, providers, value } from './providers.ts';
 import { codexRegistration } from '../codex/codex-native-setup.ts';
 import { legacyShell, ownedNativeHomes } from '../codex/codex-hook-setup.ts';
 import { nativeRequest } from '../codex/codex-native-ipc.ts';

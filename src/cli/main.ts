@@ -1,7 +1,8 @@
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { readJson, version } from './assets.ts';
-import { install, installRoot, repair, status, uninstall } from './manage.ts';
+import { install, repair, status, uninstall } from './manage.ts';
+import { installRoot } from './providers.ts';
 import { update } from './github.ts';
 import { controls } from './controls.ts';
 
