@@ -1,4 +1,4 @@
-// Native PTY E2E: containment forwards every Codex launch unchanged.
+// Hooks/plugins-disabled fixture metadata; native PTY bytes remain unchanged.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -28,6 +28,10 @@ if (existsSync(artifacts) && readdirSync(artifacts).length)
   throw new Error('Choose fresh artifacts');
 mkdirSync(artifacts, { recursive: true });
 const fixture = realpathSync(mkdtempSync(join(tmpdir(), 'vesta-tty-forward-e2e-')));
+const isolatedHome = join(fixture, 'home');
+const nativeHome = join(fixture, 'codex-home');
+mkdirSync(isolatedHome);
+mkdirSync(nativeHome);
 const bin = join(fixture, 'existing-cmux-bin');
 mkdirSync(bin);
 const native = join(bin, 'codex');
@@ -38,6 +42,8 @@ writeFileSync(shellFile, '# isolated existing user shell\n');
 const configDir = join(fixture, 'vesta-config');
 const env: Record<string, string> = {
   ...(process.env as Record<string, string>),
+  HOME: isolatedHome,
+  CODEX_HOME: nativeHome,
   PATH: bin + ':' + process.env.PATH,
   TERM: 'xterm-256color',
   VESTA_FIXTURE_EXIT: '37',
@@ -245,7 +251,6 @@ try {
         failure,
         sourceFiles: [
           '../../src/cli/setup.ts',
-          '../../src/codex/codex-autoload.ts',
           'setup-native-fixture.mjs',
           'setup-tty-forwarding-e2e.ts',
         ].map(file => ({ path: join(here, file), sha256: hash(join(here, file)) })),

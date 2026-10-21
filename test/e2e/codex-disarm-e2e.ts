@@ -34,6 +34,8 @@ const owned = join(fixture, 'owned');
 mkdirSync(configDir);
 mkdirSync(claudeDir);
 mkdirSync(owned);
+const isolatedHome = join(fixture, 'home');
+mkdirSync(isolatedHome);
 writeFileSync(shell, '# existing shell\n');
 const commands: any[] = [];
 const cases: string[] = [];
@@ -42,7 +44,13 @@ const hash = (path: string) => createHash('sha256').update(readFileSync(path)).d
 function run(name: string, executable: string, argv: string[], timeout = 30000) {
   const result = spawnSync(executable, argv, {
     cwd: root,
-    env: { ...process.env, VESTA_HOME: owned },
+    env: {
+      ...process.env,
+      HOME: isolatedHome,
+      CODEX_HOME: configDir,
+      CLAUDE_CONFIG_DIR: claudeDir,
+      VESTA_HOME: owned,
+    },
     encoding: 'utf8',
     timeout,
   });
@@ -173,7 +181,6 @@ try {
         failure,
         commands,
         sourceFiles: [
-          '../../src/codex/codex-autoload.ts',
           '../../src/cli/setup.ts',
           'setup-tty-forwarding-e2e.ts',
           'setup-forwarding-e2e.ts',

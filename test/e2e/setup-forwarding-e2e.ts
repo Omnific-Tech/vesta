@@ -1,4 +1,4 @@
-// Executable forwarding contracts written before the Codex shell integration.
+// Hooks/plugins-disabled native metadata; arbitrary native invocation bytes stay exact.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -27,6 +27,10 @@ if (existsSync(artifacts) && readdirSync(artifacts).length)
   throw new Error('Choose fresh artifacts');
 mkdirSync(artifacts, { recursive: true });
 const fixture = realpathSync(mkdtempSync(join(tmpdir(), 'vesta-forward-e2e-')));
+const isolatedHome = join(fixture, 'home');
+const nativeHome = join(fixture, 'codex-home');
+mkdirSync(isolatedHome);
+mkdirSync(nativeHome);
 const bin = join(fixture, 'existing-cmux-bin');
 mkdirSync(bin);
 const native = join(bin, 'codex');
@@ -35,7 +39,13 @@ chmodSync(native, 0o755);
 const shellFile = join(fixture, 'zshrc');
 const originalShell = '# existing user settings\nexport VESTA_USER_SENTINEL=preserved\n';
 writeFileSync(shellFile, originalShell);
-const env = { ...process.env, PATH: bin + ':' + process.env.PATH, VESTA_FIXTURE_EXIT: '37' };
+const env = {
+  ...process.env,
+  HOME: isolatedHome,
+  CODEX_HOME: nativeHome,
+  PATH: bin + ':' + process.env.PATH,
+  VESTA_FIXTURE_EXIT: '37',
+};
 const input = Buffer.from('raw stdin\nquotes " and spaces\n\x00\xff', 'latin1');
 const commands: any[] = [];
 const cases: string[] = [];

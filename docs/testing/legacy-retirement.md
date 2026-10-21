@@ -40,6 +40,22 @@ CLI scanner scenarios through the compiled CLI and source setup entrypoint.
 
 ## Migration and installation gates
 
+The pre-cleanup forwarding fixture returned its arbitrary-command exit code 37
+even for current native registry metadata requests, so setup failed before the
+forwarding comparisons on both the formatting and layout baselines. Its narrow
+metadata responses now explicitly describe native plugins/hooks being disabled;
+unsupported registry mutations receive no synthetic success. These comparisons
+retain all 18 non-TTY cases, 33 TTY cases and real native parser conflict checks.
+Both drivers isolate HOME and CODEX_HOME before setup; disarm/status checks also
+isolate the Claude configuration directory. Supported native registration and
+default TUI/Pulse behavior remain covered by the real native migration gates.
+
+After these fixture repairs, all 18 forwarding comparisons and first uninstall
+pass, but the original second-uninstall assertion still fails: hook setup checks
+retained configuration ownership before reaching its no-state uninstall return.
+This preexisting product bug is recorded separately; the idempotence assertion
+and red evidence remain. Cleanup does not change the product guard ordering.
+
 Keep the entire hook migration contract, including owned legacy block removal,
 edited/unowned/duplicate conflicts, compensation, retained assets and legacy hook
 channel containment. Keep command/TTY forwarding and disarm/status assertions.
