@@ -36,7 +36,8 @@ if (process.argv.includes('app-server')) {
         );
         await new Promise(done => setTimeout(done, delay));
         reply({});
-      } else if (row.method === 'hooks/list') {
+      } else if (row.method === 'config/read') reply({ config: { features: {} } });
+      else if (row.method === 'hooks/list') {
         const mode = existsSync(join(folder, 'hooks-mode'))
           ? readFileSync(join(folder, 'hooks-mode'), 'utf8')
           : '';
@@ -70,6 +71,10 @@ if (process.argv.includes('app-server')) {
           ],
         });
       } else if (row.method === 'thread/queue/add') {
+        if (existsSync(join(folder, 'queue-failure'))) {
+          log('transport-failures.jsonl', { method: row.method, exitCode: 23 });
+          process.exit(23);
+        }
         log('queue.jsonl', { row });
         reply({
           queuedSubmission: {

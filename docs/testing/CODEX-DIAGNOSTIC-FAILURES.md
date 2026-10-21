@@ -2,7 +2,15 @@
 
 Authored before implementation. Run `node --experimental-strip-types test/e2e/codex-native-diagnostics-e2e.ts ARTIFACTS`, then independently replay `node --experimental-strip-types test/e2e/codex-native-diagnostics-e2e.ts --verify ARTIFACTS`.
 Default artifacts: `$TELOS_RUN_DIR/artifacts`, otherwise ignored `harness/runs/codex-diagnostics/artifacts`.
-Synthetic native hooks/rollouts/queue transport and real owner/PTY/lease/CLI processes; no model, network, account swaps, personal settings or installed runtime changes.
+Synthetic native hooks/rollouts/queue transport and real hook observer/engine/CLI processes; no model, network, account swaps, personal settings or installed runtime changes.
+
+The active hook acceptance and explicit retirement mapping are documented in
+[legacy retirement](legacy-retirement.md). The historical inventory below is
+preserved for traceability. The executable gate now replays the full hook watcher
+contract, checks actual hook diagnostic snapshots, forces a real queue transport
+failure, fills the diagnostic decision ring, and retains both CLI scanner cases.
+Terminal decoding, outer wrapper process and wrapper lease-only cases are retired;
+the scanner still accepts historical owner metadata without loading legacy code.
 
 ## Runtime status
 
