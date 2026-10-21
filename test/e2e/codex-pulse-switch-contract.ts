@@ -108,6 +108,7 @@ export function pulseResumeArguments(original: string[], thread: string) {
 
 export const sourceFiles = [
   'docs/testing/CODEX-PULSE-SWITCH-FAILURES.md',
+  'docs/testing/pulse-signal-race.md',
   'test/e2e/codex-pulse-switch-contract.ts',
   'test/e2e/codex-pulse-switch-e2e.ts',
   'test/e2e/codex-hook-contract.ts',
