@@ -123,6 +123,8 @@ export const sourceFiles = [
   'src/shared/watcher-policy.ts',
   'src/codex/codex-runtime-status.ts',
   'src/cli/manage.ts',
+  'src/cli/providers.ts',
+  'src/cli/integration-state.ts',
   'src/cli/main.ts',
   'src/cli/controls.ts',
   'packaging/build.ts',

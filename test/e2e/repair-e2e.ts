@@ -610,6 +610,8 @@ try {
           'docs/testing/REPAIR-FAILURES.md',
           'src/cli/main.ts',
           'src/cli/manage.ts',
+          'src/cli/providers.ts',
+          'src/cli/integration-state.ts',
           'src/cli/github.ts',
         ].map(path => ({ path, sha256: hash(join(root, path)) })),
       },

@@ -746,6 +746,8 @@ try {
           'test/e2e/controls-acceptance.ts',
           'src/cli/main.ts',
           'src/cli/manage.ts',
+          'src/cli/providers.ts',
+          'src/cli/integration-state.ts',
           'src/cli/controls.ts',
           'src/shared/watcher-policy.ts',
         ].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })),
