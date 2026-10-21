@@ -24,7 +24,7 @@ of these contracts. Existing wrapper contracts remain unchanged.
 
 ## Proposed boundary
 
-`node --experimental-strip-types experiments/codex-hook-watcher.ts --hook
+`node --experimental-strip-types src/codex/codex-hook-watcher.ts --hook
 --config ABS_CONFIG --native ABS_NATIVE` receives one native hook JSON on stdin.
 It produces empty stdout/stderr, finishes within the native hook timeout, and
 bootstraps an opaque detached watcher. The launch needs no Vesta environment
@@ -122,11 +122,11 @@ real Codex prompts at once.
 
 ## Execution and artifacts
 
-Run `node --experimental-strip-types experiments/codex-hook-watcher-e2e.ts` and
-`node --experimental-strip-types experiments/codex-hook-native-e2e.ts --native
+Run `node --experimental-strip-types test/e2e/codex-hook-watcher-e2e.ts` and
+`node --experimental-strip-types test/e2e/codex-hook-native-e2e.ts --native
 ABS_CODEX`. Both accept `--artifacts DIR` and otherwise use
 `TELOS_RUN_DIR/artifacts` or ignored `dist/`. Replay either receipt with
-`node --experimental-strip-types experiments/codex-hook-contract.ts --verify DIR`.
+`node --experimental-strip-types test/e2e/codex-hook-contract.ts --verify DIR`.
 
 The receipt hashes every retained artifact and the contract/product source inputs.
 The runtime helper `codex-hook-state.ts` is a required source/oracle receipt input.

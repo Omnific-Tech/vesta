@@ -32,7 +32,7 @@ and owns its fixture server. It never attaches to personal conversations.
 
 Repeatable investigation command:
 
-`node --experimental-strip-types experiments/codex-hooks-probe.ts --artifacts harness/runs/RESUME-001/probe-<unique>`
+`node --experimental-strip-types test/e2e/codex-hooks-probe.ts --artifacts harness/runs/RESUME-001/probe-<unique>`
 
 The retained `summary.json`, hook JSONL, hooks/list response, command transcripts,
 and terminal log decide feasibility. No product implementation is authorized by

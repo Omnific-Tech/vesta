@@ -13,14 +13,14 @@ rejects malformed JSON, containers or invalid existing control values before
 writing any selected provider. Changed resume/config/reset controls require a fresh real prompt and reply without renewing
 the user budget. The runtime uses a one-second polling timer and rechecks before
 native commit; host/I/O delays can delay observation, and already committed messages may finish. Restart older sessions once after
-upgrading. See [Claude controls](../docs/claude.md) and
-[Codex controls](../docs/codex.md), including the custom-text reply rule.
+upgrading. See [Claude controls](claude.md) and
+[Codex controls](codex.md), including the custom-text reply rule.
 
 Version 0.3.0 uses detached metadata-only native hook watchers and the durable queue.
 Migration removes the exactly owned shell wrapper; open a new terminal or run
 `unfunction codex` in existing zsh after setup. Sourcing alone does not remove an
 already defined function. Version 0.2.6 used its earlier terminal owner;
-see its historical [release notes](../docs/releases/v0.2.6.md).
+see its historical [release notes](releases/v0.2.6.md).
 
 The CLI also accepts `setup` as an alias for `install`. To restore
 an existing integration, run `vesta repair`, or use
@@ -102,7 +102,7 @@ select an embedded backend in the TUI. Vesta preserves that native selection.
 Native commands receive no Vesta banner. Retained immutable hook assets include
 their complete runtime dependencies; changed hooks require native trust review.
 Existing legacy owners retain their original callbacks. Registration, opt-in and
-trust remain separate setup states. See the [Codex guide](../docs/codex.md) for
+trust remain separate setup states. See the [Codex guide](codex.md) for
 per-home ownership, submission clocks, backend lifetime and queue-race limits.
 
 Warming is off by default. First add the required global marker rule in
@@ -138,7 +138,7 @@ PID/birth liveness does not guarantee a fresh heartbeat: inspect `observedAt`.
 The read-only scanner uses configured `statusDir` only, caps snapshots at 256 KiB
 and output at 64 owners, labels stale/legacy/malformed records, and reports
 `truncated` when bounds are exceeded. Direct account launchers can trigger trusted
-native hooks without a Vesta wrapper. See [Codex diagnostics](../docs/codex.md)
+native hooks without a Vesta wrapper. See [Codex diagnostics](codex.md)
 for fields and ownership limits.
 
 Defaults remain Claude 50 minutes idle, Codex 20 minutes idle, and a four-hour
@@ -207,16 +207,16 @@ flows and never print credential contents. Native authentication, quota, and
 network errors fail verification.
 
 ```sh
-node --experimental-strip-types experiments/setup-e2e.ts
-node --experimental-strip-types experiments/setup-forwarding-e2e.ts
-node --experimental-strip-types experiments/setup-live.ts claude
-node --experimental-strip-types experiments/setup-live.ts claude --marker
-node --experimental-strip-types experiments/setup-tty-forwarding-e2e.ts
-node --experimental-strip-types experiments/codex-native-warming-e2e.ts
-node --experimental-strip-types experiments/codex-native-warming-e2e.ts --cli-resume
-node --experimental-strip-types experiments/codex-native-warming-e2e.ts --packaged
-node --experimental-strip-types packaging/release-e2e.ts
-node --experimental-strip-types packaging/public-e2e.ts
+node --experimental-strip-types test/e2e/setup-e2e.ts
+node --experimental-strip-types test/e2e/setup-forwarding-e2e.ts
+node --experimental-strip-types test/e2e/setup-live.ts claude
+node --experimental-strip-types test/e2e/setup-live.ts claude --marker
+node --experimental-strip-types test/e2e/setup-tty-forwarding-e2e.ts
+node --experimental-strip-types test/e2e/codex-native-warming-e2e.ts
+node --experimental-strip-types test/e2e/codex-native-warming-e2e.ts --cli-resume
+node --experimental-strip-types test/e2e/codex-native-warming-e2e.ts --packaged
+node --experimental-strip-types test/e2e/release-e2e.ts
+node --experimental-strip-types test/e2e/public-e2e.ts
 telos verify-all RESUME-001
 ```
 
@@ -233,7 +233,7 @@ protection, managed-owner collision skipping, dry latest/picker/cross-directory
 resume identities, sibling-server liveness and personal-file integrity.
 Probe timings/thresholds do not change installation defaults.
 Current hook-only runtime and migration acceptance contracts are linked in the
-[Codex guide](../docs/codex.md#status-and-verification); earlier terminal-owner
+[Codex guide](codex.md#status-and-verification); earlier terminal-owner
 receipts do not establish hook-only behavior.
 The installed Claude marker proof retains the strict production threshold with
 genuine native input above 100,000 tokens and a configured ten-second idle

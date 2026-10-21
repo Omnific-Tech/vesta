@@ -17,7 +17,7 @@ run in an isolated CODEX_HOME behind a shim that fails one plugin/add command.
 - Exact fixture trust hashes may enable readiness; globally disabled hooks or
   plugins must immediately return inactive status without changing configuration.
 
-`node --experimental-strip-types experiments/codex-native-setup-fault-e2e.ts`
+`node --experimental-strip-types test/e2e/codex-native-setup-fault-e2e.ts`
 
 Retain exact native shim calls, source setup stdout/stderr, before/after native
 registry snapshots, zero rollout assertions, source hashes and personal integrity.

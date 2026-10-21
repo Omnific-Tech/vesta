@@ -61,7 +61,7 @@ It covers pending time boundaries, forwarding and cancellation without unit
 tests. Its retained summary, per-case owner traces, queue requests and forwarded
 byte captures can be verified again with:
 
-`node --experimental-strip-types experiments/codex-native-input-e2e.ts --verify <artifacts>`
+`node --experimental-strip-types test/e2e/codex-native-input-e2e.ts --verify <artifacts>`
 
 Existing source, CLI resume and packaged native acceptance must also pass, as
 must watcher lifecycle and standalone repair. Evidence stays ignored. Source

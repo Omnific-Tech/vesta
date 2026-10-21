@@ -19,7 +19,7 @@ These contracts precede release metadata changes. Publication must stop when:
   supplemental Codex transport timelines. Existing controls oracles are the
   release authority; legacy native warming proofs do not replace them. The Codex
   owners are the default hook-mode integration (see
-  `experiments/CONTROLS-FAILURES.md`); a suite that waits for removed wrapper
+  `docs/testing/CONTROLS-FAILURES.md`); a suite that waits for removed wrapper
   artifacts, or maps a legacy assertion without that document's explicit
   intentional-change entry, fails this gate.
 - A child omits receipt identity, raw command output, exact production install

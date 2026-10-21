@@ -1,6 +1,6 @@
 # Native controls suite: Codex hook-mode port (contract before implementation)
 
-`experiments/controls-native-e2e.ts` is a release suite: real installed Claude and
+`test/e2e/controls-native-e2e.ts` is a release suite: real installed Claude and
 Codex, the exact production candidate, six real owners (3 per provider). PR #11
 made hook-only the default Codex integration and removed the legacy terminal
 owner (wrapper). The Codex half of the suite still waited for wrapper artifacts
@@ -104,8 +104,8 @@ Intentional oracle changes (no hook-mode meaning for the legacy form):
 ## Execution and artifacts
 
 Run from a clean committed tree with artifacts outside the Omnific workspace:
-`node --experimental-strip-types experiments/controls-native-e2e.ts --artifacts DIR`
-then `node --experimental-strip-types experiments/controls-acceptance.ts DIR`.
+`node --experimental-strip-types test/e2e/controls-native-e2e.ts --artifacts DIR`
+then `node --experimental-strip-types test/e2e/controls-acceptance.ts DIR`.
 Retained evidence per Codex owner: raw status bytes, raw config bytes, snapshots,
 rollout copy; per run: hook journal and ledger copies, daemon/observer receipts,
 setup record and hook trust listings, then sealed with operational symlinks removed.

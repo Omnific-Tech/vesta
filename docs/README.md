@@ -53,7 +53,7 @@ for one backend per session. Native `-c` overrides used by Pulse/xswap instead
 select an embedded backend in the TUI; Vesta preserves native launch behavior.
 
 For advanced setup, ownership and test commands, see the
-[setup reference](../experiments/SETUP.md). For builds and releases, see
+[setup reference](setup.md). For builds and releases, see
 [CONTRIBUTING.md](../CONTRIBUTING.md) and the
 [0.3.0 release command list](../packaging/RELEASING.md). The provider guides link directly to the
 implementation so behavior can be checked against the same source revision.

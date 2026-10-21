@@ -26,9 +26,9 @@ launch semantics must remain identical. Claude behavior is outside this change.
 
 Repeatable E2E commands (choose fresh evidence directories):
 
-`node --experimental-strip-types experiments/setup-tty-forwarding-e2e.ts harness/runs/DISARM-001/tty-red`
+`node --experimental-strip-types test/e2e/setup-tty-forwarding-e2e.ts harness/runs/DISARM-001/tty-red`
 
-`node --experimental-strip-types experiments/setup-forwarding-e2e.ts harness/runs/DISARM-001/non-tty-red`
+`node --experimental-strip-types test/e2e/setup-forwarding-e2e.ts harness/runs/DISARM-001/non-tty-red`
 
 Retained summary, raw stdout/stderr/terminal bytes, exact invocation arrays, source
 hashes, and owned-child cleanup records are the acceptance artifacts. PTY cases

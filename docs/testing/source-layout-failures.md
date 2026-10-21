@@ -39,8 +39,8 @@ contracts already exist on the formatting baseline.
    independently replay their existing contracts. Their source fingerprint sets
    must include the relocated runtime, fixtures and failure documents.
 6. Run existing Claude setup/live, forwarding and controls gates. Preserve
-   isolated homes and all personal-state protections. Production model-turn
-   verification remains deferred to the separately authorized final cleanup gate.
+   isolated homes and all personal-state protections. Per the handoff, run the
+   production model-turn gate once at the end of the legacy cleanup step.
 
 Commit final source changes before final verification. The primary agent owns the
 full gate and reports the artifact locations and replay results.

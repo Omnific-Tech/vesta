@@ -57,7 +57,7 @@ instruction file for future sessions. A custom keepalive contains only the saved
 text. Vesta never edits instruction files or appends instructions to its payload.
 
 The native configuration flow is `claude plugin configure vesta@vesta-local`.
-The plugin's [configuration schema](../experiments/vesta-claude/.claude-plugin/plugin.json)
+The plugin's [configuration schema](../src/claude/vesta-claude/.claude-plugin/plugin.json)
 exposes:
 
 | Option | Default | Meaning |
@@ -83,7 +83,7 @@ writes at different moments.
 warming and timers. Add `--warm` to opt an owned integration into warming. Repair
 does not adopt an unowned provider or enable a disabled Claude plugin. It uses
 recorded paths; source-owned records can migrate into the bundled runtime. See
-the [repair details](../experiments/SETUP.md). Restart after repair or updates so
+the [repair details](setup.md). Restart after repair or updates so
 the running session loads the intended plugin runtime.
 
 ## From reply to keepalive
@@ -158,6 +158,6 @@ the next owned completion of any origin supplies the new one. After a controls
 change, use a fresh user prompt and reply. Check for a busy turn and that four
 hours without non-Vesta activity have not expired.
 
-Source: [native middleware and timer](../experiments/vesta-claude/hooks/register.ts),
-[eligibility policy](../experiments/vesta-claude/hooks/policy.ts), and
-[setup/status](../experiments/setup.ts).
+Source: [native middleware and timer](../src/claude/vesta-claude/hooks/register.ts),
+[eligibility policy](../src/claude/vesta-claude/hooks/policy.ts), and
+[setup/status](../src/cli/setup.ts).
