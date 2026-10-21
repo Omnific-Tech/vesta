@@ -427,16 +427,17 @@ export function verifyPulse(path: string) {
     'switch at idle: Pulse-style SIGTERM, watcher ends with its backend, no dispatch into the dead backend',
     () => {
       const m = move('a1-to-b1');
+      const stopped = [...m.signals, ...m.vanishedBeforeSignal];
       assert.ok(
-        m.signals.length >= 2 && m.signals.every((s: any) => s.signal === 'SIGTERM' && s.birth),
+        stopped.length >= 2 && m.signals.every((s: any) => s.signal === 'SIGTERM' && s.birth),
         'only birth-checked SIGTERM',
       );
       assert.ok(
-        m.signals.some((s: any) => s.pid === L.a1.tui.pid && s.birth === L.a1.tui.birth),
+        stopped.some((s: any) => s.pid === L.a1.tui.pid && s.birth === L.a1.tui.birth),
         'TUI in signalled tree',
       );
       assert.ok(
-        m.signals.some((s: any) => s.pid === L.a1.engine.pid),
+        stopped.some((s: any) => s.pid === L.a1.engine.pid && s.birth === L.a1.engine.birth),
         'embedded engine in signalled tree',
       );
       assert.ok(
@@ -504,7 +505,9 @@ export function verifyPulse(path: string) {
         );
         assert.ok(
           mv.signals.every((s: any) => s.signal === 'SIGTERM' && s.birth) &&
-            mv.signals.some((s: any) => s.pid === L[label].engine.pid),
+            [...mv.signals, ...mv.vanishedBeforeSignal].some(
+              (s: any) => s.pid === L[label].engine.pid && s.birth === L[label].engine.birth,
+            ),
           label + ': TERM-only, engine in tree',
         );
         assert.equal(
@@ -855,6 +858,34 @@ export function verifyPulse(path: string) {
       );
     assert.equal(e.proxy, 'http://127.0.0.1:9', 'non-localhost egress is routed to a dead proxy');
     const signals = timeline.filter(r => r.kind === 'signal').flatMap(r => r.signals);
+    for (const move of e.moves) {
+      const receipt = timeline.find(row => row.kind === 'signal' && row.label === move.from);
+      assert.ok(receipt, 'retained signal observation');
+      assert.deepEqual(receipt.signals, move.signals);
+      assert.deepEqual(receipt.vanishedBeforeSignal, move.vanishedBeforeSignal);
+      const identity = (row: any) => JSON.stringify([row.pid, row.birth]);
+      const stopped = [...move.signals, ...move.vanishedBeforeSignal];
+      assert.equal(
+        new Set(stopped.map(identity)).size,
+        stopped.length,
+        'disjoint stop receipt identities',
+      );
+      assert.deepEqual(
+        stopped.map(identity).sort(),
+        move.tree.map(identity).sort(),
+        'exact captured tree receipt coverage',
+      );
+      for (const signal of move.signals) {
+        assert.equal(signal.signal, 'SIGTERM');
+        assert.ok(signal.at >= move.killedAt && signal.at <= move.treeExitAt);
+      }
+      for (const vanished of move.vanishedBeforeSignal) {
+        assert.ok(['absent-before-signal', 'ESRCH'].includes(vanished.cause));
+        assert.equal(vanished.observedBirth, '');
+        assert.equal(vanished.signal, undefined, 'vanished process is not a successful signal');
+        assert.ok(vanished.at >= move.killedAt && vanished.at <= move.treeExitAt);
+      }
+    }
     const trees = e.moves.flatMap((m: any) => m.tree);
     for (const s of signals) {
       assert.ok(s.birth);

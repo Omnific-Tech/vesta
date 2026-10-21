@@ -475,16 +475,40 @@ async function pulseMove(
   const members = tree(l.tui);
   const killedAt = Date.now();
   const signals: any[] = [];
+  const vanishedBeforeSignal: any[] = [];
   assert.ok(
     lockHeld(snapshot.lock),
     'fixture flock probe sees the live writer lock before the kill',
   );
   for (const member of members) {
-    if (!alive(member)) continue;
-    process.kill(member.pid, 'SIGTERM');
+    const observedBirth = birth(member.pid);
+    if (observedBirth === '') {
+      vanishedBeforeSignal.push({
+        ...member,
+        cause: 'absent-before-signal',
+        observedBirth,
+        at: Date.now(),
+      });
+      continue;
+    }
+    assert.equal(observedBirth, member.birth, 'captured fixture PID birth changed before signal');
+    try {
+      process.kill(member.pid, 'SIGTERM');
+    } catch (error: any) {
+      if (error.code !== 'ESRCH') throw error;
+      const afterErrorBirth = birth(member.pid);
+      assert.equal(afterErrorBirth, '', 'ESRCH must identify a vanished captured process');
+      vanishedBeforeSignal.push({
+        ...member,
+        cause: 'ESRCH',
+        observedBirth: afterErrorBirth,
+        at: Date.now(),
+      });
+      continue;
+    }
     signals.push({ pid: member.pid, birth: member.birth, signal: 'SIGTERM', at: Date.now() });
   }
-  timeline('signal', { label: l.label, signals });
+  timeline('signal', { label: l.label, signals, vanishedBeforeSignal });
   let reaped = false;
   const stopBy = Date.now() + 10000;
   let lockReleasedAt = 0;
@@ -512,6 +536,7 @@ async function pulseMove(
     treeExitAt,
     lockReleasedAt,
     signals,
+    vanishedBeforeSignal,
     exit: l.exited,
     tree: members.map(m => ({ pid: m.pid, birth: m.birth, command: m.command })),
     polls: polls.length,
