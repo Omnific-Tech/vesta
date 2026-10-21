@@ -58,7 +58,7 @@ const run = (name: string, command: string, argv: string[], stdin?: Buffer) => {
 const setup = (operation: string) => {
   const result = run(operation, process.execPath, [
     '--experimental-strip-types',
-    join(here, 'setup.ts'),
+    join(here, '../../src/cli/setup.ts'),
     operation,
     '--provider',
     'codex',
@@ -146,7 +146,11 @@ try {
         commands,
         cases,
         failure,
-        sourceFiles: ['setup.ts', 'setup-forwarding-e2e.ts', 'setup-native-fixture.mjs']
+        sourceFiles: [
+          '../../src/cli/setup.ts',
+          'setup-forwarding-e2e.ts',
+          'setup-native-fixture.mjs',
+        ]
           .filter(p => existsSync(join(here, p)))
           .map(p => ({
             path: join(here, p),

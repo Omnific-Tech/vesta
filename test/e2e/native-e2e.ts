@@ -44,7 +44,7 @@ try {
     const directory = join(artifacts, name);
     const argv = [
       ...nodeFlags,
-      join(root, 'experiments/setup-live.ts'),
+      join(root, 'test/e2e/setup-live.ts'),
       provider,
       directory,
       ...(variant ? [variant] : []),
@@ -97,11 +97,11 @@ try {
       const block = readFileSync(join(directory, 'installed-zshrc'), 'utf8');
       assert.ok(
         block.includes('/owned-install/current/runtime/bin/node') &&
-          block.includes('/owned-install/current/app/experiments/codex-autoload.ts'),
+          block.includes('/owned-install/current/app/src/codex/codex-autoload.ts'),
         'sourced function retains stable next-launch references',
       );
       assert.ok(
-        !block.includes(built.removedBuildDirectory) && !block.includes(join(root, 'experiments/')),
+        !block.includes(built.removedBuildDirectory) && !block.includes(join(root, 'src/')),
         'installed command does not reference the build checkout',
       );
     }

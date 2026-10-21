@@ -292,7 +292,7 @@ function verifyGate() {
       process.execPath,
       [
         '--experimental-strip-types',
-        resolve(here, 'context-gate.ts'),
+        resolve(here, '../../src/shared/context-gate.ts'),
         '--json',
         JSON.stringify({ ...base, provider: c.provider, raw: c.raw, ...c.extra }),
       ],

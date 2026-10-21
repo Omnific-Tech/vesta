@@ -263,7 +263,7 @@ export function verifyMigration(path: string) {
     assert.equal(build.publishable, false);
     for (const name of ['codex-hook-watcher.ts', 'codex-hook-state.ts'])
       assert.ok(
-        build.assets.some((a: any) => a.path === 'app/experiments/' + name),
+        build.assets.some((a: any) => a.path === 'app/src/codex/' + name),
         'relocated payload contains dependency: ' + name,
       );
   } else {
@@ -361,7 +361,7 @@ export function verifyMigration(path: string) {
     assert.notEqual(e.foreign.sha256, e.vendorSha256);
     const build = json(join(path, 'compiled/build-receipt.json'));
     assert.equal(build.fixture, true);
-    assert.ok(build.assets.some((a: any) => a.path === 'app/experiments/codex-hook-watcher.ts'));
+    assert.ok(build.assets.some((a: any) => a.path === 'app/src/codex/codex-hook-watcher.ts'));
   }
   for (const row of summary.cleanup ?? [])
     assert.equal(row.remaining, false, 'fixture process cleanup');

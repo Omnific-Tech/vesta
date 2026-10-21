@@ -102,10 +102,10 @@ function context(name: string) {
   mkdirSync(directory);
   const bin = join(directory, 'bin');
   const path = nativeBin(bin);
-  copyFileSync(join(root, 'packaging/curl-fixture.zsh'), join(bin, 'curl'));
+  copyFileSync(join(root, 'test/e2e/curl-fixture.zsh'), join(bin, 'curl'));
   chmodSync(join(bin, 'curl'), 0o755);
   rmSync(join(bin, 'claude'));
-  copyFileSync(join(root, 'packaging/provider-fault.zsh'), join(bin, 'claude'));
+  copyFileSync(join(root, 'test/e2e/provider-fault.zsh'), join(bin, 'claude'));
   chmodSync(join(bin, 'claude'), 0o755);
   const home = join(directory, 'home');
   const config = join(home, '.claude');
@@ -610,7 +610,7 @@ try {
   const npm = context('npm-owned');
   const legacyArgs = [
     ...nodeFlags,
-    join(root, 'experiments/setup.ts'),
+    join(root, 'src/cli/setup.ts'),
     'install',
     '--provider',
     'all',

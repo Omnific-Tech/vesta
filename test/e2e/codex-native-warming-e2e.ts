@@ -31,14 +31,14 @@ if (process.argv.includes('--packaged') && !binary) {
   const build = spawnSync(
     'bun',
     [
-      join(here, '../packaging/build.ts'),
+      join(here, '../../packaging/build.ts'),
       '--development',
       '--out',
       binary,
       '--receipt',
       join(artifacts, 'build-receipt.json'),
     ],
-    { cwd: resolve(here, '..'), encoding: 'utf8', timeout: 90000 },
+    { cwd: resolve(here, '../..'), encoding: 'utf8', timeout: 90000 },
   );
   writeFileSync(join(artifacts, 'build.stdout'), build.stdout ?? '');
   writeFileSync(join(artifacts, 'build.stderr'), build.stderr ?? '');
@@ -57,7 +57,7 @@ const argv = [
   ...(variant.startsWith('cli-') ? ['--cli-resume'] : []),
 ];
 const result = spawnSync(process.execPath, argv, {
-  cwd: resolve(here, '..'),
+  cwd: resolve(here, '../..'),
   env: { ...process.env, ...(binary ? { VESTA_E2E_CLI: binary } : {}) },
   encoding: 'utf8',
   timeout: 240000,

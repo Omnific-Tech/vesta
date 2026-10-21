@@ -230,7 +230,7 @@ async function run(
 try {
   assert.ok(
     existsSync(runtime),
-    'missing-runtime: experiments/codex-hook-watcher.ts has not been implemented',
+    'missing-runtime: src/codex/codex-hook-watcher.ts has not been implemented',
   );
   await run(
     'basic',

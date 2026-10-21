@@ -65,7 +65,7 @@ const configDir = join(fixture, provider === 'claude' ? 'claude-config' : 'codex
 const instructionPath = join(configDir, provider === 'claude' ? 'CLAUDE.md' : 'AGENTS.md');
 const argv = [
   '--experimental-strip-types',
-  join(here, 'watcher-run.ts'),
+  join(here, '../../src/cli/watcher-run.ts'),
   provider,
   '--probe',
   '--warm',
@@ -122,12 +122,12 @@ const evidence: WatcherLiveEvidence = {
     traceFile: 'watcher-trace.jsonl',
     sourceFiles: [
       'watcher.ts',
-      'watcher-policy.ts',
-      'watcher-run.ts',
+      '../../src/shared/watcher-policy.ts',
+      '../../src/cli/watcher-run.ts',
       'marker-acceptance.ts',
       'watcher-live.ts',
       'watcher-live-acceptance.ts',
-      ...(provider === 'claude' ? ['watcher-claude/hooks/register.ts'] : []),
+      ...(provider === 'claude' ? ['../../src/claude/watcher-claude/hooks/register.ts'] : []),
     ].map(file => ({ path: join(here, file), sha256: hash(join(here, file)) })),
     measurement: {
       provider,

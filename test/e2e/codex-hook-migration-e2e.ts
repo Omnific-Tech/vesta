@@ -121,7 +121,7 @@ function run(
   const selected = forceCompiled || c.mode === 'compiled';
   const command = selected ? built.binary : process.execPath;
   const argv = [
-    ...(selected ? [] : [...flags, join(here, 'setup.ts')]),
+    ...(selected ? [] : [...flags, join(here, '../../src/cli/setup.ts')]),
     operation,
     '--provider',
     'codex',
@@ -209,7 +209,8 @@ function seedLegacy(c: Context) {
   writeFileSync(c.shell, prefix + block + suffix);
   const catalog = join(c.folder, 'legacy-catalog');
   const plugin = join(catalog, 'plugin');
-  const command = quote(process.execPath) + ' ' + quote(join(here, 'vesta-codex/handler.mjs'));
+  const command =
+    quote(process.execPath) + ' ' + quote(join(root, 'src/codex/vesta-codex/handler.mjs'));
   save(join(plugin, '.codex-plugin/plugin.json'), {
     name: 'vesta',
     version: releaseVersion,

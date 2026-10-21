@@ -60,10 +60,10 @@ function context(name: string, customConfig = false) {
   mkdirSync(directory);
   const bin = join(directory, 'bin');
   const path = nativeBin(bin);
-  copyFileSync(join(root, 'packaging/curl-fixture.zsh'), join(bin, 'curl'));
+  copyFileSync(join(root, 'test/e2e/curl-fixture.zsh'), join(bin, 'curl'));
   chmodSync(join(bin, 'curl'), 0o755);
   rmSync(join(bin, 'claude'));
-  copyFileSync(join(root, 'packaging/provider-fault.zsh'), join(bin, 'claude'));
+  copyFileSync(join(root, 'test/e2e/provider-fault.zsh'), join(bin, 'claude'));
   chmodSync(join(bin, 'claude'), 0o755);
   const home = join(directory, 'home');
   const config = join(home, customConfig ? 'custom-config' : '.config/vesta');
@@ -517,7 +517,7 @@ try {
       [
         '--disable-warning=ExperimentalWarning',
         '--experimental-strip-types',
-        join(root, 'experiments/setup.ts'),
+        join(root, 'src/cli/setup.ts'),
         'install',
         '--provider',
         'codex',
@@ -606,11 +606,11 @@ try {
         version: releaseVersion,
         nextVersion: nextReleaseVersion,
         sourceFiles: [
-          'packaging/repair-e2e.ts',
-          'packaging/REPAIR-FAILURES.md',
-          'cli/main.ts',
-          'cli/manage.ts',
-          'cli/github.ts',
+          'test/e2e/repair-e2e.ts',
+          'docs/testing/REPAIR-FAILURES.md',
+          'src/cli/main.ts',
+          'src/cli/manage.ts',
+          'src/cli/github.ts',
         ].map(path => ({ path, sha256: hash(join(root, path)) })),
       },
       null,

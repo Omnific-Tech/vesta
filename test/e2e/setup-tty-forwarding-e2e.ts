@@ -54,7 +54,7 @@ const hash = (path: string) => createHash('sha256').update(readFileSync(path)).d
 const setup = (operation: string) => {
   const argv = [
     '--experimental-strip-types',
-    join(here, 'setup.ts'),
+    join(here, '../../src/cli/setup.ts'),
     operation,
     '--provider',
     'codex',
@@ -244,8 +244,8 @@ try {
         cleanup,
         failure,
         sourceFiles: [
-          'setup.ts',
-          'codex-autoload.ts',
+          '../../src/cli/setup.ts',
+          '../../src/codex/codex-autoload.ts',
           'setup-native-fixture.mjs',
           'setup-tty-forwarding-e2e.ts',
         ].map(file => ({ path: join(here, file), sha256: hash(join(here, file)) })),

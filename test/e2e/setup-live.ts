@@ -36,7 +36,7 @@ assert.ok(
 );
 const here = dirname(fileURLToPath(import.meta.url));
 const releaseVersion: string = JSON.parse(
-  readFileSync(join(here, '../package.json'), 'utf8'),
+  readFileSync(join(here, '../../package.json'), 'utf8'),
 ).version;
 const nextReleaseVersion = releaseVersion
   .split('.')
@@ -223,7 +223,7 @@ function run(command: string, argv: string[], input?: string) {
     e.rawFiles.push(claudePluginListFile);
   }
   if (process.env.VESTA_E2E_CLI && argv.includes('install') && !packagedSourceRoot) {
-    packagedSourceRoot = realpathSync(join(env.VESTA_HOME!, 'current/app/experiments'));
+    packagedSourceRoot = realpathSync(join(env.VESTA_HOME!, 'current/app'));
     if (provider === 'codex') {
       copyFileSync(shellFile, join(artifacts, 'installed-zshrc'));
       e.rawFiles.push('installed-zshrc');
@@ -371,7 +371,7 @@ try {
     );
     run(process.execPath, [
       '--experimental-strip-types',
-      join(here, 'setup.ts'),
+      join(here, '../../src/cli/setup.ts'),
       'install',
       '--provider',
       'claude',
@@ -471,7 +471,7 @@ try {
     );
     run(process.execPath, [
       '--experimental-strip-types',
-      join(here, 'setup.ts'),
+      join(here, '../../src/cli/setup.ts'),
       'install',
       '--provider',
       'claude',
@@ -609,7 +609,7 @@ try {
     ]);
     run(process.execPath, [
       '--experimental-strip-types',
-      join(here, 'setup.ts'),
+      join(here, '../../src/cli/setup.ts'),
       'install',
       '--provider',
       'codex',
@@ -781,24 +781,26 @@ try {
     e.rawFiles.push('installed-zshrc');
   }
   e.sourceFiles = [
-    'setup.ts',
-    'setup-live.ts',
-    'setup-live-acceptance.ts',
-    'marker-acceptance.ts',
-    'watcher-run.ts',
-    'watcher-policy.ts',
+    'src/cli/setup.ts',
+    'test/e2e/setup-live.ts',
+    'test/e2e/setup-live-acceptance.ts',
+    'test/e2e/marker-acceptance.ts',
+    'src/cli/watcher-run.ts',
+    'src/shared/watcher-policy.ts',
     ...(provider === 'claude'
       ? [
-          'vesta-claude/hooks/register.ts',
-          'vesta-claude/hooks/policy.ts',
-          'vesta-claude/.claude-plugin/plugin.json',
-          'vesta-claude/hooks/hooks.json',
+          'src/claude/vesta-claude/hooks/register.ts',
+          'src/claude/vesta-claude/hooks/policy.ts',
+          'src/claude/vesta-claude/.claude-plugin/plugin.json',
+          'src/claude/vesta-claude/hooks/hooks.json',
         ]
-      : ['codex-autoload.ts']),
+      : ['src/codex/codex-autoload.ts']),
   ]
     .map(file => {
       const packaged = join(packagedSourceRoot ?? '', file);
-      return process.env.VESTA_E2E_CLI && existsSync(packaged) ? packaged : join(here, file);
+      return process.env.VESTA_E2E_CLI && existsSync(packaged)
+        ? packaged
+        : join(here, '../..', file);
     })
     .filter(path => existsSync(path))
     .map(path => ({ path, sha256: hash(path) }));

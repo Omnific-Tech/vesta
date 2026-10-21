@@ -524,7 +524,7 @@ else {
       process.execPath,
       [
         ...flags,
-        join(here, 'codex-native-owner.ts'),
+        join(root, 'src/codex/codex-native-owner.ts'),
         '--native',
         native,
         '--config',
@@ -714,7 +714,7 @@ else {
       [
         'build',
         '--compile',
-        join(root, 'cli/main.ts'),
+        join(root, 'src/cli/main.ts'),
         '--outfile',
         normalCli,
         '--define',
@@ -1044,7 +1044,7 @@ else {
         const invoke = (entrypoint: string, phase: string, expected: any[]) => {
           const before = JSON.stringify(tree(statusDir));
           const args = [
-            ...(entrypoint === 'normal' ? [] : [...flags, join(root, 'experiments/setup.ts')]),
+            ...(entrypoint === 'normal' ? [] : [...flags, join(root, 'src/cli/setup.ts')]),
             'status',
             '--provider',
             'codex',

@@ -234,7 +234,7 @@ if (process.argv[2] === '--verify') {
         [
           '--disable-warning=ExperimentalWarning',
           '--experimental-strip-types',
-          join(here, 'codex-native-owner.ts'),
+          join(here, '../../src/codex/codex-native-owner.ts'),
           '--native',
           native,
           '--config',
@@ -361,11 +361,11 @@ if (process.argv[2] === '--verify') {
           sourceFiles: [
             'codex-native-input-e2e.ts',
             'codex-native-input-fixture.mjs',
-            'codex-native-owner.ts',
-            'codex-terminal-input.ts',
-            'codex-native-state.ts',
-            'codex-native-ipc.ts',
-            'watcher-policy.ts',
+            '../../src/codex/codex-native-owner.ts',
+            '../../src/codex/codex-terminal-input.ts',
+            '../../src/codex/codex-native-state.ts',
+            '../../src/codex/codex-native-ipc.ts',
+            '../../src/shared/watcher-policy.ts',
           ]
             .filter(file => existsSync(join(here, file)))
             .map(file => ({ path: join(here, file), sha256: hash(join(here, file)) })),

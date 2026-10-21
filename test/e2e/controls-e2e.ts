@@ -1,6 +1,6 @@
 // Compiled CLI E2E contracts authored before CONTROL-001 product code.
 // Failure cases and native acceptance limitations are enumerated in
-// experiments/controls-acceptance.ts. No model calls occur in this driver.
+// test/e2e/controls-acceptance.ts. No model calls occur in this driver.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
@@ -416,7 +416,7 @@ try {
   });
   test('update', () => {
     const bin = join(artifacts, 'main/bin');
-    copyFileSync(join(root, 'packaging/curl-fixture.zsh'), join(bin, 'curl'));
+    copyFileSync(join(root, 'test/e2e/curl-fixture.zsh'), join(bin, 'curl'));
     chmodSync(join(bin, 'curl'), 0o755);
     const release = join(artifacts, 'release.json');
     writeFileSync(
@@ -452,7 +452,7 @@ try {
     const native = join(artifacts, 'main/bin/claude');
     const realNative = realpathSync(native);
     rmSync(native);
-    copyFileSync(join(root, 'packaging/provider-fault.zsh'), native);
+    copyFileSync(join(root, 'test/e2e/provider-fault.zsh'), native);
     chmodSync(native, 0o755);
     Object.assign(ctx.env, {
       VESTA_FIXTURE_NATIVE_CLAUDE: realNative,
@@ -476,7 +476,7 @@ try {
       'source-install',
       [
         ...nodeFlags,
-        join(root, 'experiments/setup.ts'),
+        join(root, 'src/cli/setup.ts'),
         'install',
         '--provider',
         'codex',
@@ -740,14 +740,14 @@ try {
         productionIdentityBefore: built.productionIdentityBefore,
         productionIdentityAfter: controlsArtifactAfter(built),
         sourceFiles: [
-          'packaging/controls-e2e.ts',
-          'packaging/controls-artifact.ts',
-          'packaging/production-acceptance.ts',
-          'experiments/controls-acceptance.ts',
-          'cli/main.ts',
-          'cli/manage.ts',
-          'cli/controls.ts',
-          'experiments/watcher-policy.ts',
+          'test/e2e/controls-e2e.ts',
+          'test/e2e/controls-artifact.ts',
+          'test/e2e/production-acceptance.ts',
+          'test/e2e/controls-acceptance.ts',
+          'src/cli/main.ts',
+          'src/cli/manage.ts',
+          'src/cli/controls.ts',
+          'src/shared/watcher-policy.ts',
         ].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })),
       },
       null,

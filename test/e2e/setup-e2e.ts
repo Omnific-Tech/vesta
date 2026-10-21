@@ -96,7 +96,7 @@ const setup = (operation: string) =>
   JSON.parse(
     run(operation, process.execPath, [
       '--experimental-strip-types',
-      join(here, 'setup.ts'),
+      join(here, '../../src/cli/setup.ts'),
       operation,
       '--provider',
       'claude',
@@ -147,7 +147,7 @@ try {
     process.execPath,
     [
       '--experimental-strip-types',
-      join(here, 'setup.ts'),
+      join(here, '../../src/cli/setup.ts'),
       'plan',
       '--provider',
       'claude',
@@ -158,7 +158,7 @@ try {
     undefined,
     true,
   );
-  e.sourceFiles = ['setup.ts', 'setup-e2e.ts', 'setup-acceptance.ts'].map(file => ({
+  e.sourceFiles = ['../../src/cli/setup.ts', 'setup-e2e.ts', 'setup-acceptance.ts'].map(file => ({
     path: join(here, file),
     sha256: hash(join(here, file)),
   }));

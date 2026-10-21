@@ -11,7 +11,7 @@ const save = (name, row) => writeFileSync(join(folder, name), JSON.stringify(row
 const log = (name, row) =>
   appendFileSync(join(folder, name), JSON.stringify({ at: Date.now(), ...row }) + '\n');
 if (process.argv.includes('--lease-peer')) {
-  const { NativeLease } = await import('./codex-native-state.ts');
+  const { NativeLease } = await import('../../src/codex/codex-native-state.ts');
   const lease = new NativeLease(process.env.CODEX_HOME, process.env.VESTA_DIAGNOSTIC_PEER);
   if (process.env.VESTA_DIAGNOSTIC_THREAD) {
     lease.acquire(process.env.VESTA_DIAGNOSTIC_THREAD);

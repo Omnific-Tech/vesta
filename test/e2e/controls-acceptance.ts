@@ -738,7 +738,7 @@ export function verifyControls(directory: string) {
   ];
   const installedWatcher = e.installedFiles.find(
     (file: any) =>
-      file.assetPath === 'app/experiments/codex-hook-watcher.ts' &&
+      file.assetPath === 'app/src/codex/codex-hook-watcher.ts' &&
       file.path.includes('/current/app/'),
   );
   assert.ok(installedWatcher);
@@ -861,9 +861,9 @@ export function verifyControls(directory: string) {
   );
   // The Codex plugin copy that native actually executes, and the installed package copies, are the receipt's hook bytes.
   for (const assetPath of [
-    'app/experiments/codex-hook-watcher.ts',
-    'app/experiments/codex-hook-state.ts',
-    'app/experiments/watcher-policy.ts',
+    'app/src/codex/codex-hook-watcher.ts',
+    'app/src/codex/codex-hook-state.ts',
+    'app/src/shared/watcher-policy.ts',
   ]) {
     assert.ok(
       e.installedFiles.some(

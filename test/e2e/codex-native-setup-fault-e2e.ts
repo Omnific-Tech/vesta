@@ -70,7 +70,7 @@ function setup(
   const argv = [
     '--disable-warning=ExperimentalWarning',
     '--experimental-strip-types',
-    join(here, 'setup.ts'),
+    join(here, '../../src/cli/setup.ts'),
     operation,
     '--provider',
     'codex',
@@ -131,7 +131,7 @@ try {
   );
   const hookProgram =
     'import { nativeRequest } from ' +
-    JSON.stringify(join(here, 'codex-native-ipc.ts')) +
+    JSON.stringify(join(here, '../../src/codex/codex-native-ipc.ts')) +
     '; console.log(JSON.stringify(await nativeRequest(process.env.VESTA_NATIVE_COMMAND, "hooks/list", {cwds:[process.cwd()]})));';
   const listing = spawnSync(
     process.execPath,
@@ -241,11 +241,11 @@ try {
         commands,
         personal,
         sourceFiles: [
-          'codex-native-setup.ts',
-          'setup.ts',
+          '../../src/codex/codex-native-setup.ts',
+          '../../src/cli/setup.ts',
           'codex-native-setup-fault-e2e.ts',
           'codex-native-fault-fixture.mjs',
-          'NATIVE-SETUP-FAILURES.md',
+          '../../docs/testing/NATIVE-SETUP-FAILURES.md',
         ].map(file => ({ path: join(here, file), sha256: hash(join(here, file)) })),
       },
       null,

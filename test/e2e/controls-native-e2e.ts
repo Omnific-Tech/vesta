@@ -3,7 +3,7 @@
 // explicitly supplemental and never stand in for either provider's model turns.
 // Codex owners are the default hook-mode integration (no wrapper): owner state is the
 // hook watcher's real per-thread status, bound to each PTY by a unique rollout nonce.
-// Contract, oracle mapping and intentional changes: experiments/CONTROLS-FAILURES.md.
+// Contract, oracle mapping and intentional changes: docs/testing/CONTROLS-FAILURES.md.
 // Startup failure: Codex renders a loading composer before a delayed update
 // dialog. Blind Enter can execute Update now instead of submitting the prompt.
 // The fixture centrally manages its pinned native binary and disables native
@@ -883,13 +883,17 @@ try {
   for (const [file, assetPath] of [
     [
       join(plugin.installPath, 'hooks/register.ts'),
-      'app/experiments/vesta-claude/hooks/register.ts',
+      'app/src/claude/vesta-claude/hooks/register.ts',
     ],
-    [join(plugin.installPath, 'hooks/policy.ts'), 'app/experiments/vesta-claude/hooks/policy.ts'],
-    ...['codex-hook-watcher.ts', 'codex-hook-state.ts', 'watcher-policy.ts'].flatMap(name => [
+    [join(plugin.installPath, 'hooks/policy.ts'), 'app/src/claude/vesta-claude/hooks/policy.ts'],
+    ...[
+      'codex/codex-hook-watcher.ts',
+      'codex/codex-hook-state.ts',
+      'shared/watcher-policy.ts',
+    ].flatMap(name => [
       // Installed package copy and the plugin copy that native Codex actually executes through the six trusted hooks.
-      [join(env.VESTA_HOME, 'current/app/experiments', name), 'app/experiments/' + name],
-      [join(pluginRoot, name), 'app/experiments/' + name],
+      [join(env.VESTA_HOME, 'current/app/src', name), 'app/src/' + name],
+      [join(pluginRoot, name), 'app/src/' + name],
     ]),
   ])
     installedFiles.push({ path: file, assetPath, sha256: hash(file!) });
@@ -910,7 +914,7 @@ try {
   // hook engine. They replace the four retired embedded-owner timelines; see CONTROLS-FAILURES.md.
   const timelines = await codexControlHookFixture({
     node: join(env.VESTA_HOME, 'current/runtime/bin/node'),
-    runtime: join(env.VESTA_HOME, 'current/app/experiments/codex-hook-watcher.ts'),
+    runtime: join(env.VESTA_HOME, 'current/app/src/codex/codex-hook-watcher.ts'),
     directory: join(artifacts, 'codex-hook-timelines'),
     path,
   });
@@ -1087,21 +1091,21 @@ try {
         profileIntegrity,
         owners: owners.map(({ terminal, folder, ...owner }) => owner),
         sourceFiles: [
-          'experiments/controls-native-e2e.ts',
-          'experiments/CONTROLS-FAILURES.md',
-          'packaging/controls-artifact.ts',
-          'packaging/production-acceptance.ts',
-          'experiments/controls-acceptance.ts',
-          'experiments/controls-claude-host-fixture.ts',
-          'experiments/controls-codex-hook-fixture.ts',
-          'experiments/codex-hook-watcher-fixture.mjs',
-          'experiments/vesta-claude/hooks/register.ts',
-          'experiments/codex-hook-watcher.ts',
-          'experiments/codex-hook-state.ts',
-          'cli/main.ts',
-          'cli/manage.ts',
-          'cli/controls.ts',
-          'experiments/watcher-policy.ts',
+          'test/e2e/controls-native-e2e.ts',
+          'docs/testing/CONTROLS-FAILURES.md',
+          'test/e2e/controls-artifact.ts',
+          'test/e2e/production-acceptance.ts',
+          'test/e2e/controls-acceptance.ts',
+          'test/e2e/controls-claude-host-fixture.ts',
+          'test/e2e/controls-codex-hook-fixture.ts',
+          'test/e2e/codex-hook-watcher-fixture.mjs',
+          'src/claude/vesta-claude/hooks/register.ts',
+          'src/codex/codex-hook-watcher.ts',
+          'src/codex/codex-hook-state.ts',
+          'src/cli/main.ts',
+          'src/cli/manage.ts',
+          'src/cli/controls.ts',
+          'src/shared/watcher-policy.ts',
         ].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })),
       },
       null,

@@ -25,8 +25,8 @@ const hash = (p: string) => createHash('sha256').update(readFileSync(p)).digest(
 const sources = [
   'diagnose-codex-e2e.ts',
   'diagnose-codex-fixture.mjs',
-  'diagnose-codex.ts',
-  'codex-terminal-input.ts',
+  '../../src/codex/diagnose-codex.ts',
+  '../../src/codex/codex-terminal-input.ts',
 ];
 const read = (p: string) => JSON.parse(readFileSync(p, 'utf8'));
 const sentinel = 'PRIVATE_TYPED_SENTINEL';
@@ -156,7 +156,7 @@ else {
   symlinkSync(process.execPath, join(installation, 'runtime/bin/node'));
   copyFileSync(
     join(here, 'diagnose-codex-fixture.mjs'),
-    join(installation, 'app/experiments/codex-autoload.ts'),
+    join(installation, 'app/src/codex/codex-autoload.ts'),
   );
   const state = join(fixture, 'state.json');
   const config = join(fixture, 'config.json');
@@ -171,7 +171,7 @@ else {
     join(statusDir, 'old-unrelated/codex-native-status.json'),
     '{invalid private old file',
   );
-  const unchangedPaths = [state, config, join(installation, 'app/experiments/codex-autoload.ts')];
+  const unchangedPaths = [state, config, join(installation, 'app/src/codex/codex-autoload.ts')];
   const unchangedBefore = unchangedPaths.map(hash);
   const expected: Buffer[] = [];
   let failure = '';
@@ -190,7 +190,7 @@ else {
   };
   const argv = [
     '--experimental-strip-types',
-    join(here, 'diagnose-codex.ts'),
+    join(here, '../../src/codex/diagnose-codex.ts'),
     '--installation',
     installation,
     '--state',
@@ -290,7 +290,7 @@ else {
       process.execPath,
       [
         '--experimental-strip-types',
-        join(here, 'diagnose-codex.ts'),
+        join(here, '../../src/codex/diagnose-codex.ts'),
         '--installation',
         join(fixture, 'missing'),
         '--state',

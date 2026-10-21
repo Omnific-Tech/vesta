@@ -628,7 +628,7 @@ try {
   const build = json(built.receipt);
   for (const file of ['codex-hook-watcher.ts', 'codex-hook-state.ts'])
     assert.ok(
-      build.assets.some((a: any) => a.path === 'app/experiments/' + file),
+      build.assets.some((a: any) => a.path === 'app/src/codex/' + file),
       'missing packaged hook dependency: ' + file,
     );
   // Localhost Responses fixture. Each request is logged with the per-launch account header injected by native env_http_headers.

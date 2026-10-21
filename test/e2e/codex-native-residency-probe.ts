@@ -23,7 +23,7 @@ const argv = [
   join(artifacts, 'native'),
 ];
 const result = spawnSync(process.execPath, argv, {
-  cwd: resolve(here, '..'),
+  cwd: resolve(here, '../..'),
   env: process.env,
   encoding: 'utf8',
   timeout: 150000,

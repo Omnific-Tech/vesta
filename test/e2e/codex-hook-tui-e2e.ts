@@ -178,7 +178,7 @@ try {
   const build = json(built.receipt);
   for (const file of ['codex-hook-watcher.ts', 'codex-hook-state.ts'])
     assert.ok(
-      build.assets.some((a: any) => a.path === 'app/experiments/' + file),
+      build.assets.some((a: any) => a.path === 'app/src/codex/' + file),
       'missing packaged hook dependency: ' + file,
     );
   server = createServer(async (req, res) => {
@@ -574,7 +574,7 @@ try {
       foreign,
       '--engine',
       '--runtime',
-      join(ownedRoot, 'current/app/experiments/codex-hook-watcher.ts'),
+      join(ownedRoot, 'current/app/src/codex/codex-hook-watcher.ts'),
       '--config',
       foreignConfig,
       '--recorded-native',

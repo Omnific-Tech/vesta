@@ -3,7 +3,7 @@
 // copied session/artifact UUID, and stale verification receipts.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,8 +14,10 @@ const paths = [
   'docs/claude.md',
   'docs/codex.md',
   'docs/setup.md',
-  'docs/testing/README.md',
-  'docs/testing/source-layout-failures.md',
+  ...readdirSync(resolve(root, 'docs/testing'))
+    .filter(name => name.endsWith('.md'))
+    .sort()
+    .map(name => 'docs/testing/' + name),
 ];
 const digest = (bytes: string) => createHash('sha256').update(bytes).digest('hex');
 const slug = (heading: string) =>
