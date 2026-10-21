@@ -120,7 +120,6 @@ const sources = [
   'src/codex/codex-hook-watcher.ts',
   'src/codex/codex-hook-state.ts',
   'src/shared/watcher-policy.ts',
-  'src/codex/codex-native-state.ts',
   'src/codex/codex-native-ipc.ts',
   'src/codex/codex-native-diagnostics.ts',
 ];
