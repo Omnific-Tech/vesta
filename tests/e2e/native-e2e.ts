@@ -38,7 +38,7 @@ try {
     const directory = join(artifacts, name);
     const argv = [
       ...nodeFlags,
-      join(root, 'test/e2e/setup-live.ts'),
+      join(root, 'tests/e2e/setup-live.ts'),
       provider,
       directory,
       ...(variant ? [variant] : []),
@@ -91,7 +91,7 @@ try {
     process.execPath,
     [
       ...nodeFlags,
-      join(root, 'test/e2e/codex-hook-migration-e2e.ts'),
+      join(root, 'tests/e2e/codex-hook-migration-e2e.ts'),
       '--native',
       executable('codex'),
       '--artifacts',

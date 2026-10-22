@@ -66,15 +66,15 @@ try {
   );
   writeFileSync(join(artifacts, 'SHA256SUMS'), identity.binarySha256 + '  vesta-darwin-arm64\n');
   const oracleFiles = [
-    'test/e2e/production-e2e.ts',
-    'test/e2e/production-acceptance.ts',
-    'test/e2e/controls-artifact.ts',
-    'test/e2e/release-acceptance.ts',
-    'test/e2e/controls-e2e.ts',
-    'test/e2e/controls-native-e2e.ts',
-    'test/e2e/controls-acceptance.ts',
-    'test/e2e/controls-claude-host-fixture.ts',
-    'test/e2e/controls-codex-hook-fixture.ts',
+    'tests/e2e/production-e2e.ts',
+    'tests/e2e/production-acceptance.ts',
+    'tests/e2e/controls-artifact.ts',
+    'tests/e2e/release-acceptance.ts',
+    'tests/e2e/controls-e2e.ts',
+    'tests/e2e/controls-native-e2e.ts',
+    'tests/e2e/controls-acceptance.ts',
+    'tests/e2e/controls-claude-host-fixture.ts',
+    'tests/e2e/controls-codex-hook-fixture.ts',
     'docs/testing/CONTROLS-FAILURES.md',
   ];
   const sourceIdentity = oracleFiles.map(path => ({ path, sha256: hash(join(root, path)) }));
@@ -84,8 +84,8 @@ try {
       '\n',
   );
   for (const [name, driver, kind] of [
-    ['controls-cli', 'test/e2e/controls-e2e.ts', 'compiled-controls'],
-    ['controls-native', 'test/e2e/controls-native-e2e.ts', 'native-controls'],
+    ['controls-cli', 'tests/e2e/controls-e2e.ts', 'compiled-controls'],
+    ['controls-native', 'tests/e2e/controls-native-e2e.ts', 'native-controls'],
   ] as const) {
     assert.deepEqual(
       productionIdentity(binary, receipt),

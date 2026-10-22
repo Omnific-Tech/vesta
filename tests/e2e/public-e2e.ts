@@ -51,9 +51,9 @@ function context(name: string) {
   const bin = join(directory, 'bin');
   const path = nativeBin(bin);
   rmSync(join(bin, 'claude'));
-  copyFileSync(join(root, 'test/e2e/provider-fault.zsh'), join(bin, 'claude'));
+  copyFileSync(join(root, 'tests/e2e/provider-fault.zsh'), join(bin, 'claude'));
   chmodSync(join(bin, 'claude'), 0o755);
-  copyFileSync(join(root, 'test/e2e/curl-fixture.zsh'), join(bin, 'curl'));
+  copyFileSync(join(root, 'tests/e2e/curl-fixture.zsh'), join(bin, 'curl'));
   chmodSync(join(bin, 'curl'), 0o755);
   const home = join(directory, 'home');
   const config = join(home, '.claude');

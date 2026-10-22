@@ -12,18 +12,22 @@
   },
   "scripts": {
     "setup": "node --disable-warning=ExperimentalWarning --experimental-strip-types src/cli/setup.ts",
-    "probe:claude": "node --experimental-strip-types test/e2e/run.ts claude",
-    "probe:codex": "node --experimental-strip-types test/e2e/run.ts codex",
-    "verify:evidence": "node --experimental-strip-types test/e2e/acceptance.ts",
+    "probe:claude": "node --experimental-strip-types tests/e2e/run.ts claude",
+    "probe:codex": "node --experimental-strip-types tests/e2e/run.ts codex",
+    "verify:evidence": "node --experimental-strip-types tests/e2e/acceptance.ts",
     "watch:claude": "node --experimental-strip-types src/cli/watcher-run.ts claude",
     "watch:codex": "node --experimental-strip-types src/cli/watcher-run.ts codex",
-    "verify:watcher": "node --experimental-strip-types test/e2e/watcher-acceptance.ts",
-    "probe:watcher:claude": "node --experimental-strip-types test/e2e/watcher-live.ts claude",
-    "probe:watcher:codex": "node --experimental-strip-types test/e2e/watcher-live.ts codex",
+    "verify:watcher": "node --experimental-strip-types tests/e2e/watcher-acceptance.ts",
+    "probe:watcher:claude": "node --experimental-strip-types tests/e2e/watcher-live.ts claude",
+    "probe:watcher:codex": "node --experimental-strip-types tests/e2e/watcher-live.ts codex",
+    "lint": "eslint src/",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "prettier": "3.9.9"
+    "eslint": "10.13.0",
+    "prettier": "3.9.9",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.0"
   }
 }

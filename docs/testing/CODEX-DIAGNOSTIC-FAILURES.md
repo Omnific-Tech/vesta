@@ -1,6 +1,6 @@
 # Codex diagnostics acceptance contract
 
-Authored before implementation. Run `node --experimental-strip-types test/e2e/codex-native-diagnostics-e2e.ts ARTIFACTS`, then independently replay `node --experimental-strip-types test/e2e/codex-native-diagnostics-e2e.ts --verify ARTIFACTS`.
+Authored before implementation. Run `node --experimental-strip-types tests/e2e/codex-native-diagnostics-e2e.ts ARTIFACTS`, then independently replay `node --experimental-strip-types tests/e2e/codex-native-diagnostics-e2e.ts --verify ARTIFACTS`.
 Default artifacts: `$TELOS_RUN_DIR/artifacts`, otherwise ignored `harness/runs/codex-diagnostics/artifacts`.
 Synthetic native hooks/rollouts/queue transport and real hook observer/engine/CLI processes; no model, network, account swaps, personal settings or installed runtime changes.
 
@@ -69,6 +69,6 @@ it preserves the scanner symlink behavior tests and their byte comparisons.
 
 Evidence includes source hashes, phase status/lease copies, native/owner/peer PID/birth metadata, real process cleanup, queue ledgers, CLI stdout/stderr, input-tree hashes and summary. `--verify` checks actual retained evidence against static required cases and predicates; runner never writes authoritative passed booleans. Baseline execution should fail specifically on absent diagnostics/runtime-owner reporting while retaining evidence for every reachable case.
 
-Source fingerprints deterministically include every `.ts` file directly under `src/cli/`, every `src/codex/codex-*.ts` and every `test/e2e/codex-*.ts`, plus the named policy/setup/input/fixture/contract sources. Replay compares the complete expected source-path set, so adding a diagnostics helper requires fresh evidence rather than silently escaping source hashing.
+Source fingerprints deterministically include every `.ts` file directly under `src/cli/`, every `src/codex/codex-*.ts` and every `tests/e2e/codex-*.ts`, plus the named policy/setup/input/fixture/contract sources. Replay compares the complete expected source-path set, so adding a diagnostics helper requires fresh evidence rather than silently escaping source hashing.
 
 The normal CLI is compiled locally with Bun from actual `src/cli/main.ts` because `src/cli/assets.ts` uses Bun's file loader. It uses the existing ignored payload solely as a build input; this fixture never extracts it, runs release packaging, downloads dependencies, updates versions or installs a runtime. Source setup runs through Node. CLI scanner inputs are frozen copies of real owner snapshots kept separately from the still-running owner's heartbeat directory; byte-for-byte tree checks therefore detect scanner mutation without racing legitimate owner writes.

@@ -527,9 +527,9 @@ try {
   }
   e.sourceFiles = [
     'src/cli/setup.ts',
-    'test/e2e/setup-live.ts',
-    'test/e2e/setup-live-acceptance.ts',
-    'test/e2e/marker-acceptance.ts',
+    'tests/e2e/setup-live.ts',
+    'tests/e2e/setup-live-acceptance.ts',
+    'tests/e2e/marker-acceptance.ts',
     'src/cli/watcher-run.ts',
     'src/shared/watcher-policy.ts',
     'src/claude/vesta-claude/hooks/register.ts',

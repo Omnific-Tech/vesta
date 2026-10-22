@@ -32,7 +32,7 @@ environment `CODEX_SQLITE_HOME=<main>`; provider API-key variables are removed.
 Empirical (the source checkout is gone; an earlier agent read
 `tui/src/daemon_startup.rs` of rust-v0.163.0, `83086188`, which reports
 `config_exclusion()` excluding the shared daemon for CLI `-c` keys; that reading
-is superseded by the probe): `test/e2e/codex-c-override-probe.ts` launches the
+is superseded by the probe): `tests/e2e/codex-c-override-probe.ts` launches the
 real native 0.163.0 TUI per variant in a fresh isolated home with the managed
 daemon package seeded (so a daemon launch is possible) and records the process
 tree, `daemon.pid`, and the exact vendor hash. Result: no override, env
@@ -156,7 +156,7 @@ removes none.
   this uid's regular file, and claims use the resolved path. Fix 2: a home without
   a state row adopts a marketplace/plugin only for a recorded owned catalog root
   that still validates. Both cases turn green only through those fixes.
-- Replay: `node --experimental-strip-types test/e2e/codex-pulse-switch-contract.ts
+- Replay: `node --experimental-strip-types tests/e2e/codex-pulse-switch-contract.ts
   --verify ABS_ARTIFACT_DIR` re-derives engine keys and owner identities,
   recomputes every artifact and source hash and re-evaluates every case from the
   retained rollout, hook journals, ledgers, status samples, claims, server log and

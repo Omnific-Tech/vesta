@@ -197,7 +197,7 @@ export function verifyEvidence(e: Evidence, evidenceDirectory: string): void {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const path = process.argv[2];
-  assert.ok(path, 'usage: node --experimental-strip-types test/e2e/acceptance.ts <summary.json>');
+  assert.ok(path, 'usage: node --experimental-strip-types tests/e2e/acceptance.ts <summary.json>');
   verifyEvidence(JSON.parse(readFileSync(path, 'utf8')), dirname(resolve(path)));
   console.log('Live evidence contract passed');
 }

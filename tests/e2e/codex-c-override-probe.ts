@@ -1,6 +1,6 @@
 // Empirical probe: which `-c key=value` CLI overrides make native Codex choose the embedded backend instead of the
 // shared managed daemon. Real native TUI (npm install), fake credentials, localhost Responses SSE, isolated homes.
-// Usage: node --experimental-strip-types test/e2e/codex-c-override-probe.ts --native ABS_NPM_CODEX --artifacts ABS_FRESH_DIR
+// Usage: node --experimental-strip-types tests/e2e/codex-c-override-probe.ts --native ABS_NPM_CODEX --artifacts ABS_FRESH_DIR
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';

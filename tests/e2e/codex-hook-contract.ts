@@ -112,11 +112,11 @@ export function fixtureEnvironment(home: string, extra: Record<string, string> =
 }
 const sources = [
   'docs/testing/CODEX-HOOK-WATCHER-FAILURES.md',
-  'test/e2e/codex-hook-contract.ts',
-  'test/e2e/codex-hook-watcher-fixture.mjs',
-  'test/e2e/codex-hook-watcher-uid-fault.mjs',
-  'test/e2e/codex-hook-watcher-e2e.ts',
-  'test/e2e/codex-hook-native-e2e.ts',
+  'tests/e2e/codex-hook-contract.ts',
+  'tests/e2e/codex-hook-watcher-fixture.mjs',
+  'tests/e2e/codex-hook-watcher-uid-fault.mjs',
+  'tests/e2e/codex-hook-watcher-e2e.ts',
+  'tests/e2e/codex-hook-native-e2e.ts',
   'src/codex/codex-hook-watcher.ts',
   'src/codex/codex-hook-state.ts',
   'src/shared/watcher-policy.ts',

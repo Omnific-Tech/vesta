@@ -33,14 +33,14 @@ import { sealEvidence } from './e2e-common.ts';
 const sources = [
   'docs/testing/CODEX-DIAGNOSTIC-FAILURES.md',
   'docs/testing/legacy-retirement.md',
-  'test/e2e/codex-hook-watcher-fixture.mjs',
+  'tests/e2e/codex-hook-watcher-fixture.mjs',
   'src/shared/watcher-policy.ts',
 ];
 const sourcePaths = () =>
   [
     ...new Set([
       ...sources,
-      ...['src/cli', 'src/codex', 'test/e2e'].flatMap(directory =>
+      ...['src/cli', 'src/codex', 'tests/e2e'].flatMap(directory =>
         readdirSync(join(root, directory))
           .filter(
             name => name.endsWith('.ts') && (directory === 'src/cli' || name.startsWith('codex-')),

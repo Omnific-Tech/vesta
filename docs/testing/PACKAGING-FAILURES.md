@@ -34,7 +34,7 @@ Public v0.2.1 scope (contracts precede the public bug fixes):
 actual native registrations. It records command output, byte hashes, before/after
 snapshots and native cache validation. No model calls are needed for these cases.
 
-Feature DISTRIBUTION owns `src/cli/`, `packaging/` and its `test/e2e/` suites. First production release is
+Feature DISTRIBUTION owns `src/cli/`, `packaging/` and its `tests/e2e/` suites. First production release is
 `v0.2.0`, macOS arm64 only, in the existing private GitHub repository.
 
 Packaging choice: a TypeScript Bun-compiled management executable embeds a

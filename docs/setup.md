@@ -207,16 +207,16 @@ flows and never print credential contents. Native authentication, quota, and
 network errors fail verification.
 
 ```sh
-node --experimental-strip-types test/e2e/setup-e2e.ts
-node --experimental-strip-types test/e2e/setup-forwarding-e2e.ts
-node --experimental-strip-types test/e2e/setup-live.ts claude
-node --experimental-strip-types test/e2e/setup-live.ts claude --marker
-node --experimental-strip-types test/e2e/setup-tty-forwarding-e2e.ts
-node --experimental-strip-types test/e2e/codex-hook-watcher-e2e.ts --artifacts /absolute/fresh/hook-watcher
-node --experimental-strip-types test/e2e/codex-hook-native-e2e.ts --native /absolute/native/codex --artifacts /absolute/fresh/hook-native
-node --experimental-strip-types test/e2e/codex-hook-tui-e2e.ts --native /absolute/npm/codex --artifacts /absolute/fresh/hook-tui
-node --experimental-strip-types test/e2e/release-e2e.ts
-node --experimental-strip-types test/e2e/public-e2e.ts
+node --experimental-strip-types tests/e2e/setup-e2e.ts
+node --experimental-strip-types tests/e2e/setup-forwarding-e2e.ts
+node --experimental-strip-types tests/e2e/setup-live.ts claude
+node --experimental-strip-types tests/e2e/setup-live.ts claude --marker
+node --experimental-strip-types tests/e2e/setup-tty-forwarding-e2e.ts
+node --experimental-strip-types tests/e2e/codex-hook-watcher-e2e.ts --artifacts /absolute/fresh/hook-watcher
+node --experimental-strip-types tests/e2e/codex-hook-native-e2e.ts --native /absolute/native/codex --artifacts /absolute/fresh/hook-native
+node --experimental-strip-types tests/e2e/codex-hook-tui-e2e.ts --native /absolute/npm/codex --artifacts /absolute/fresh/hook-tui
+node --experimental-strip-types tests/e2e/release-e2e.ts
+node --experimental-strip-types tests/e2e/public-e2e.ts
 telos verify-all RESUME-001
 ```
 
