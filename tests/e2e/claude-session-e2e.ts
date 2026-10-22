@@ -21,7 +21,11 @@ import { claudeControlHostFixture } from './controls-claude-host-fixture.ts';
 
 const files = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap(entry =>
-    entry.isDirectory() ? files(join(directory, entry.name)) : [join(directory, entry.name)],
+      entry.isDirectory()
+        ? files(join(directory, entry.name))
+        : entry.isFile()
+          ? [join(directory, entry.name)]
+          : [],
   );
 const sources = [
   ...files(join(root, 'src/claude/vesta-claude/hooks')).map(path => relative(root, path)),
