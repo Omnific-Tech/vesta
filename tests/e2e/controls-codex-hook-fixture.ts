@@ -25,7 +25,7 @@ import {
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { alive, birth, digest as signatureDigest } from '../../src/codex/codex-hook-state.ts';
-import { controlConfig } from '../../src/shared/watcher-policy.ts';
+import { controlConfig } from '../../src/core/watcher-policy.ts';
 import { controlFileError, controlMessage, digest } from './controls-acceptance.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));

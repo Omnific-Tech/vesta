@@ -46,7 +46,7 @@ import { fileURLToPath } from 'node:url';
 import { claudePluginBody } from './marker-acceptance.ts';
 import { existsSync } from 'node:fs';
 import { digest as signatureDigest } from '../../src/codex/codex-hook-state.ts';
-import { controlConfig } from '../../src/shared/watcher-policy.ts';
+import { controlConfig } from '../../src/core/watcher-policy.ts';
 
 export const controlMessage = 'VESTA_CUSTOM_CONTROL_🪔';
 export const controlFields = [
@@ -863,7 +863,7 @@ export function verifyControls(directory: string) {
   for (const assetPath of [
     'app/src/codex/codex-hook-watcher.ts',
     'app/src/codex/codex-hook-state.ts',
-    'app/src/shared/watcher-policy.ts',
+    'app/src/core/watcher-policy.ts',
   ]) {
     assert.ok(
       e.installedFiles.some(

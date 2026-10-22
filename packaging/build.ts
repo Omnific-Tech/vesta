@@ -15,6 +15,9 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkClaudePolicy } from './claude-policy.ts';
+
+checkClaudePolicy();
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -109,7 +112,7 @@ try {
     'src/codex/codex-native-ipc.ts',
     'src/codex/codex-native-setup.ts',
     'src/cli/watcher-run.ts',
-    'src/shared/watcher-policy.ts',
+    'src/core/watcher-policy.ts',
   ];
   for (const directory of [
     'src/claude/vesta-claude',

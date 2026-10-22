@@ -34,7 +34,7 @@ const sources = [
   'docs/testing/CODEX-DIAGNOSTIC-FAILURES.md',
   'docs/testing/legacy-retirement.md',
   'tests/e2e/codex-hook-watcher-fixture.mjs',
-  'src/shared/watcher-policy.ts',
+  'src/core/watcher-policy.ts',
 ];
 const sourcePaths = () =>
   [

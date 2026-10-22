@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as pty from 'node-pty';
-import { Watcher } from '../shared/watcher-policy.ts';
+import { Watcher } from '../core/watcher-policy.ts';
 
 const incoming = process.argv.slice(2);
 const separator = incoming.indexOf('--');
@@ -185,7 +185,7 @@ function relay() {
 async function runClaude() {
   const plugin = join(runtime, 'plugin');
   cpSync(join(here, '../claude/watcher-claude'), plugin, { recursive: true });
-  cpSync(join(here, '../shared/watcher-policy.ts'), join(plugin, 'hooks/policy.ts'));
+  cpSync(join(here, '../core/watcher-policy.ts'), join(plugin, 'hooks/policy.ts'));
   writeFileSync(
     join(plugin, 'watcher-config.json'),
     JSON.stringify({

@@ -31,6 +31,74 @@ const capture = (operation: () => unknown) => {
   }
 };
 
+const sourcePaths = [
+  'tests/e2e/core-policy-e2e.ts',
+  'tests/e2e/watcher-acceptance.ts',
+  'packaging/claude-policy.ts',
+  'packaging/build.ts',
+  'src/core/watcher-policy.ts',
+  'src/claude/vesta-claude/hooks/policy.ts',
+];
+const commandRecord = (result: ReturnType<typeof spawnSync>) => ({
+  status: result.status,
+  stdout: String(result.stdout),
+  stderr: String(result.stderr),
+});
+
+function verify(artifacts: string) {
+  const receipt = JSON.parse(readFileSync(join(artifacts, 'receipt.json'), 'utf8'));
+  assert.equal(receipt.kind, 'controlled-policy-cli-equivalence-and-build-drift');
+  assert.equal(receipt.baselineRevision, '90f2c4f');
+  assert.deepEqual(
+    receipt.sources.map((source: any) => source.path),
+    sourcePaths,
+  );
+  for (const source of receipt.sources) assert.equal(hash(join(root, source.path)), source.sha256);
+  for (const artifact of receipt.artifacts)
+    assert.equal(hash(join(artifacts, artifact.path)), artifact.sha256);
+  const baselineSource = spawnSync(
+    'git',
+    ['show', receipt.baselineRevision + ':src/shared/watcher-policy.ts'],
+    { cwd: root, encoding: 'utf8' },
+  );
+  assert.equal(baselineSource.status, 0, baselineSource.stderr);
+  assert.equal(readFileSync(join(artifacts, 'baseline-policy.ts'), 'utf8'), baselineSource.stdout);
+  const expected = JSON.parse(readFileSync(join(artifacts, 'baseline.json'), 'utf8'));
+  assert.equal(expected.length, receipt.cases);
+  assert.equal(
+    JSON.parse(readFileSync(join(artifacts, 'inputs.json'), 'utf8')).length,
+    receipt.cases,
+  );
+  for (const [name, policy] of [
+    ['baseline', join(artifacts, 'baseline-policy.ts')],
+    ['candidate', join(root, 'src/core/watcher-policy.ts')],
+    ['plugin', join(root, 'src/claude/vesta-claude/hooks/policy.ts')],
+  ]) {
+    assert.deepEqual(JSON.parse(readFileSync(join(artifacts, name + '.json'), 'utf8')), expected);
+    const rerun = spawnSync(
+      process.execPath,
+      ['--experimental-strip-types', self, '--worker', policy, join(artifacts, 'inputs.json')],
+      { encoding: 'utf8' },
+    );
+    assert.equal(rerun.status, 0, rerun.stderr);
+    assert.deepEqual(JSON.parse(rerun.stdout), expected);
+    const retained = JSON.parse(readFileSync(join(artifacts, name + '-worker.json'), 'utf8'));
+    assert.equal(retained.status, 0, retained.stderr);
+    assert.deepEqual(JSON.parse(retained.stdout), expected);
+  }
+  const commands = JSON.parse(readFileSync(join(artifacts, 'commands.json'), 'utf8'));
+  assert.notEqual(commands.build.status, 0);
+  assert.match(commands.build.stderr, /Claude policy drift/);
+  assert.equal(commands.regenerate.status, 0, commands.regenerate.stderr);
+  assert.equal(commands.check.status, 0, commands.check.stderr);
+  assert.equal(
+    hash(join(artifacts, 'build-drift-sandbox/src/claude/vesta-claude/hooks/policy.ts')),
+    receipt.canonical,
+  );
+  assert.equal(existsSync(join(artifacts, 'build-drift-sandbox/forbidden-output')), false);
+  console.log(JSON.stringify({ verified: true, cases: receipt.cases, artifacts }));
+}
+
 if (process.argv[2] === '--worker') {
   const policy = await import(pathToFileURL(process.argv[3]).href);
   const rows = JSON.parse(readFileSync(process.argv[4], 'utf8'));
@@ -59,6 +127,9 @@ if (process.argv[2] === '--worker') {
     }),
   );
   console.log(JSON.stringify(outputs));
+} else if (process.argv[2] === '--verify') {
+  assert.ok(process.argv[3], '--verify ARTIFACT_DIRECTORY');
+  verify(resolve(process.argv[3]));
 } else {
   const artifacts = resolve(
     process.env.TELOS_RUN_DIR ?? mkdtempSync(join(tmpdir(), 'vesta-core-e2e-')),
@@ -173,23 +244,29 @@ if (process.argv[2] === '--worker') {
     rows.push({ name: 'claude-container', operation: 'claude', raw });
   const inputs = join(artifacts, 'inputs.json');
   writeFileSync(inputs, JSON.stringify(rows));
-  const run = (policy: string) => {
+  const run = (name: string, policy: string) => {
     const result = spawnSync(
       process.execPath,
       ['--experimental-strip-types', self, '--worker', policy, inputs],
       { encoding: 'utf8' },
     );
+    writeFileSync(
+      join(artifacts, name + '-worker.json'),
+      JSON.stringify(commandRecord(result), null, 2),
+    );
     assert.equal(result.status, 0, result.stderr);
     return JSON.parse(result.stdout);
   };
-  const expected = run(baseline);
+  const expected = run('baseline', baseline);
   const canonical = join(root, 'src/core/watcher-policy.ts');
   const generated = join(root, 'src/claude/vesta-claude/hooks/policy.ts');
-  const actual = run(canonical);
+  const actual = run('candidate', canonical);
+  const plugin = run('plugin', generated);
   writeFileSync(join(artifacts, 'baseline.json'), JSON.stringify(expected, null, 2));
   writeFileSync(join(artifacts, 'candidate.json'), JSON.stringify(actual, null, 2));
+  writeFileSync(join(artifacts, 'plugin.json'), JSON.stringify(plugin, null, 2));
   assert.deepEqual(actual, expected);
-  assert.deepEqual(run(generated), expected);
+  assert.deepEqual(plugin, expected);
   assert.equal(hash(canonical), hash(generated));
   const sandbox = join(artifacts, 'build-drift-sandbox');
   for (const file of [
@@ -226,15 +303,40 @@ if (process.argv[2] === '--worker') {
   );
   assert.equal(check.status, 0, check.stderr);
   writeFileSync(
+    join(artifacts, 'commands.json'),
+    JSON.stringify(
+      {
+        build: commandRecord(build),
+        regenerate: commandRecord(regenerate),
+        check: commandRecord(check),
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
     join(artifacts, 'receipt.json'),
     JSON.stringify(
       {
         kind: 'controlled-policy-cli-equivalence-and-build-drift',
         liveNativeProof: false,
         cases: rows.length,
+        baselineRevision: '90f2c4f',
         baseline: hash(baseline),
         canonical: hash(canonical),
         generated: hash(generated),
+        sources: sourcePaths.map(path => ({ path, sha256: hash(join(root, path)) })),
+        artifacts: [
+          'inputs.json',
+          'baseline-policy.ts',
+          'baseline.json',
+          'candidate.json',
+          'plugin.json',
+          'baseline-worker.json',
+          'candidate-worker.json',
+          'plugin-worker.json',
+          'commands.json',
+        ].map(path => ({ path, sha256: hash(join(artifacts, path)) })),
         build: { status: build.status, stderr: build.stderr },
         regenerate: regenerate.status,
         check: check.status,

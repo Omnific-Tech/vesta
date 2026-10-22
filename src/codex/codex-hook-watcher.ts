@@ -14,7 +14,7 @@ import {
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { controlConfig, Watcher } from '../shared/watcher-policy.ts';
+import { controlConfig, Watcher } from '../core/watcher-policy.ts';
 import { NativeDiagnostics } from './codex-native-diagnostics.ts';
 import { codexHookReadiness, nativeRequest } from './codex-native-ipc.ts';
 import {

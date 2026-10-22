@@ -119,7 +119,7 @@ const sources = [
   'tests/e2e/codex-hook-native-e2e.ts',
   'src/codex/codex-hook-watcher.ts',
   'src/codex/codex-hook-state.ts',
-  'src/shared/watcher-policy.ts',
+  'src/core/watcher-policy.ts',
   'src/codex/codex-native-ipc.ts',
   'src/codex/codex-native-diagnostics.ts',
 ];

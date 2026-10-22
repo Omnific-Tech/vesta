@@ -1,4 +1,4 @@
-import { Watcher } from '../../src/shared/watcher-policy.ts';
+import { Watcher } from '../../src/core/watcher-policy.ts';
 try {
   const input = JSON.parse(process.argv[process.argv.indexOf('--json') + 1]!);
   const watcher = new Watcher(input.provider, input.config, input.mode);

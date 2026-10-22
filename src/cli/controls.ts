@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { status, withLock } from './manage.ts';
 import { providers } from './providers.ts';
 import type { Provider } from './providers.ts';
-import { controlConfig, controlKeys, claudeControlOptions } from '../shared/watcher-policy.ts';
+import { controlConfig, controlKeys, claudeControlOptions } from '../core/watcher-policy.ts';
 
 const flags = new Set([
   '--provider',

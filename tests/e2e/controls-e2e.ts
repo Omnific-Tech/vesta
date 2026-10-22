@@ -749,7 +749,7 @@ try {
           'src/cli/providers.ts',
           'src/cli/integration-state.ts',
           'src/cli/controls.ts',
-          'src/shared/watcher-policy.ts',
+          'src/core/watcher-policy.ts',
         ].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })),
       },
       null,

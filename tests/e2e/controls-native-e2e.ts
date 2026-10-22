@@ -889,7 +889,7 @@ try {
     ...[
       'codex/codex-hook-watcher.ts',
       'codex/codex-hook-state.ts',
-      'shared/watcher-policy.ts',
+      'core/watcher-policy.ts',
     ].flatMap(name => [
       // Installed package copy and the plugin copy that native Codex actually executes through the six trusted hooks.
       [join(env.VESTA_HOME, 'current/app/src', name), 'app/src/' + name],
@@ -1107,7 +1107,7 @@ try {
           'src/cli/providers.ts',
           'src/cli/integration-state.ts',
           'src/cli/controls.ts',
-          'src/shared/watcher-policy.ts',
+          'src/core/watcher-policy.ts',
         ].map(path => ({ path: join(root, path), sha256: hash(join(root, path)) })),
       },
       null,

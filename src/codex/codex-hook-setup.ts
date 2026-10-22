@@ -19,7 +19,7 @@ import {
   uninstallNativeCodex,
 } from './codex-native-setup.ts';
 import { runtimeOwners } from './codex-runtime-status.ts';
-import { controlConfig } from '../shared/watcher-policy.ts';
+import { controlConfig } from '../core/watcher-policy.ts';
 import { nativeIdentity } from './codex-native-identity.ts';
 import { alive, birth } from './codex-hook-state.ts';
 const start = '# >>> Vesta managed Codex >>>';

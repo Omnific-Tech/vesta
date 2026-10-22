@@ -531,7 +531,7 @@ try {
     'tests/e2e/setup-live-acceptance.ts',
     'tests/e2e/marker-acceptance.ts',
     'src/cli/watcher-run.ts',
-    'src/shared/watcher-policy.ts',
+    'src/core/watcher-policy.ts',
     'src/claude/vesta-claude/hooks/register.ts',
     'src/claude/vesta-claude/hooks/policy.ts',
     'src/claude/vesta-claude/.claude-plugin/plugin.json',

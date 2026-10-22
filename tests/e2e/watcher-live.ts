@@ -122,7 +122,7 @@ const evidence: WatcherLiveEvidence = {
     traceFile: 'watcher-trace.jsonl',
     sourceFiles: [
       'watcher.ts',
-      '../../src/shared/watcher-policy.ts',
+      '../../src/core/watcher-policy.ts',
       '../../src/cli/watcher-run.ts',
       'marker-acceptance.ts',
       'watcher-live.ts',

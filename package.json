@@ -20,7 +20,9 @@
     "verify:watcher": "node --experimental-strip-types tests/e2e/watcher-acceptance.ts",
     "probe:watcher:claude": "node --experimental-strip-types tests/e2e/watcher-live.ts claude",
     "probe:watcher:codex": "node --experimental-strip-types tests/e2e/watcher-live.ts codex",
-    "lint": "eslint src/",
+    "generate:claude-policy": "node --disable-warning=ExperimentalWarning --experimental-strip-types packaging/claude-policy.ts --generate",
+    "check:claude-policy": "node --disable-warning=ExperimentalWarning --experimental-strip-types packaging/claude-policy.ts --check",
+    "lint": "npm run check:claude-policy && eslint src/",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

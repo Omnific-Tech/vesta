@@ -273,7 +273,7 @@ export async function installNativeCodex(
         'codex/codex-native-identity.ts',
         'codex/codex-native-ipc.ts',
         'codex/codex-native-diagnostics.ts',
-        'shared/watcher-policy.ts',
+        'core/watcher-policy.ts',
       ].map(file => [file, readFileSync(join(here, '..', file))] as [string, Buffer])
     : [];
   const hash = createHash('sha256')

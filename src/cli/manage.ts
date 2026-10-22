@@ -20,7 +20,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { directory, prepareVersion, readJson, saveJson, sha256, version } from './assets.ts';
 import { codexHookReadiness } from '../codex/codex-native-ipc.ts';
-import { controlConfig, claudeControlOptions } from '../shared/watcher-policy.ts';
+import { controlConfig, claudeControlOptions } from '../core/watcher-policy.ts';
 import { runtimeOwners } from '../codex/codex-runtime-status.ts';
 import { hookSetupStatus } from '../codex/codex-hook-setup.ts';
 import {

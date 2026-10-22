@@ -121,7 +121,7 @@ export const sourceFiles = [
   'src/codex/vesta-codex/handler.mjs',
   'src/codex/codex-hook-watcher.ts',
   'src/codex/codex-hook-state.ts',
-  'src/shared/watcher-policy.ts',
+  'src/core/watcher-policy.ts',
   'src/codex/codex-runtime-status.ts',
   'src/cli/manage.ts',
   'src/cli/providers.ts',
