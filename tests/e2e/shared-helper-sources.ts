@@ -13,6 +13,11 @@ export const hookRuntimeHelpers = [
 ];
 
 export const sharedHelperSources = [
+  'src/cli/watcher-options.ts',
+  'src/cli/watcher-process.ts',
+  'src/cli/watcher-claude.ts',
+  'src/cli/watcher-codex-protocol.ts',
+  'src/cli/watcher-codex.ts',
   ...hookRuntimeHelpers.filter(path => path.startsWith('codex/')).map(path => 'src/' + path),
   'tests/e2e/shared-helper-sources.ts',
   'src/lib/json-files.ts',

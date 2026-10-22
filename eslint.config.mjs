@@ -23,6 +23,7 @@ export default [
     files: [
       'src/{core,lib}/**/*.{ts,mjs}',
       'src/codex/codex-hook-{watcher,types,ingress,controls,slots,journal,dispatch,observer}.ts',
+      'src/cli/watcher-{run,options,process,claude,codex-protocol,codex}.ts',
     ],
     rules: readabilityRules('error'),
   },
