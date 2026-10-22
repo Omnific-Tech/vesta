@@ -862,6 +862,13 @@ export function verifyControls(directory: string) {
   // The Codex plugin copy that native actually executes, and the installed package copies, are the receipt's hook bytes.
   for (const assetPath of [
     'app/src/codex/codex-hook-watcher.ts',
+    'app/src/codex/codex-hook-types.ts',
+    'app/src/codex/codex-hook-ingress.ts',
+    'app/src/codex/codex-hook-controls.ts',
+    'app/src/codex/codex-hook-slots.ts',
+    'app/src/codex/codex-hook-journal.ts',
+    'app/src/codex/codex-hook-dispatch.ts',
+    'app/src/codex/codex-hook-observer.ts',
     'app/src/codex/codex-hook-state.ts',
     'app/src/core/watcher-policy.ts',
     'app/src/lib/metadata-files.ts',

@@ -889,6 +889,13 @@ try {
     [join(plugin.installPath, 'hooks/policy.ts'), 'app/src/claude/vesta-claude/hooks/policy.ts'],
     ...[
       'codex/codex-hook-watcher.ts',
+      'codex/codex-hook-types.ts',
+      'codex/codex-hook-ingress.ts',
+      'codex/codex-hook-controls.ts',
+      'codex/codex-hook-slots.ts',
+      'codex/codex-hook-journal.ts',
+      'codex/codex-hook-dispatch.ts',
+      'codex/codex-hook-observer.ts',
       'codex/codex-hook-state.ts',
       'core/watcher-policy.ts',
       'lib/metadata-files.ts',

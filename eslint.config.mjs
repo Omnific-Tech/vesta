@@ -20,7 +20,10 @@ export default [
     rules: readabilityRules('warn'),
   },
   {
-    files: ['src/{core,lib}/**/*.{ts,mjs}'],
+    files: [
+      'src/{core,lib}/**/*.{ts,mjs}',
+      'src/codex/codex-hook-{watcher,types,ingress,controls,slots,journal,dispatch,observer}.ts',
+    ],
     rules: readabilityRules('error'),
   },
 ];

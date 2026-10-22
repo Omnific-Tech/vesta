@@ -269,6 +269,13 @@ export async function installNativeCodex(
   const closure = hookConfig
     ? [
         'codex/codex-hook-watcher.ts',
+        'codex/codex-hook-types.ts',
+        'codex/codex-hook-ingress.ts',
+        'codex/codex-hook-controls.ts',
+        'codex/codex-hook-slots.ts',
+        'codex/codex-hook-journal.ts',
+        'codex/codex-hook-dispatch.ts',
+        'codex/codex-hook-observer.ts',
         'codex/codex-hook-state.ts',
         'codex/codex-native-identity.ts',
         'codex/codex-native-ipc.ts',
