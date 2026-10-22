@@ -82,6 +82,7 @@ const installed = spawnSync(
     '--shell-file',
     join(home, 'zshrc'),
     '--json',
+    '--warm',
   ],
   { env, encoding: 'utf8', timeout: 60000 },
 );

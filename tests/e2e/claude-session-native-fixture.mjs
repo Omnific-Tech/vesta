@@ -19,6 +19,11 @@ if (args[1] === 'marketplace' && args[2] === 'add') {
     plugins: { 'vesta@vesta-local': [{ scope: 'user', installPath: destination }] },
   });
   save('settings.json', { enabledPlugins: { 'vesta@vesta-local': true } });
+} else if (args[1] === 'configure') {
+  const settings = JSON.parse(readFileSync(join(config, 'settings.json')));
+  const values = JSON.parse(readFileSync(0, 'utf8'));
+  settings.pluginConfigs = { 'vesta@vesta-local': { options: { warm: values.warm === 'true' } } };
+  save('settings.json', settings);
 } else if (args[1] === 'list') {
   const registry = JSON.parse(readFileSync(join(config, 'plugins/installed_plugins.json')));
   const installed = registry.plugins['vesta@vesta-local'][0];
