@@ -19,7 +19,7 @@ type Case = {
   expected?: Expected[];
   error?: boolean;
 };
-const cases: Case[] = [];
+export const cases: Case[] = [];
 const S = 'owned-session';
 const T = 'completed-turn';
 const raw = (provider: string, tokens: unknown) =>
@@ -489,67 +489,69 @@ for (const provider of ['claude', 'codex']) {
   });
 }
 
-const executable = resolve(fileURLToPath(new URL('./watcher.ts', import.meta.url)));
-const artifacts = resolve(
-  join(process.env.TELOS_RUN_DIR ?? 'harness/runs/watcher-fixtures', 'artifacts'),
-);
-mkdirSync(artifacts, { recursive: true });
-const proof: unknown[] = [];
-let failures = 0;
-for (const row of cases) {
-  const result = spawnSync(
-    process.execPath,
-    ['--experimental-strip-types', executable, '--json', JSON.stringify(row.input)],
-    { encoding: 'utf8', timeout: 5000 },
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const executable = resolve(fileURLToPath(new URL('./watcher.ts', import.meta.url)));
+  const artifacts = resolve(
+    join(process.env.TELOS_RUN_DIR ?? 'harness/runs/watcher-fixtures', 'artifacts'),
   );
-  let output: any;
-  let failure: string | undefined;
-  try {
-    output = JSON.parse(result.stdout);
-    if (row.error) {
-      assert.notEqual(result.status, 0, 'invalid configuration must reject');
-      assert.equal(typeof output.error, 'string');
-    } else {
-      assert.equal(result.status, 0, result.stderr);
-      assert.equal(
-        output.defaults.threshold,
-        row.input.mode === 'probe' ? 1 : 100000,
-        'production threshold must be fixed; override requires explicit probe mode',
-      );
-      if (!row.input.config) {
-        assert.equal(output.defaults.idleMs, row.input.provider === 'claude' ? 3000000 : 1200000);
-        assert.equal(output.defaults.budgetMs, 14400000);
+  mkdirSync(artifacts, { recursive: true });
+  const proof: unknown[] = [];
+  let failures = 0;
+  for (const row of cases) {
+    const result = spawnSync(
+      process.execPath,
+      ['--experimental-strip-types', executable, '--json', JSON.stringify(row.input)],
+      { encoding: 'utf8', timeout: 5000 },
+    );
+    let output: any;
+    let failure: string | undefined;
+    try {
+      output = JSON.parse(result.stdout);
+      if (row.error) {
+        assert.notEqual(result.status, 0, 'invalid configuration must reject');
+        assert.equal(typeof output.error, 'string');
+      } else {
+        assert.equal(result.status, 0, result.stderr);
+        assert.equal(
+          output.defaults.threshold,
+          row.input.mode === 'probe' ? 1 : 100000,
+          'production threshold must be fixed; override requires explicit probe mode',
+        );
+        if (!row.input.config) {
+          assert.equal(output.defaults.idleMs, row.input.provider === 'claude' ? 3000000 : 1200000);
+          assert.equal(output.defaults.budgetMs, 14400000);
+        }
+        assert.equal(output.trace.length, (row.input.events as Event[]).length);
+        for (const expected of row.expected!) {
+          const actual = output.trace[expected.index];
+          assert.equal(actual.action, expected.action, row.name + ' step ' + expected.index);
+          for (const [key, value] of Object.entries(expected.state ?? {}))
+            assert.deepEqual(actual.state[key], value, key);
+        }
       }
-      assert.equal(output.trace.length, (row.input.events as Event[]).length);
-      for (const expected of row.expected!) {
-        const actual = output.trace[expected.index];
-        assert.equal(actual.action, expected.action, row.name + ' step ' + expected.index);
-        for (const [key, value] of Object.entries(expected.state ?? {}))
-          assert.deepEqual(actual.state[key], value, key);
-      }
+    } catch (error) {
+      failure = String(error);
+      failures += 1;
     }
-  } catch (error) {
-    failure = String(error);
-    failures += 1;
+    proof.push({
+      name: row.name,
+      controlled: true,
+      input: row.input,
+      expected: row.expected,
+      output,
+      exitCode: result.status,
+      stderr: result.stderr,
+      ...(failure ? { failure } : {}),
+    });
   }
-  proof.push({
-    name: row.name,
-    controlled: true,
-    input: row.input,
-    expected: row.expected,
-    output,
-    exitCode: result.status,
-    stderr: result.stderr,
-    ...(failure ? { failure } : {}),
-  });
+  writeFileSync(
+    join(artifacts, 'watcher-fixtures.json'),
+    JSON.stringify(
+      { schema: 1, evidenceKind: 'controlled-cli-timelines', liveNativeProof: false, cases: proof },
+      null,
+      2,
+    ),
+  );
+  console.log(JSON.stringify({ cases: cases.length, failures, artifacts }));
+  if (failures) process.exitCode = 1;
 }
-writeFileSync(
-  join(artifacts, 'watcher-fixtures.json'),
-  JSON.stringify(
-    { schema: 1, evidenceKind: 'controlled-cli-timelines', liveNativeProof: false, cases: proof },
-    null,
-    2,
-  ),
-);
-console.log(JSON.stringify({ cases: cases.length, failures, artifacts }));
-if (failures) process.exitCode = 1;
