@@ -19,5 +19,14 @@ if (args[1] === 'marketplace' && args[2] === 'add') {
     plugins: { 'vesta@vesta-local': [{ scope: 'user', installPath: destination }] },
   });
   save('settings.json', { enabledPlugins: { 'vesta@vesta-local': true } });
-} else throw new Error('unexpected registration request: ' + JSON.stringify(args));
+} else if (args[1] === 'list') {
+  const registry = JSON.parse(readFileSync(join(config, 'plugins/installed_plugins.json')));
+  const installed = registry.plugins['vesta@vesta-local'][0];
+  const plugin = JSON.parse(
+    readFileSync(join(installed.installPath, '.claude-plugin/plugin.json')),
+  );
+  console.log(JSON.stringify([{ ...installed, id: 'vesta@vesta-local', version: plugin.version }]));
+  process.exit(0);
+} else if (args[1] !== 'validate')
+  throw new Error('unexpected registration request: ' + JSON.stringify(args));
 console.log('{}');
