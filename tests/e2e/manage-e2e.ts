@@ -14,6 +14,7 @@ import {
   readFileSync,
   readdirSync,
   readlinkSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -211,7 +212,7 @@ copyFileSync(built.binary, join(legacy, 'bin/vesta'));
 execute('legacy-uninstall', ['uninstall'], true, { VESTA_LEGACY_PROOF: join(run, 'legacy.json') });
 const proof = json(join(run, 'legacy.json'));
 assert.ok(proof.args.includes('uninstall'));
-assert.equal(proof.node, join(legacy, 'runtime/bin/node'));
+assert.equal(proof.node, realpathSync(join(legacy, 'runtime/bin/node')));
 assert.equal(proof.stable, join(installation, 'current/runtime/bin/node'));
 assert.ok(existsSync(proof.node));
 assert.ok(!existsSync(join(config, '.vesta-setup-claude.json')));
