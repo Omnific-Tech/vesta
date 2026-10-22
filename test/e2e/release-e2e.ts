@@ -499,6 +499,18 @@ try {
       command,
       expectedCode: success ? 'success' : 'failure',
     });
+    if (name === 'stable-upgrade') {
+      // Retained hooks launch through the activation link, never a version-pinned runtime.
+      const state = JSON.parse(readFileSync(join(ctx.config, '.vesta-setup-codex.json'), 'utf8'));
+      const stableNode = join(ctx.installation, 'current/runtime/bin/node');
+      assert.ok(
+        state.nativeHomes?.length &&
+          state.nativeHomes.every((row: any) =>
+            String(row.nativeHookCommand).startsWith("'" + stableNode + "' "),
+          ),
+        'Codex hook command uses the stable runtime link',
+      );
+    }
     if (name === 'default-update-owned-only') {
       copyFileSync(
         join(ctx.installation, 'installation.json'),
