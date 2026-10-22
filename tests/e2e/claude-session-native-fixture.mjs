@@ -10,7 +10,9 @@ if (args[1] === 'marketplace' && args[2] === 'add') {
   save('plugins/known_marketplaces.json', { 'vesta-local': { installLocation: args[3] } });
 } else if (args[1] === 'install') {
   const registry = JSON.parse(readFileSync(join(config, 'plugins/known_marketplaces.json')));
-  const source = join(registry['vesta-local'].installLocation, 'src/claude/vesta-claude');
+  const marketplace = registry['vesta-local'].installLocation;
+  const catalog = JSON.parse(readFileSync(join(marketplace, '.claude-plugin/marketplace.json')));
+  const source = join(marketplace, catalog.plugins[0].source);
   const destination = join(config, 'plugins/cache/vesta-local/vesta/fixture');
   cpSync(source, destination, { recursive: true });
   save('plugins/installed_plugins.json', {
