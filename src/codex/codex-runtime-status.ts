@@ -303,6 +303,9 @@ function unsafeStatus(file: Stats) {
 function failedRead(error: unknown, report: RuntimeReport) {
   if ((error as NodeJS.ErrnoException).code !== 'ENOENT') report.truncated = true;
 }
+function closeDescriptor(descriptor: number | undefined) {
+  if (descriptor !== undefined) closeSync(descriptor);
+}
 function inspectOwner(root: string, name: string, report: RuntimeReport) {
   const folder = join(root, name);
   const path = join(folder, 'codex-native-status.json');
@@ -334,7 +337,7 @@ function inspectOwner(root: string, name: string, report: RuntimeReport) {
   } catch (error) {
     failedRead(error, report);
   } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
+    closeDescriptor(descriptor);
   }
   return false;
 }
