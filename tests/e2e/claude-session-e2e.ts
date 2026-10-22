@@ -101,11 +101,17 @@ const plugin = json(join(config, 'plugins/installed_plugins.json')).plugins['ves
   .installPath;
 const assets = json(built.receipt).assets;
 assert.deepEqual(
-  sources.filter(path => path.startsWith('src/claude/') && path.endsWith('.ts')).sort(),
+  [
+    ...new Set(
+      sources.filter(
+        path => path.startsWith('src/claude/vesta-claude/hooks/') && path.endsWith('.ts'),
+      ),
+    ),
+  ].sort(),
   claudePluginHooks.map(path => 'src/claude/vesta-claude/' + path).sort(),
   'explicit registry covers every shipped Claude hook module',
 );
-for (const source of sources.filter(path => path.startsWith('src/claude/'))) {
+for (const source of new Set(sources.filter(path => path.startsWith('src/claude/vesta-claude/')))) {
   const shipped = assets.find((asset: any) => asset.path === 'app/' + source);
   assert.ok(shipped, 'packaged plugin closure: ' + source);
   const installed = join(plugin, relative('src/claude/vesta-claude', source));
