@@ -6,6 +6,11 @@ acceptance contracts, source revisions and verification evidence.
 
 ## Build
 
+Runtime code lives in `src/claude/`, `src/codex/`, `src/cli/` and `src/shared/`.
+E2E drivers, fixtures and acceptance oracles live in `test/e2e/`; their
+[failure contracts and probe guide](docs/testing/README.md) live in `docs/testing/`.
+`packaging/build.ts` assembles the standalone application.
+
 Development requires Node.js 22.17.1 or newer and Bun. The standalone build is
 currently verified with Bun 1.3.5 on macOS arm64 and node-pty 1.1.0.
 

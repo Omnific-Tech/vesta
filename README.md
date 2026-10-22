@@ -98,7 +98,7 @@ even without it. The standalone install includes the full hook runtime. Codex
 warming becomes ready after native hook trust review. For source development:
 
 ```sh
-node --experimental-strip-types experiments/setup.ts install --provider codex --warm
+node --experimental-strip-types src/cli/setup.ts install --provider codex --warm
 ```
 
 Migration removes only the exact owned Codex function block and rolls back owned
@@ -199,7 +199,7 @@ Keepalives enter
 the exact thread's native durable queue and receive `K` in that conversation;
 Vesta never types marker keys into a terminal.
 Status separates `warmConfigured` from effective `warmEnabled` and reports why
-warming is suspended. See the [setup reference](experiments/SETUP.md).
+warming is suspended. See the [setup reference](docs/setup.md).
 
 ## Troubleshooting
 
@@ -220,7 +220,7 @@ Codex launch support and reply compliance are tracked in
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for building, verification and releases.
-Current behavior is described above and in the [setup reference](experiments/SETUP.md).
+Current behavior is described above and in the [setup reference](docs/setup.md).
 
 ## License
 

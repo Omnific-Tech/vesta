@@ -147,13 +147,13 @@ Snapshots identify native backend and observer PIDs separately and retain bounde
 privacy-safe decision history and current/historical measurements. A matching
 PID/birth does not prove a stalled worker is progressing; inspect observedAt.
 
-[Runtime contracts](../experiments/CODEX-HOOK-WATCHER-FAILURES.md) and
-[migration contracts](../experiments/CODEX-HOOK-MIGRATION-FAILURES.md) distinguish
+[Runtime contracts](testing/CODEX-HOOK-WATCHER-FAILURES.md) and
+[migration contracts](testing/CODEX-HOOK-MIGRATION-FAILURES.md) distinguish
 synthetic faults from actual native hooks, TUI, rollout and queue transport with a
 localhost fake Responses provider. Fixture token values are synthetic. These
 checks do not establish provider cache retention or subscription savings.
 
-Source: [runtime](../experiments/codex-hook-watcher.ts),
-[identity](../experiments/codex-native-identity.ts),
-[setup](../experiments/codex-hook-setup.ts), and
-[registration](../experiments/codex-native-setup.ts).
+Source: [runtime](../src/codex/codex-hook-watcher.ts),
+[identity](../src/codex/codex-native-identity.ts),
+[setup](../src/codex/codex-hook-setup.ts), and
+[registration](../src/codex/codex-native-setup.ts).

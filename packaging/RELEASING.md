@@ -14,12 +14,13 @@ All commands below are for the orchestrator; none were run during preparation.
 - A clean committed source tree. `packaging/build.ts` rejects a dirty production
   build and rejects drift among package, Claude plugin, Codex plugin and catalog
   versions. Never publish `--fixture-version` or `--development` output.
-- Read [standalone failures](FAILURES.md), [repair failures](REPAIR-FAILURES.md),
-  [production failures](PRODUCTION-FAILURES.md) and the relevant Codex
-  [hook](../experiments/CODEX-HOOK-WATCHER-FAILURES.md),
-  [migration](../experiments/CODEX-HOOK-MIGRATION-FAILURES.md),
-  [diagnostics](../experiments/CODEX-DIAGNOSTIC-FAILURES.md) and
-  [Pulse](../experiments/CODEX-PULSE-SWITCH-FAILURES.md) contracts.
+- Read [standalone failures](../docs/testing/PACKAGING-FAILURES.md),
+  [repair failures](../docs/testing/REPAIR-FAILURES.md),
+  [production failures](../docs/testing/PRODUCTION-FAILURES.md) and the relevant Codex
+  [hook](../docs/testing/CODEX-HOOK-WATCHER-FAILURES.md),
+  [migration](../docs/testing/CODEX-HOOK-MIGRATION-FAILURES.md),
+  [diagnostics](../docs/testing/CODEX-DIAGNOSTIC-FAILURES.md) and
+  [Pulse](../docs/testing/CODEX-PULSE-SWITCH-FAILURES.md) contracts.
 - Use fresh ignored evidence directories; retain failed runs separately and
   choose a new run directory on retry. The production driver requires
   `TELOS_RUN_DIR`; setting that environment variable invokes no Telos command.
@@ -47,25 +48,25 @@ npm ci
 export VESTA_RELEASE_RUN="$PWD/dist/release-0.3.0"
 export VESTA_CODEX_LAUNCHER="$(command -v codex)"
 export VESTA_XSWAP="$(command -v xswap)"
-node --experimental-strip-types experiments/docs-check.ts "$VESTA_RELEASE_RUN/docs/receipt.json"
-node --experimental-strip-types experiments/docs-check.ts --verify "$VESTA_RELEASE_RUN/docs/receipt.json"
-node --experimental-strip-types packaging/release-e2e.ts "$VESTA_RELEASE_RUN/standalone"
-node --experimental-strip-types packaging/public-e2e.ts "$VESTA_RELEASE_RUN/public"
-node --experimental-strip-types packaging/repair-e2e.ts --artifacts "$VESTA_RELEASE_RUN/repair"
-node --experimental-strip-types packaging/native-registry-e2e.ts --artifacts "$VESTA_RELEASE_RUN/native-registry"
-node --experimental-strip-types experiments/codex-native-diagnostics-e2e.ts "$VESTA_RELEASE_RUN/diagnostics"
-node --experimental-strip-types experiments/codex-native-diagnostics-e2e.ts --verify "$VESTA_RELEASE_RUN/diagnostics"
-node --experimental-strip-types experiments/codex-hook-watcher-e2e.ts --artifacts "$VESTA_RELEASE_RUN/hook-watcher"
-node --experimental-strip-types experiments/codex-hook-contract.ts --verify "$VESTA_RELEASE_RUN/hook-watcher"
-node --experimental-strip-types experiments/codex-hook-native-e2e.ts --native "$VESTA_CODEX_LAUNCHER" --artifacts "$VESTA_RELEASE_RUN/hook-native"
-node --experimental-strip-types experiments/codex-hook-contract.ts --verify "$VESTA_RELEASE_RUN/hook-native"
-node --experimental-strip-types experiments/codex-hook-migration-e2e.ts --native "$VESTA_CODEX_LAUNCHER" --artifacts "$VESTA_RELEASE_RUN/hook-migration"
-node --experimental-strip-types experiments/codex-hook-migration-contract.ts --verify "$VESTA_RELEASE_RUN/hook-migration"
-node --experimental-strip-types experiments/codex-hook-tui-e2e.ts --native "$VESTA_CODEX_LAUNCHER" --artifacts "$VESTA_RELEASE_RUN/hook-tui"
-node --experimental-strip-types experiments/codex-hook-migration-contract.ts --verify "$VESTA_RELEASE_RUN/hook-tui"
-node --experimental-strip-types experiments/codex-pulse-switch-e2e.ts --native "$VESTA_CODEX_LAUNCHER" --xswap "$VESTA_XSWAP" --artifacts "$VESTA_RELEASE_RUN/pulse"
-node --experimental-strip-types experiments/codex-pulse-switch-contract.ts --verify "$VESTA_RELEASE_RUN/pulse"
-TELOS_RUN_DIR="$VESTA_RELEASE_RUN/production" node --experimental-strip-types packaging/production-e2e.ts
+node --experimental-strip-types test/e2e/docs-check.ts "$VESTA_RELEASE_RUN/docs/receipt.json"
+node --experimental-strip-types test/e2e/docs-check.ts --verify "$VESTA_RELEASE_RUN/docs/receipt.json"
+node --experimental-strip-types test/e2e/release-e2e.ts "$VESTA_RELEASE_RUN/standalone"
+node --experimental-strip-types test/e2e/public-e2e.ts "$VESTA_RELEASE_RUN/public"
+node --experimental-strip-types test/e2e/repair-e2e.ts --artifacts "$VESTA_RELEASE_RUN/repair"
+node --experimental-strip-types test/e2e/native-registry-e2e.ts --artifacts "$VESTA_RELEASE_RUN/native-registry"
+node --experimental-strip-types test/e2e/codex-native-diagnostics-e2e.ts "$VESTA_RELEASE_RUN/diagnostics"
+node --experimental-strip-types test/e2e/codex-native-diagnostics-e2e.ts --verify "$VESTA_RELEASE_RUN/diagnostics"
+node --experimental-strip-types test/e2e/codex-hook-watcher-e2e.ts --artifacts "$VESTA_RELEASE_RUN/hook-watcher"
+node --experimental-strip-types test/e2e/codex-hook-contract.ts --verify "$VESTA_RELEASE_RUN/hook-watcher"
+node --experimental-strip-types test/e2e/codex-hook-native-e2e.ts --native "$VESTA_CODEX_LAUNCHER" --artifacts "$VESTA_RELEASE_RUN/hook-native"
+node --experimental-strip-types test/e2e/codex-hook-contract.ts --verify "$VESTA_RELEASE_RUN/hook-native"
+node --experimental-strip-types test/e2e/codex-hook-migration-e2e.ts --native "$VESTA_CODEX_LAUNCHER" --artifacts "$VESTA_RELEASE_RUN/hook-migration"
+node --experimental-strip-types test/e2e/codex-hook-migration-contract.ts --verify "$VESTA_RELEASE_RUN/hook-migration"
+node --experimental-strip-types test/e2e/codex-hook-tui-e2e.ts --native "$VESTA_CODEX_LAUNCHER" --artifacts "$VESTA_RELEASE_RUN/hook-tui"
+node --experimental-strip-types test/e2e/codex-hook-migration-contract.ts --verify "$VESTA_RELEASE_RUN/hook-tui"
+node --experimental-strip-types test/e2e/codex-pulse-switch-e2e.ts --native "$VESTA_CODEX_LAUNCHER" --xswap "$VESTA_XSWAP" --artifacts "$VESTA_RELEASE_RUN/pulse"
+node --experimental-strip-types test/e2e/codex-pulse-switch-contract.ts --verify "$VESTA_RELEASE_RUN/pulse"
+TELOS_RUN_DIR="$VESTA_RELEASE_RUN/production" node --experimental-strip-types test/e2e/production-e2e.ts
 export VESTA_RELEASE_ASSETS="$VESTA_RELEASE_RUN/production/artifacts"
 "$VESTA_RELEASE_ASSETS/vesta-darwin-arm64" --version
 (cd "$VESTA_RELEASE_ASSETS" && shasum -a 256 -c SHA256SUMS)
@@ -106,7 +107,7 @@ git tag -a v0.3.0 -m "Vesta v0.3.0"
 git push origin HEAD:chore/release-0.3.0
 git push origin refs/tags/v0.3.0
 gh release create v0.3.0 "$VESTA_RELEASE_ASSETS/vesta-darwin-arm64" "$VESTA_RELEASE_ASSETS/SHA256SUMS" "$VESTA_RELEASE_ASSETS/build-receipt.json" --repo Omnific-Tech/vesta --verify-tag --title "Vesta v0.3.0" --notes-file docs/releases/v0.3.0.md --latest
-node --experimental-strip-types packaging/download-smoke.ts "$VESTA_RELEASE_RUN/download-smoke"
+node --experimental-strip-types test/e2e/download-smoke.ts "$VESTA_RELEASE_RUN/download-smoke"
 vesta update
 vesta --version
 vesta status
