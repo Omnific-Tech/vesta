@@ -204,6 +204,7 @@ function setup(
       ...process.env,
       CLAUDE_CONFIG_DIR: p.configDir,
       VESTA_MARKETPLACE_ROOT: join(root, 'marketplace'),
+      VESTA_STABLE_NODE: join(root, 'current/runtime/bin/node'),
       VESTA_RECORDED_NATIVE: nativeExecutable(p),
     },
     encoding: 'utf8',
