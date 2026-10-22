@@ -104,6 +104,13 @@ export class NativeDiagnostics {
     this.ambiguous = value;
     this.ambiguousBlocker = value ? blocker : null;
   }
+  ownership(sessionId: string) {
+    return this.ambiguous
+      ? { state: 'ambiguous', blocker: this.ambiguousBlocker }
+      : this.conflict
+        ? { state: 'conflict', blocker: this.conflictBlocker }
+        : { state: sessionId ? 'owned' : 'unbound', blocker: null };
+  }
   snapshot(state: WatcherState, idleMs: number, sessionId: string) {
     const last = this.lastMeasurement;
     if (last && obsoleteMeasurement(last, state)) last.current = false;
@@ -119,11 +126,7 @@ export class NativeDiagnostics {
           ? state.warmAt + idleMs
           : null,
       lastMeasurement: last ? { ...last } : null,
-      ownership: this.ambiguous
-        ? { state: 'ambiguous', blocker: this.ambiguousBlocker }
-        : this.conflict
-          ? { state: 'conflict', blocker: this.conflictBlocker }
-          : { state: sessionId ? 'owned' : 'unbound', blocker: null },
+      ownership: this.ownership(sessionId),
       decisions: this.decisions.map(row => ({ ...row })),
     };
   }
