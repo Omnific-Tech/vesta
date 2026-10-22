@@ -183,10 +183,15 @@ function setup(
   root: string,
   ownedOnly = false,
 ) {
+  // Uninstall runs the installed version's own setup; versions before 0.3.1 ship it under experiments/.
+  const entry = ['app/src/cli/setup.ts', 'app/experiments/setup.ts']
+    .map(path => join(assets, path))
+    .find(path => existsSync(path));
+  if (!entry) throw new Error('Missing native setup entrypoint in ' + assets);
   const argv = [
     '--disable-warning=ExperimentalWarning',
     '--experimental-strip-types',
-    join(assets, 'app/src/cli/setup.ts'),
+    entry,
     operation,
     '--provider',
     p.provider,
