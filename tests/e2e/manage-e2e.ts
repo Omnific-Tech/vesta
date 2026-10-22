@@ -127,6 +127,21 @@ assert.match(failed, /prior integrations and activation restored/);
 assert.equal(readFileSync(join(installation, 'installation.json'), 'utf8'), before);
 assert.equal(readFileSync(join(config, 'settings.json'), 'utf8'), settings);
 assert.ok(existsSync(oldCache));
+const compensation = readFileSync(env.VESTA_MANAGE_LOG, 'utf8')
+  .trim()
+  .split('\n')
+  .map(row => JSON.parse(row))
+  .at(-1);
+assert.equal(compensation.args[1], 'update', 'native compensation follows failed validation');
+assert.equal(
+  compensation.backups.length,
+  1,
+  'cache backup remains owned through awaited native compensation',
+);
+assert.ok(
+  !readdirSync(installation).some(name => name.startsWith('.cache-backup-')),
+  'backup cleanup follows compensation',
+);
 const ownedStatus = execute('status', ['status']);
 assert.equal(ownedStatus.integrations[0].warmEnabled, true);
 assert.equal(ownedStatus.integrations[0].configDir, config);

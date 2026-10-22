@@ -6,6 +6,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -18,7 +19,11 @@ const save = (path, value) => writeFileSync(path, JSON.stringify(value));
 mkdirSync(join(config, 'plugins'), { recursive: true });
 appendFileSync(
   process.env.VESTA_MANAGE_LOG,
-  JSON.stringify({ args, stableNode: process.env.VESTA_STABLE_NODE }) + '\n',
+  JSON.stringify({
+    args,
+    stableNode: process.env.VESTA_STABLE_NODE,
+    backups: readdirSync(process.env.VESTA_HOME).filter(name => name.startsWith('.cache-backup-')),
+  }) + '\n',
 );
 const knownPath = join(config, 'plugins/known_marketplaces.json');
 const installedPath = join(config, 'plugins/installed_plugins.json');

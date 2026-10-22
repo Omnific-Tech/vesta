@@ -25,6 +25,17 @@ export const hookRuntimeHelpers = [
 ];
 
 export const sharedHelperSources = [
+  ...[
+    'types',
+    'links',
+    'catalog',
+    'native',
+    'operation',
+    'status',
+    'rollback',
+    'install',
+    'uninstall',
+  ].map(name => 'src/cli/manage-' + name + '.ts'),
   ...claudeSessionModules.map(path => 'src/claude/vesta-claude/' + path),
   'src/cli/watcher-options.ts',
   'src/cli/watcher-process.ts',

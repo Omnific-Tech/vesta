@@ -25,6 +25,7 @@ export default [
       'src/codex/codex-hook-{watcher,types,ingress,controls,slots,journal,dispatch,observer}.ts',
       'src/cli/watcher-{run,options,process,claude,codex-protocol,codex}.ts',
       'src/claude/vesta-claude/hooks/{register,session-*}.ts',
+      'src/cli/manage{,-*}.ts',
     ],
     rules: readabilityRules('error'),
   },
