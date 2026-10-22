@@ -21,6 +21,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { digest } from './controls-acceptance.ts';
+import { claudePluginHooks } from './shared-helper-sources.ts';
 
 export async function claudeControlHostFixture(input: {
   binary: string;
@@ -625,6 +626,10 @@ export async function claudeControlHostFixture(input: {
     binarySha256: digest(input.binary),
     modulePath: input.modulePath,
     moduleSha256: digest(input.modulePath),
+    modules: claudePluginHooks.map(path => ({
+      path,
+      sha256: digest(join(input.modulePath, '../..', path)),
+    })),
     logFile: 'host.jsonl',
     scenarios,
     reloadScenarios,

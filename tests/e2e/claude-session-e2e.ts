@@ -18,20 +18,23 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { buildRelocated, hash, root } from './e2e-common.ts';
 import { claudeControlHostFixture } from './controls-claude-host-fixture.ts';
+import { claudePluginHooks } from './shared-helper-sources.ts';
 
 const files = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap(entry =>
-      entry.isDirectory()
-        ? files(join(directory, entry.name))
-        : entry.isFile()
-          ? [join(directory, entry.name)]
-          : [],
+    entry.isDirectory()
+      ? files(join(directory, entry.name))
+      : entry.isFile()
+        ? [join(directory, entry.name)]
+        : [],
   );
 const sources = [
   ...files(join(root, 'src/claude/vesta-claude/hooks')).map(path => relative(root, path)),
   'tests/e2e/claude-session-e2e.ts',
   'tests/e2e/claude-session-native-fixture.mjs',
   'tests/e2e/controls-claude-host-fixture.ts',
+  'tests/e2e/controls-acceptance.ts',
+  'tests/e2e/shared-helper-sources.ts',
   'tests/e2e/e2e-common.ts',
   'packaging/build.ts',
 ];
@@ -96,6 +99,11 @@ assert.equal(installed.status, 0, installed.stderr);
 const plugin = json(join(config, 'plugins/installed_plugins.json')).plugins['vesta@vesta-local'][0]
   .installPath;
 const assets = json(built.receipt).assets;
+assert.deepEqual(
+  sources.filter(path => path.startsWith('src/claude/')).sort(),
+  claudePluginHooks.map(path => 'src/claude/vesta-claude/' + path).sort(),
+  'explicit registry covers every shipped Claude hook module',
+);
 for (const source of sources.filter(path => path.startsWith('src/claude/'))) {
   const shipped = assets.find((asset: any) => asset.path === 'app/' + source);
   assert.ok(shipped, 'packaged plugin closure: ' + source);

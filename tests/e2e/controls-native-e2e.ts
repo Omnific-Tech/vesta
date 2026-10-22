@@ -14,7 +14,7 @@
 // direct store JSON files; bounded rollout traversal tolerates ENOENT races but
 // preserves permission and other I/O failures as real verification failures.
 import assert from 'node:assert/strict';
-import { sharedHelperSources } from './shared-helper-sources.ts';
+import { claudePluginHooks, sharedHelperSources } from './shared-helper-sources.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
@@ -882,11 +882,10 @@ try {
   assert.equal(versions.length, 1, 'one registered Codex plugin asset version');
   const pluginRoot = join(assetRoot, versions[0]!.name, 'plugin');
   for (const [file, assetPath] of [
-    [
-      join(plugin.installPath, 'hooks/register.ts'),
-      'app/src/claude/vesta-claude/hooks/register.ts',
-    ],
-    [join(plugin.installPath, 'hooks/policy.ts'), 'app/src/claude/vesta-claude/hooks/policy.ts'],
+    ...claudePluginHooks.map(path => [
+      join(plugin.installPath, path),
+      'app/src/claude/vesta-claude/' + path,
+    ]),
     ...[
       'codex/codex-hook-watcher.ts',
       'codex/codex-hook-types.ts',

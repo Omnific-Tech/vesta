@@ -1,4 +1,16 @@
 // Keep extracted dependency identities explicit in each retained E2E source receipt.
+export const claudeSessionModules = [
+  'hooks/session-types.ts',
+  'hooks/session-state.ts',
+  'hooks/session-controls.ts',
+  'hooks/session-continuity.ts',
+  'hooks/session-lifecycle.ts',
+  'hooks/session-status.ts',
+  'hooks/session-warm.ts',
+  'hooks/session-handlers.ts',
+];
+export const claudePluginHooks = ['hooks/register.ts', 'hooks/policy.ts', ...claudeSessionModules];
+
 export const hookRuntimeHelpers = [
   'codex/codex-hook-types.ts',
   'codex/codex-hook-ingress.ts',
@@ -13,6 +25,7 @@ export const hookRuntimeHelpers = [
 ];
 
 export const sharedHelperSources = [
+  ...claudeSessionModules.map(path => 'src/claude/vesta-claude/' + path),
   'src/cli/watcher-options.ts',
   'src/cli/watcher-process.ts',
   'src/cli/watcher-claude.ts',
