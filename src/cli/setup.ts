@@ -13,6 +13,7 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleHookSetup, preflightHookSetup } from '../codex/codex-hook-setup.ts';
+import { readJsonFile } from '../lib/json-files.ts';
 const args = process.argv.slice(2);
 const operation = args[0];
 const value = (flag: string) => {
@@ -35,8 +36,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../..');
 const pluginId = 'vesta@vesta-local';
 const marketplace = 'vesta-local';
-const read = (path: string, fallback: any = {}) =>
-  existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : fallback;
+const read = (path: string, fallback: any = {}) => readJsonFile(path, fallback);
 const save = (path: string, data: any) => {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(data, null, 2) + '\n');

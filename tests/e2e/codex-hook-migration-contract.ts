@@ -1,11 +1,13 @@
 // Independent source oracle and sealed receipts for default hook integration E2Es.
 import assert from 'node:assert/strict';
+import { hookRuntimeHelpers, sharedHelperSources } from './shared-helper-sources.ts';
 import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { argument, json, lines, root, save, sha } from './codex-hook-contract.ts';
 import { sealEvidence } from './e2e-common.ts';
 export const sourceFiles = [
+  ...sharedHelperSources,
   'docs/testing/CODEX-HOOK-MIGRATION-FAILURES.md',
   'tests/e2e/codex-hook-migration-contract.ts',
   'tests/e2e/codex-hook-migration-e2e.ts',
@@ -263,9 +265,13 @@ export function verifyMigration(path: string) {
     const build = json(join(path, 'compiled/build-receipt.json'));
     assert.equal(build.fixture, true);
     assert.equal(build.publishable, false);
-    for (const name of ['codex-hook-watcher.ts', 'codex-hook-state.ts'])
+    for (const name of [
+      'codex/codex-hook-watcher.ts',
+      'codex/codex-hook-state.ts',
+      ...hookRuntimeHelpers,
+    ])
       assert.ok(
-        build.assets.some((a: any) => a.path === 'app/src/codex/' + name),
+        build.assets.some((a: any) => a.path === 'app/src/' + name),
         'relocated payload contains dependency: ' + name,
       );
   } else {

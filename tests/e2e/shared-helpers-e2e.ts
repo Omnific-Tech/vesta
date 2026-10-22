@@ -7,6 +7,7 @@
 // Digest lengths and fixture-owned process birth must remain exact. Existing native
 // setup E2E covers shell quoting and runtime closure installation without weaker checks.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -18,7 +19,6 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
-  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -43,13 +43,7 @@ const sources = [
   'src/codex/codex-hook-setup.ts',
   'src/codex/codex-native-setup.ts',
   'packaging/build.ts',
-  'src/lib/json-files.ts',
-  'src/lib/metadata-files.ts',
-  'src/lib/control-files.ts',
-  'src/lib/operation-lock.ts',
-  'src/lib/process-identity.ts',
-  'src/lib/digest.ts',
-  'src/lib/shell.ts',
+  ...sharedHelperSources,
 ];
 const files = (path: string): string[] =>
   readdirSync(path, { withFileTypes: true }).flatMap(entry =>
@@ -264,6 +258,14 @@ if (process.argv[2] === '--worker') {
   for (const source of receipt.sources) assert.equal(sha(join(root, source.path)), source.sha256);
   for (const artifact of receipt.artifacts)
     assert.equal(sha(join(artifacts, artifact.path)), artifact.sha256);
+  // Tie retained baseline bytes back to Git rather than trusting the receipt label.
+  for (const path of files(join(artifacts, 'baseline/src'))) {
+    if (path.endsWith('payload.tar.gz')) continue;
+    const source = relative(join(artifacts, 'baseline'), path);
+    const pinned = spawnSync('git', ['show', baselineRevision + ':' + source], { cwd: root });
+    assert.equal(pinned.status, 0, String(pinned.stderr));
+    assert.deepEqual(readFileSync(path), pinned.stdout);
+  }
   const baseline = JSON.parse(readFileSync(join(artifacts, 'baseline-files/results.json'), 'utf8'));
   for (const kind of ['baseline', 'candidate']) {
     const command = JSON.parse(readFileSync(join(artifacts, kind + '-command.json'), 'utf8'));
@@ -273,6 +275,45 @@ if (process.argv[2] === '--worker') {
       JSON.parse(readFileSync(join(artifacts, kind + '-files/results.json'), 'utf8')),
       baseline,
     );
+  }
+  if (verifyOnly) {
+    const replay = mkdtempSync(join(tmpdir(), 'vesta-lib-replay-'));
+    const dead = spawnSync(process.execPath, ['-e', ''], { encoding: 'utf8' });
+    assert.equal(dead.status, 0, dead.stderr);
+    const outputs = [];
+    for (const kind of ['baseline', 'candidate']) {
+      const rerun = spawnSync(
+        'bun',
+        [
+          ...bunFlags,
+          self,
+          '--worker',
+          join(artifacts, kind),
+          join(replay, kind),
+          String(process.pid),
+          String(dead.pid),
+        ],
+        { encoding: 'utf8', timeout: 15000 },
+      );
+      assert.equal(rerun.status, 0, rerun.stderr);
+      const output = JSON.parse(rerun.stdout);
+      outputs.push(output);
+      assert.deepEqual(
+        output.filter((row: any) => row.name !== 'birth'),
+        baseline.filter((row: any) => row.name !== 'birth'),
+      );
+      const queried = spawnSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='], {
+        encoding: 'utf8',
+        timeout: 1000,
+      });
+      assert.equal(queried.status, 0, queried.stderr);
+      assert.deepEqual(output.find((row: any) => row.name === 'birth').value, {
+        live: queried.stdout.trim(),
+        dead: '',
+      });
+    }
+    assert.deepEqual(outputs[0], outputs[1]);
+    rmSync(replay, { recursive: true, force: true });
   }
   console.log(JSON.stringify({ verified: true, cases: baseline.length, artifacts }));
 }

@@ -5,6 +5,7 @@
 // Packaging must reject stale generated policy before network/output changes and
 // regeneration must restore byte equality without importing the canonical module.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -32,6 +33,16 @@ const capture = (operation: () => unknown) => {
 };
 
 const sourcePaths = [
+  ...sharedHelperSources,
+  'src/cli/assets.ts',
+  'src/cli/manage.ts',
+  'src/cli/setup.ts',
+  'src/cli/controls.ts',
+  'src/codex/codex-hook-state.ts',
+  'src/codex/codex-runtime-status.ts',
+  'src/codex/codex-native-identity.ts',
+  'src/codex/codex-hook-setup.ts',
+  'src/codex/codex-native-setup.ts',
   'tests/e2e/core-policy-e2e.ts',
   'tests/e2e/watcher-acceptance.ts',
   'packaging/claude-policy.ts',

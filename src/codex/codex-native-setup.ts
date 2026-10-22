@@ -6,10 +6,10 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codexPluginId, nativeRequest } from './codex-native-ipc.ts';
+import { shellQuote as quote } from '../lib/shell.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const home = () => resolve(process.env.CODEX_HOME ?? join(homedir(), '.codex'));
-const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
 const json = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
 async function call(native: string, argv: string[], nativeHome: string) {
   // Stream through the recorded launcher and wait for pipe closure as well as
@@ -274,6 +274,9 @@ export async function installNativeCodex(
         'codex/codex-native-ipc.ts',
         'codex/codex-native-diagnostics.ts',
         'core/watcher-policy.ts',
+        'lib/metadata-files.ts',
+        'lib/process-identity.ts',
+        'lib/digest.ts',
       ].map(file => [file, readFileSync(join(here, '..', file))] as [string, Buffer])
     : [];
   const hash = createHash('sha256')

@@ -1,5 +1,6 @@
 // Hooks/plugins-disabled native metadata; arbitrary native invocation bytes stay exact.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -157,6 +158,7 @@ try {
         cases,
         failure,
         sourceFiles: [
+          ...sharedHelperSources.map(path => '../../' + path),
           '../../src/cli/setup.ts',
           'setup-forwarding-e2e.ts',
           'setup-native-fixture.mjs',

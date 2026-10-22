@@ -1,19 +1,10 @@
-import {
-  accessSync,
-  constants,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { accessSync, constants, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { status, withLock } from './manage.ts';
 import { providers } from './providers.ts';
 import type { Provider } from './providers.ts';
 import { controlConfig, controlKeys, claudeControlOptions } from '../core/watcher-policy.ts';
+import { writeControlJson as atomic } from '../lib/control-files.ts';
 
 const flags = new Set([
   '--provider',
@@ -56,16 +47,6 @@ const replace = (p: Provider, document: any, value: any) => {
     },
   };
 };
-function atomic(path: string, value: any) {
-  const temporary = mkdtempSync(join(dirname(path), '.vesta-control-'));
-  try {
-    const staged = join(temporary, 'config.json');
-    writeFileSync(staged, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
-    renameSync(staged, path);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-}
 export async function controls(args: string[], root: string) {
   const operation = args[0]!;
   const seen = new Set<string>();

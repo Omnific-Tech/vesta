@@ -1,5 +1,6 @@
 // Containment E2E contracts authored before product changes.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -207,6 +208,7 @@ try {
         failure,
         commands,
         sourceFiles: [
+          ...sharedHelperSources.map(path => '../../' + path),
           '../../src/cli/setup.ts',
           'setup-tty-forwarding-e2e.ts',
           'setup-forwarding-e2e.ts',

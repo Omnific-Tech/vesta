@@ -864,6 +864,9 @@ export function verifyControls(directory: string) {
     'app/src/codex/codex-hook-watcher.ts',
     'app/src/codex/codex-hook-state.ts',
     'app/src/core/watcher-policy.ts',
+    'app/src/lib/metadata-files.ts',
+    'app/src/lib/process-identity.ts',
+    'app/src/lib/digest.ts',
   ]) {
     assert.ok(
       e.installedFiles.some(

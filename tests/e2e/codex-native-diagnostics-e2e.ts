@@ -1,5 +1,6 @@
 // Diagnostics acceptance: actual hook watcher, compiled CLI and sealed replay.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -31,6 +32,7 @@ import { diagnosticEngine } from './codex-diagnostic-engine.ts';
 import { sealEvidence } from './e2e-common.ts';
 
 const sources = [
+  ...sharedHelperSources,
   'docs/testing/CODEX-DIAGNOSTIC-FAILURES.md',
   'docs/testing/legacy-retirement.md',
   'tests/e2e/codex-hook-watcher-fixture.mjs',

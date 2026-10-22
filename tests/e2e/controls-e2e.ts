@@ -2,6 +2,7 @@
 // Failure cases and native acceptance limitations are enumerated in
 // tests/e2e/controls-acceptance.ts. No model calls occur in this driver.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -740,6 +741,7 @@ try {
         productionIdentityBefore: built.productionIdentityBefore,
         productionIdentityAfter: controlsArtifactAfter(built),
         sourceFiles: [
+          ...sharedHelperSources,
           'tests/e2e/controls-e2e.ts',
           'tests/e2e/controls-artifact.ts',
           'tests/e2e/production-acceptance.ts',

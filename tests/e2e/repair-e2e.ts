@@ -1,5 +1,6 @@
 // Compiled CLI/native acceptance authored before setup/repair implementation.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -606,6 +607,7 @@ try {
         version: releaseVersion,
         nextVersion: nextReleaseVersion,
         sourceFiles: [
+          ...sharedHelperSources,
           'tests/e2e/repair-e2e.ts',
           'docs/testing/REPAIR-FAILURES.md',
           'src/cli/main.ts',

@@ -2,6 +2,7 @@
 // AI Pulse idle-switch supervisor, with the compiled Vesta hook runtime. Isolated homes, fake credentials,
 // localhost Responses SSE. Contracts: CODEX-PULSE-SWITCH-FAILURES.md. Oracle/replay: codex-pulse-switch-contract.ts.
 import assert from 'node:assert/strict';
+import { hookRuntimeHelpers } from './shared-helper-sources.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -651,9 +652,13 @@ try {
       })()
     : buildRelocated(join(artifacts, 'compiled'), releaseVersion);
   const build = json(built.receipt);
-  for (const file of ['codex-hook-watcher.ts', 'codex-hook-state.ts'])
+  for (const file of [
+    'codex/codex-hook-watcher.ts',
+    'codex/codex-hook-state.ts',
+    ...hookRuntimeHelpers,
+  ])
     assert.ok(
-      build.assets.some((a: any) => a.path === 'app/src/codex/' + file),
+      build.assets.some((a: any) => a.path === 'app/src/' + file),
       'missing packaged hook dependency: ' + file,
     );
   // Localhost Responses fixture. Each request is logged with the per-launch account header injected by native env_http_headers.

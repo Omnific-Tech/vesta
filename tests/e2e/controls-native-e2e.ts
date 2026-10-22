@@ -14,6 +14,7 @@
 // direct store JSON files; bounded rollout traversal tolerates ENOENT races but
 // preserves permission and other I/O failures as real verification failures.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
@@ -890,6 +891,9 @@ try {
       'codex/codex-hook-watcher.ts',
       'codex/codex-hook-state.ts',
       'core/watcher-policy.ts',
+      'lib/metadata-files.ts',
+      'lib/process-identity.ts',
+      'lib/digest.ts',
     ].flatMap(name => [
       // Installed package copy and the plugin copy that native Codex actually executes through the six trusted hooks.
       [join(env.VESTA_HOME, 'current/app/src', name), 'app/src/' + name],
@@ -1091,6 +1095,7 @@ try {
         profileIntegrity,
         owners: owners.map(({ terminal, folder, ...owner }) => owner),
         sourceFiles: [
+          ...sharedHelperSources,
           'tests/e2e/controls-native-e2e.ts',
           'docs/testing/CONTROLS-FAILURES.md',
           'tests/e2e/controls-artifact.ts',

@@ -113,6 +113,14 @@ try {
     'src/codex/codex-native-setup.ts',
     'src/cli/watcher-run.ts',
     'src/core/watcher-policy.ts',
+    'src/lib/json-files.ts',
+    'src/lib/metadata-files.ts',
+    'src/lib/control-files.ts',
+    'src/lib/installation-files.ts',
+    'src/lib/operation-lock.ts',
+    'src/lib/process-identity.ts',
+    'src/lib/digest.ts',
+    'src/lib/shell.ts',
   ];
   for (const directory of [
     'src/claude/vesta-claude',

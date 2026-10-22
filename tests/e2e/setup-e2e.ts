@@ -1,5 +1,6 @@
 // Real native plugin registry E2E; the installer does not exist when this contract is authored.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -158,7 +159,12 @@ try {
     undefined,
     true,
   );
-  e.sourceFiles = ['../../src/cli/setup.ts', 'setup-e2e.ts', 'setup-acceptance.ts'].map(file => ({
+  e.sourceFiles = [
+    ...sharedHelperSources.map(path => '../../' + path),
+    '../../src/cli/setup.ts',
+    'setup-e2e.ts',
+    'setup-acceptance.ts',
+  ].map(file => ({
     path: join(here, file),
     sha256: hash(join(here, file)),
   }));

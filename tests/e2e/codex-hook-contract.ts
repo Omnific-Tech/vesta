@@ -1,5 +1,6 @@
 // Preimplementation E2E evidence/replay boundary; never imported by product runtime.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -111,6 +112,7 @@ export function fixtureEnvironment(home: string, extra: Record<string, string> =
   };
 }
 const sources = [
+  ...sharedHelperSources,
   'docs/testing/CODEX-HOOK-WATCHER-FAILURES.md',
   'tests/e2e/codex-hook-contract.ts',
   'tests/e2e/codex-hook-watcher-fixture.mjs',

@@ -1,6 +1,7 @@
 // Independent oracle, Pulse behavior ports and sealed receipts for the Pulse account-switch E2E.
 // Never imported by product runtime. `--verify ABS_ARTIFACT_DIR` replays every assertion from retained raw evidence.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import {
   closeSync,
   existsSync,
@@ -107,6 +108,7 @@ export function pulseResumeArguments(original: string[], thread: string) {
 }
 
 export const sourceFiles = [
+  ...sharedHelperSources,
   'docs/testing/CODEX-PULSE-SWITCH-FAILURES.md',
   'docs/testing/pulse-signal-race.md',
   'tests/e2e/codex-pulse-switch-contract.ts',

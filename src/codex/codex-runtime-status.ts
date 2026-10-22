@@ -1,5 +1,4 @@
 // Read-only, bounded projection of owner metadata. Never inspect auth/rollouts or leases.
-import { execFileSync } from 'node:child_process';
 import {
   closeSync,
   constants,
@@ -12,6 +11,7 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { diagnosticReasons } from './codex-native-diagnostics.ts';
+import { processBirth } from '../lib/process-identity.ts';
 const integer = (value: any) => Number.isSafeInteger(value) && value >= 0;
 const id = (value: any) =>
   typeof value === 'string' && value.length <= 128 && /^[a-zA-Z0-9:_-]+$/.test(value);
@@ -20,17 +20,6 @@ const birthText = (value: any) =>
   value.length > 0 &&
   value.length <= 128 &&
   !/[\p{Cc}\p{Cs}]/u.test(value);
-const processBirth = (pid: number) => {
-  try {
-    return execFileSync('/bin/ps', ['-p', String(pid), '-o', 'lstart='], {
-      encoding: 'utf8',
-      timeout: 1000,
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch {
-    return '';
-  }
-};
 function decision(row: any): any {
   if (
     !row ||

@@ -1,5 +1,6 @@
 // Actual official npm -> default shared native backend -> relocated retained Vesta hooks.
 import assert from 'node:assert/strict';
+import { hookRuntimeHelpers } from './shared-helper-sources.ts';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
@@ -176,9 +177,13 @@ async function submit(terminal: pty.IPty, text: string) {
 }
 try {
   const build = json(built.receipt);
-  for (const file of ['codex-hook-watcher.ts', 'codex-hook-state.ts'])
+  for (const file of [
+    'codex/codex-hook-watcher.ts',
+    'codex/codex-hook-state.ts',
+    ...hookRuntimeHelpers,
+  ])
     assert.ok(
-      build.assets.some((a: any) => a.path === 'app/src/codex/' + file),
+      build.assets.some((a: any) => a.path === 'app/src/' + file),
       'missing packaged hook dependency: ' + file,
     );
   server = createServer(async (req, res) => {

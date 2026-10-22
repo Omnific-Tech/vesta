@@ -1,5 +1,6 @@
 // Disposable E2E driver: launches the shipped wrapper, never substitutes its policy.
 import { createHash, randomUUID } from 'node:crypto';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { execFileSync } from 'node:child_process';
 import {
   appendFileSync,
@@ -121,6 +122,7 @@ const evidence: WatcherLiveEvidence = {
     maxWarms: 1,
     traceFile: 'watcher-trace.jsonl',
     sourceFiles: [
+      ...sharedHelperSources.map(path => '../../' + path),
       'watcher.ts',
       '../../src/core/watcher-policy.ts',
       '../../src/cli/watcher-run.ts',

@@ -1,5 +1,6 @@
 // Disposable native E2E driver authored before the installer/autoload implementation.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -526,6 +527,7 @@ try {
     e.cleanup.push({ pid: entry.terminal.pid, owned: true, exited: entry.exited });
   }
   e.sourceFiles = [
+    ...sharedHelperSources,
     'src/cli/setup.ts',
     'tests/e2e/setup-live.ts',
     'tests/e2e/setup-live-acceptance.ts',

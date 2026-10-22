@@ -1,5 +1,6 @@
 // Native registration fault E2E contracts, authored before compensation fixes.
 import assert from 'node:assert/strict';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -241,6 +242,7 @@ try {
         commands,
         personal,
         sourceFiles: [
+          ...sharedHelperSources.map(path => '../../' + path),
           '../../src/codex/codex-native-setup.ts',
           '../../src/cli/setup.ts',
           'codex-native-setup-fault-e2e.ts',
