@@ -1,11 +1,11 @@
 // Resolve only an explicit binary or the official npm package's platform vendor entry.
-import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { sha256 } from '../lib/digest.ts';
 export function executableHash(path: string) {
   const st = lstatSync(path);
   if (!st.isFile()) throw new Error('native binary is not a regular file');
-  return createHash('sha256').update(readFileSync(path)).digest('hex');
+  return sha256(readFileSync(path));
 }
 export function nativeIdentity(command: string) {
   const launcher = realpathSync(command);

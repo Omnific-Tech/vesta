@@ -1,6 +1,5 @@
 // Metadata-only hook runtime primitives. Native processes and native locks are read-only.
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import {
   closeSync,
   constants,
@@ -9,32 +8,22 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
-  readFileSync,
   readSync,
   readdirSync,
   realpathSync,
-  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { executableHash, nativeIdentity } from './codex-native-identity.ts';
-export const digest = (text: string) =>
-  createHash('sha256').update(text).digest('hex').slice(0, 32);
+import { sha256 } from '../lib/digest.ts';
+import { processBirth as birth } from '../lib/process-identity.ts';
+import { readMetadata as read, writeMetadata as atomic } from '../lib/metadata-files.ts';
+export { birth, read, atomic };
+export const digest = (text: string) => sha256(text).slice(0, 32);
 export const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 export const safeId = (text: any) =>
   typeof text === 'string' && /^[a-zA-Z0-9:_-]{1,128}$/.test(text);
-export const birth = (pid: number) => {
-  try {
-    return execFileSync('/bin/ps', ['-p', String(pid), '-o', 'lstart='], {
-      encoding: 'utf8',
-      timeout: 1000,
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch {
-    return '';
-  }
-};
 export const alive = (row: any) =>
   Number.isSafeInteger(row?.pid) &&
   row.pid > 0 &&
@@ -53,43 +42,7 @@ export function directory(path: string) {
     throw new Error('unsafe metadata directory');
   return path;
 }
-export function read(path: string, maximum = 1024 * 1024) {
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-  try {
-    const st = fstatSync(fd);
-    const named = lstatSync(path);
-    if (
-      !st.isFile() ||
-      named.isSymbolicLink() ||
-      st.ino !== named.ino ||
-      st.dev !== named.dev ||
-      st.size > maximum ||
-      (process.getuid && st.uid !== process.getuid())
-    )
-      throw new Error('unsafe metadata file');
-    const data = readFileSync(fd, 'utf8');
-    if (Buffer.byteLength(data) > maximum) throw new Error('metadata bound exceeded');
-    return data;
-  } finally {
-    closeSync(fd);
-  }
-}
 export const json = (path: string) => JSON.parse(read(path));
-export function atomic(path: string, row: any) {
-  const temp = path + '.' + process.pid + '.tmp';
-  const fd = openSync(
-    temp,
-    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-    0o600,
-  );
-  try {
-    writeFileSync(fd, JSON.stringify(row));
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
-  }
-  renameSync(temp, path);
-}
 export function append(path: string, row: any) {
   const fd = openSync(
     path,

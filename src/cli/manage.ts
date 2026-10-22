@@ -5,8 +5,6 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
-  openSync,
-  closeSync,
   readFileSync,
   readlinkSync,
   realpathSync,
@@ -20,9 +18,10 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { directory, prepareVersion, readJson, saveJson, sha256, version } from './assets.ts';
 import { codexHookReadiness } from '../codex/codex-native-ipc.ts';
-import { controlConfig, claudeControlOptions } from '../shared/watcher-policy.ts';
+import { controlConfig, claudeControlOptions } from '../core/watcher-policy.ts';
 import { runtimeOwners } from '../codex/codex-runtime-status.ts';
 import { hookSetupStatus } from '../codex/codex-hook-setup.ts';
+import { withOperationLock } from '../lib/operation-lock.ts';
 import {
   absolute,
   installedClaude,
@@ -59,34 +58,8 @@ function ownedLink(path: string, expected?: string) {
   )
     throw new Error('Foreign or dangling Vesta link ownership: ' + path);
 }
-export async function withLock<T>(root: string, operation: () => T | Promise<T>): Promise<T> {
-  directory(root);
-  const lock = join(root, '.operation.lock');
-  let fd: number | undefined;
-  try {
-    try {
-      fd = openSync(lock, 'wx', 0o600);
-    } catch {
-      const owner = readJson(lock);
-      if (!Number.isSafeInteger(owner?.pid) || owner.pid <= 0)
-        throw new Error('Unrecognized Vesta operation lock');
-      try {
-        process.kill(owner.pid, 0);
-        throw new Error('Another Vesta operation is running');
-      } catch (error: any) {
-        if (error.code !== 'ESRCH') throw error;
-      }
-      unlinkSync(lock);
-      fd = openSync(lock, 'wx', 0o600);
-    }
-    writeFileSync(fd!, JSON.stringify({ pid: process.pid, version }));
-    return await operation();
-  } finally {
-    if (fd !== undefined) {
-      closeSync(fd);
-      unlinkSync(lock);
-    }
-  }
+export function withLock<T>(root: string, operation: () => T | Promise<T>): Promise<T> {
+  return withOperationLock(root, version, operation);
 }
 function link(path: string, target?: string) {
   if (

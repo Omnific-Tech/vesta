@@ -19,17 +19,13 @@ import {
   uninstallNativeCodex,
 } from './codex-native-setup.ts';
 import { runtimeOwners } from './codex-runtime-status.ts';
-import { controlConfig } from '../shared/watcher-policy.ts';
+import { controlConfig } from '../core/watcher-policy.ts';
 import { nativeIdentity } from './codex-native-identity.ts';
 import { alive, birth } from './codex-hook-state.ts';
+import { readJsonFile, savePrivateJson as save } from '../lib/json-files.ts';
 const start = '# >>> Vesta managed Codex >>>';
 const end = '# <<< Vesta managed Codex <<<';
-const read = (path: string, fallback: any = null) =>
-  existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : fallback;
-const save = (path: string, row: any) => {
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  writeFileSync(path, JSON.stringify(row, null, 2) + '\n', { mode: 0o600 });
-};
+const read = (path: string, fallback: any = null) => readJsonFile(path, fallback);
 export const currentNativeHome = () => {
   const path = resolve(process.env.CODEX_HOME ?? join(homedir(), '.codex'));
   return existsSync(path) ? realpathSync(path) : path;

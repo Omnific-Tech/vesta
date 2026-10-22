@@ -15,6 +15,9 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkClaudePolicy } from './claude-policy.ts';
+
+checkClaudePolicy();
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -103,13 +106,33 @@ try {
     'src/codex/codex-hook-setup.ts',
     'src/codex/codex-native-identity.ts',
     'src/codex/codex-hook-watcher.ts',
+    'src/codex/codex-hook-types.ts',
+    'src/codex/codex-hook-ingress.ts',
+    'src/codex/codex-hook-controls.ts',
+    'src/codex/codex-hook-slots.ts',
+    'src/codex/codex-hook-journal.ts',
+    'src/codex/codex-hook-dispatch.ts',
+    'src/codex/codex-hook-observer.ts',
     'src/codex/codex-hook-state.ts',
     'src/codex/codex-native-diagnostics.ts',
     'src/codex/codex-runtime-status.ts',
     'src/codex/codex-native-ipc.ts',
     'src/codex/codex-native-setup.ts',
     'src/cli/watcher-run.ts',
-    'src/shared/watcher-policy.ts',
+    'src/cli/watcher-options.ts',
+    'src/cli/watcher-process.ts',
+    'src/cli/watcher-claude.ts',
+    'src/cli/watcher-codex-protocol.ts',
+    'src/cli/watcher-codex.ts',
+    'src/core/watcher-policy.ts',
+    'src/lib/json-files.ts',
+    'src/lib/metadata-files.ts',
+    'src/lib/control-files.ts',
+    'src/lib/installation-files.ts',
+    'src/lib/operation-lock.ts',
+    'src/lib/process-identity.ts',
+    'src/lib/digest.ts',
+    'src/lib/shell.ts',
   ];
   for (const directory of [
     'src/claude/vesta-claude',

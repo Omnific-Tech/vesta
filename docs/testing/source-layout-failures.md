@@ -26,14 +26,14 @@ contracts already exist on the formatting baseline.
 1. Preserve the complete formatting-baseline E2E gate and its independently
    replayable artifacts outside the repository and outside `~/Codes/Omnific`.
    Run the existing release verification script with `SKIP_PRODUCTION=1`.
-2. Run `npm run format:check`. Run `test/e2e/docs-check.ts` with an external
+2. Run `npm run format:check`. Run `tests/e2e/docs-check.ts` with an external
    receipt path, then run it again with `--verify` and the same receipt.
 3. Build the real CLI with `bun packaging/build.ts --development --out BINARY
    --receipt RECEIPT`, with both output paths external. Inspect the receipt and
    execute the installed-runtime gates, rather than accepting source imports as
    proof that packaged assets are complete.
 4. Run the existing release, repair, public, native-registry and controls E2Es
-   from `test/e2e/`. Their retained-source removal, native registration, asset
+   from `tests/e2e/`. Their retained-source removal, native registration, asset
    integrity, isolated installation and rollback checks remain unchanged.
 5. Run Codex hook watcher/native, migration/TUI, Pulse and diagnostics E2Es, then
    independently replay their existing contracts. Their source fingerprint sets

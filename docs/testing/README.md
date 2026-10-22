@@ -1,7 +1,7 @@
 # Native CLI integration and disposable probes
 
 Runtime source lives in `src/`; E2E drivers, fixtures and acceptance oracles live
-in `test/e2e/`. Run commands below from the repository root. Failure contracts are
+in `tests/e2e/`. Run commands below from the repository root. Failure contracts are
 collected here without removing their original cases:
 
 - [Source layout](source-layout-failures.md)
@@ -86,9 +86,9 @@ On macOS with Node 22.17.1+, Claude Code 2.1.294 and Codex CLI 0.161.0:
 ```sh
 npm ci
 chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
-node --experimental-strip-types test/e2e/run.ts claude --artifacts harness/runs/manual-claude/artifacts
-node --experimental-strip-types test/e2e/run.ts codex --artifacts harness/runs/manual-codex/artifacts
-node --experimental-strip-types test/e2e/acceptance.ts harness/runs/manual-claude/artifacts/summary.json
+node --experimental-strip-types tests/e2e/run.ts claude --artifacts harness/runs/manual-claude/artifacts
+node --experimental-strip-types tests/e2e/run.ts codex --artifacts harness/runs/manual-codex/artifacts
+node --experimental-strip-types tests/e2e/acceptance.ts harness/runs/manual-claude/artifacts/summary.json
 ```
 
 The chmod addresses the pinned node-pty package's macOS helper permission. No
@@ -138,10 +138,10 @@ PROBE-002 uses Claude Code 2.1.296 and Codex CLI 0.162.0 with Node 22.17.1.
 The legacy keepalive probes above retain their original version contracts.
 
 ```sh
-node --experimental-strip-types test/e2e/run.ts claude --context --artifacts harness/runs/manual-context-claude/artifacts
-node --experimental-strip-types test/e2e/run.ts codex --context --artifacts harness/runs/manual-context-codex/artifacts
-node --experimental-strip-types test/e2e/context-acceptance.ts harness/runs/manual-context-claude/artifacts/summary.json
-node --experimental-strip-types test/e2e/context-acceptance.ts --fixtures
+node --experimental-strip-types tests/e2e/run.ts claude --context --artifacts harness/runs/manual-context-claude/artifacts
+node --experimental-strip-types tests/e2e/run.ts codex --context --artifacts harness/runs/manual-context-codex/artifacts
+node --experimental-strip-types tests/e2e/context-acceptance.ts harness/runs/manual-context-claude/artifacts/summary.json
+node --experimental-strip-types tests/e2e/context-acceptance.ts --fixtures
 telos verify PROBE-002
 ```
 
@@ -243,7 +243,7 @@ Repeatable verification uses isolated disposable native sessions:
 npm run verify:watcher
 npm run probe:watcher:claude -- --artifacts harness/runs/manual-watcher-claude/artifacts
 npm run probe:watcher:codex -- --artifacts harness/runs/manual-watcher-codex/artifacts
-node --experimental-strip-types test/e2e/watcher-live-acceptance.ts harness/runs/manual-watcher-claude/artifacts/summary.json
+node --experimental-strip-types tests/e2e/watcher-live-acceptance.ts harness/runs/manual-watcher-claude/artifacts/summary.json
 telos verify WATCH-001
 ```
 

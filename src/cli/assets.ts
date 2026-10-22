@@ -1,11 +1,9 @@
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import {
   chmodSync,
   copyFileSync,
   existsSync,
   lstatSync,
-  mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -13,25 +11,19 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import payloadFile from './payload.tar.gz' with { type: 'file' };
+import { readJsonFile, savePrivateJson } from '../lib/json-files.ts';
+import { installationDirectory } from '../lib/installation-files.ts';
+import { sha256 } from '../lib/digest.ts';
 
 declare const __VESTA_VERSION__: string;
 declare const __VESTA_PAYLOAD_SHA__: string;
 declare const __VESTA_MANIFEST_SHA__: string;
 export const version = __VESTA_VERSION__;
-export const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-export const readJson = (file: string, fallback: any = null) =>
-  existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : fallback;
-export function saveJson(file: string, value: any) {
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-  writeFileSync(file, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
-}
-export function directory(path: string) {
-  if (existsSync(path) && (!lstatSync(path).isDirectory() || lstatSync(path).isSymbolicLink()))
-    throw new Error('Unsafe owned directory: ' + path);
-  mkdirSync(path, { recursive: true, mode: 0o700 });
-}
+export const readJson = (file: string, fallback: any = null) => readJsonFile(file, fallback);
+export { sha256, savePrivateJson as saveJson, installationDirectory as directory };
+const directory = installationDirectory;
 function validate(path: string) {
   const manifestFile = join(path, 'manifest.json');
   if (

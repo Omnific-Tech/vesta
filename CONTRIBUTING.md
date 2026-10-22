@@ -7,7 +7,7 @@ acceptance contracts, source revisions and verification evidence.
 ## Build
 
 Runtime code lives in `src/claude/`, `src/codex/`, `src/cli/` and `src/shared/`.
-E2E drivers, fixtures and acceptance oracles live in `test/e2e/`; their
+E2E drivers, fixtures and acceptance oracles live in `tests/e2e/`; their
 [failure contracts and probe guide](docs/testing/README.md) live in `docs/testing/`.
 `packaging/build.ts` assembles the standalone application.
 
@@ -33,6 +33,13 @@ the development toolchain.
 Define failure cases and executable acceptance contracts before isolated
 implementation. Prefer E2E checks and preserve repeatable evidence. Do not
 write unit tests after implementation.
+
+Run `npm run lint` and `npm run format:check` before the E2E gate. Readability
+rules report warnings for existing production code and errors in `src/core/`
+and `src/lib/`. The baseline checks function length (60 nonblank, noncomment
+lines), complexity (10), explicit `any` and magic numbers; small sentinel values,
+array indexes and default parameters are allowed. E2E code is outside this lint
+scope. See the [lint baseline contracts](docs/testing/lint-baseline-failures.md).
 
 Commit final source and definitions before final Telos verification. Native
 checks use isolated provider configuration, preserve personal globals, record
