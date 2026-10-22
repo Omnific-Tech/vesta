@@ -1,4 +1,16 @@
 // Keep extracted dependency identities explicit in each retained E2E source receipt.
+export const claudeSessionModules = [
+  'hooks/session-types.ts',
+  'hooks/session-state.ts',
+  'hooks/session-controls.ts',
+  'hooks/session-continuity.ts',
+  'hooks/session-lifecycle.ts',
+  'hooks/session-status.ts',
+  'hooks/session-warm.ts',
+  'hooks/session-handlers.ts',
+];
+export const claudePluginHooks = ['hooks/register.ts', 'hooks/policy.ts', ...claudeSessionModules];
+
 export const hookRuntimeHelpers = [
   'codex/codex-hook-types.ts',
   'codex/codex-hook-ingress.ts',
@@ -13,6 +25,35 @@ export const hookRuntimeHelpers = [
 ];
 
 export const sharedHelperSources = [
+  'docs/testing/STRICT-SOURCE-FAILURES.md',
+  'src/shared/context-gate.ts',
+  'src/claude/watcher-claude/hooks/register.ts',
+  'src/cli/assets.ts',
+  'src/cli/controls.ts',
+  'src/cli/github.ts',
+  'src/cli/providers.ts',
+  'src/cli/setup.ts',
+  'src/cli/integration-state.ts',
+  'src/codex/codex-hook-setup.ts',
+  'src/codex/codex-hook-state.ts',
+  'src/codex/codex-native-diagnostics.ts',
+  'src/codex/codex-native-identity.ts',
+  'src/codex/codex-native-ipc.ts',
+  'src/codex/codex-native-setup.ts',
+  'src/codex/codex-runtime-status.ts',
+  'src/codex/vesta-codex/handler.mjs',
+  ...[
+    'types',
+    'links',
+    'catalog',
+    'native',
+    'operation',
+    'status',
+    'rollback',
+    'install',
+    'uninstall',
+  ].map(name => 'src/cli/manage-' + name + '.ts'),
+  ...claudeSessionModules.map(path => 'src/claude/vesta-claude/' + path),
   'src/cli/watcher-options.ts',
   'src/cli/watcher-process.ts',
   'src/cli/watcher-claude.ts',

@@ -1,6 +1,6 @@
 import tseslint from 'typescript-eslint';
 
-// Keep existing production code visible while core and shared helpers are split.
+// Apply the same readability contract to every source module and generated policy.
 const readabilityRules = severity => ({
   'max-lines-per-function': [severity, { max: 60, skipBlankLines: true, skipComments: true }],
   complexity: [severity, 10],
@@ -17,14 +17,6 @@ export default [
     files: ['src/**/*.{ts,mjs}'],
     languageOptions: { parser: tseslint.parser },
     plugins: { '@typescript-eslint': tseslint.plugin },
-    rules: readabilityRules('warn'),
-  },
-  {
-    files: [
-      'src/{core,lib}/**/*.{ts,mjs}',
-      'src/codex/codex-hook-{watcher,types,ingress,controls,slots,journal,dispatch,observer}.ts',
-      'src/cli/watcher-{run,options,process,claude,codex-protocol,codex}.ts',
-    ],
     rules: readabilityRules('error'),
   },
 ];

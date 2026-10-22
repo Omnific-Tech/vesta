@@ -47,6 +47,7 @@ import { claudePluginBody } from './marker-acceptance.ts';
 import { existsSync } from 'node:fs';
 import { digest as signatureDigest } from '../../src/codex/codex-hook-state.ts';
 import { controlConfig } from '../../src/core/watcher-policy.ts';
+import { claudePluginHooks } from './shared-helper-sources.ts';
 
 export const controlMessage = 'VESTA_CUSTOM_CONTROL_🪔';
 export const controlFields = [
@@ -568,6 +569,16 @@ export function verifyControls(directory: string) {
   const host = JSON.parse(readFileSync(join(directory, hostObservation.summaryFile), 'utf8'));
   assert.equal(host.kind, 'simulated-native-host-actual-shipped-claude-module');
   assert.equal(host.binarySha256, e.binarySha256);
+  assert.deepEqual(
+    host.modules.map((module: any) => module.path),
+    claudePluginHooks,
+  );
+  for (const module of host.modules) {
+    const assetPath = 'app/src/claude/vesta-claude/' + module.path;
+    const installed = e.installedFiles.find((file: any) => file.assetPath === assetPath);
+    assert.ok(installed, 'installed Claude module closure: ' + assetPath);
+    assert.equal(module.sha256, installed.sha256, 'host executes installed Claude closure');
+  }
   assert.equal(
     host.moduleSha256,
     e.installedFiles.find((file: any) => file.assetPath.endsWith('/vesta-claude/hooks/register.ts'))

@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as pty from 'node-pty';
+import { sharedHelperSources } from './shared-helper-sources.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const baselineRevision = 'd1268f5';
@@ -39,6 +40,7 @@ const runtimeSources = [
   'src/cli/watcher-codex.ts',
 ];
 const sources = [
+  ...sharedHelperSources,
   ...runtimeSources,
   'tests/e2e/watcher-run-e2e.ts',
   'tests/e2e/watcher-run-provider-fixture.mjs',

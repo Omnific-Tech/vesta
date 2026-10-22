@@ -21,6 +21,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { digest } from './controls-acceptance.ts';
+import { claudePluginHooks } from './shared-helper-sources.ts';
 
 export async function claudeControlHostFixture(input: {
   binary: string;
@@ -506,16 +507,134 @@ export async function claudeControlHostFixture(input: {
     clockScenarios.push({ variant, seed, busy, completed, final: state(), submissions });
     await fire('session.end', { reason: 'exit' });
   }
+  // Query imports recreate only register.ts: static helper modules stay cached.
+  // Both entries must remain usable concurrently, and re-registering an entry
+  // during its suspended timer must leave that old owner unable to dispatch.
+  currentStage = 'entry-isolation';
+  cli(['resume']);
+  cli(['config', '--idle-ms', '800', '--budget-ms', '1000000', '--threshold', '0']);
+  const instances: any[] = [];
+  const isolationScenarios: any[] = [];
+  for (const label of ['first', 'second']) {
+    const handlers = new Map<string, Function>();
+    const store = new Map<string, any>();
+    const timers: any[] = [];
+    const submissions: any[] = [];
+    let now = Date.now() + 1;
+    let release: (() => void) | undefined;
+    let held = false;
+    const host = {
+      env: { get: async (name: string) => input.env[name] },
+      fs: { read: async (path: string) => readFileSync(path, 'utf8') },
+      session: { id: async () => label, usage: async () => ({ context: { tokens: 200000 } }) },
+      command: { register: async () => undefined },
+      store: {
+        get: async (key: string) => store.get(key),
+        set: async (key: string, value: any) => store.set(key, structuredClone(value)),
+      },
+      clock: {
+        now: async () => now,
+        every: (_ms: number, callback: Function) => {
+          const timer = { callback, cancelled: false };
+          timers.push(timer);
+          return {
+            cancel: () => {
+              timer.cancelled = true;
+            },
+          };
+        },
+        sleep: async () => {
+          held = true;
+          await new Promise<void>(done => {
+            release = done;
+          });
+        },
+      },
+      prompt: {
+        submit: async (value: any) => {
+          submissions.push(value);
+        },
+      },
+    };
+    const module = await import(pathToFileURL(input.modulePath).href + '?entry-isolation=' + label);
+    const register = () =>
+      module.register(
+        (name: string, handler: Function) => handlers.set(name, handler),
+        JSON.parse(readFileSync(settingsPath, 'utf8')).pluginConfigs['vesta@vesta-local'].options,
+      );
+    const fire = (name: string, event: any = {}) =>
+      handlers.get(name)!(host, event, async (value: any) => value);
+    register();
+    await fire('session.start');
+    await fire('prompt.submit', { origin: { kind: 'composer' } });
+    await fire('turn.start', { text: 'seed', turnId: label + '-seed' });
+    await fire('turn.complete', { turnId: label + '-seed', reason: 'answer' });
+    instances.push({
+      label,
+      store,
+      timers,
+      submissions,
+      register,
+      fire,
+      advance: () => {
+        now += 1000;
+      },
+      held: () => held,
+      release: () => release!(),
+    });
+  }
+  const [first, second] = instances;
+  const secondBefore = structuredClone(second.store.get('status:second'));
+  await first.fire('prompt.edit');
+  assert.equal(first.store.get('status:first').sessionId, 'first');
+  assert.deepEqual(
+    second.store.get('status:second'),
+    secondBefore,
+    'cached helpers keep entries independent',
+  );
+  isolationScenarios.push({
+    kind: 'cached-helper-entry-isolation',
+    first: first.store.get('status:first'),
+    second: secondBefore,
+  });
+  first.advance();
+  const oldTimer = first.timers.find((timer: any) => !timer.cancelled);
+  const pending = oldTimer.callback();
+  const until = Date.now() + 3000;
+  while (!first.held() && Date.now() < until) await new Promise(done => setTimeout(done, 5));
+  assert.equal(first.held(), true, 'old owner timer reached async yield');
+  first.register();
+  await first.fire('session.start');
+  assert.equal(oldTimer.cancelled, true);
+  assert.equal(first.store.get('status:first').resetReason, 'reload');
+  first.release();
+  await pending;
+  assert.equal(
+    first.submissions.length,
+    0,
+    'old owner callback cannot submit after repeated register',
+  );
+  isolationScenarios.push({
+    kind: 'repeat-register-old-callback',
+    state: first.store.get('status:first'),
+  });
+  for (const instance of instances) await instance.fire('session.end', { reason: 'exit' });
+  record('entry-isolation', { isolationScenarios });
   const summary = {
     kind: 'simulated-native-host-actual-shipped-claude-module',
     binary: input.binary,
     binarySha256: digest(input.binary),
     modulePath: input.modulePath,
     moduleSha256: digest(input.modulePath),
+    modules: claudePluginHooks.map(path => ({
+      path,
+      sha256: digest(join(input.modulePath, '../..', path)),
+    })),
     logFile: 'host.jsonl',
     scenarios,
     reloadScenarios,
     clockScenarios,
+    isolationScenarios,
   };
   writeFileSync(join(input.directory, 'summary.json'), JSON.stringify(summary, null, 2));
   return summary;

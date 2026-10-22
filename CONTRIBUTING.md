@@ -35,11 +35,12 @@ implementation. Prefer E2E checks and preserve repeatable evidence. Do not
 write unit tests after implementation.
 
 Run `npm run lint` and `npm run format:check` before the E2E gate. Readability
-rules report warnings for existing production code and errors in `src/core/`
-and `src/lib/`. The baseline checks function length (60 nonblank, noncomment
+rules are errors throughout `src/`, including generated policy copies. They
+check function length (60 nonblank, noncomment
 lines), complexity (10), explicit `any` and magic numbers; small sentinel values,
 array indexes and default parameters are allowed. E2E code is outside this lint
-scope. See the [lint baseline contracts](docs/testing/lint-baseline-failures.md).
+scope. See the historical [lint baseline contracts](docs/testing/lint-baseline-failures.md)
+and the current [strict source contracts](docs/testing/STRICT-SOURCE-FAILURES.md).
 
 Commit final source and definitions before final Telos verification. Native
 checks use isolated provider configuration, preserve personal globals, record

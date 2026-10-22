@@ -1,9 +1,10 @@
 // Native trusted hook: empty stdout, no model context, invocation-local metadata.
 import { appendFileSync, lstatSync } from 'node:fs';
+const MAXIMUM_HOOK_INPUT_CHARACTERS = 1000000;
 let input = '';
 for await (const chunk of process.stdin) {
   input += chunk;
-  if (input.length > 1000000) process.exit(0);
+  if (input.length > MAXIMUM_HOOK_INPUT_CHARACTERS) process.exit(0);
 }
 try {
   const ownerId = process.env.VESTA_CODEX_OWNER_ID;
