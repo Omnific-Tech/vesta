@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { buildRelocated, hash, root } from './e2e-common.ts';
 import { claudeControlHostFixture } from './controls-claude-host-fixture.ts';
-import { claudePluginHooks } from './shared-helper-sources.ts';
+import { claudePluginHooks, sharedHelperSources } from './shared-helper-sources.ts';
 
 const files = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap(entry =>
@@ -29,6 +29,7 @@ const files = (directory: string): string[] =>
         : [],
   );
 const sources = [
+  ...sharedHelperSources,
   ...files(join(root, 'src/claude/vesta-claude/hooks')).map(path => relative(root, path)),
   'tests/e2e/claude-session-e2e.ts',
   'tests/e2e/claude-session-native-fixture.mjs',

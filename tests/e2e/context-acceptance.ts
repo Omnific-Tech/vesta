@@ -1,6 +1,7 @@
 // Executable acceptance contracts authored before the context probe and gate.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -316,7 +317,20 @@ function verifyGate() {
   mkdirSync(artifactDirectory, { recursive: true });
   writeFileSync(
     resolve(artifactDirectory, 'gate-fixtures.json'),
-    JSON.stringify({ schema: 1, cases: results }, null, 2),
+    JSON.stringify(
+      {
+        schema: 1,
+        sources: ['../../src/shared/context-gate.ts', 'context-acceptance.ts'].map(path => ({
+          path: resolve(here, path),
+          sha256: createHash('sha256')
+            .update(readFileSync(resolve(here, path)))
+            .digest('hex'),
+        })),
+        cases: results,
+      },
+      null,
+      2,
+    ),
   );
   console.log(`Context gate acceptance passed: ${cases.length} CLI cases`);
 }

@@ -25,6 +25,23 @@ export const hookRuntimeHelpers = [
 ];
 
 export const sharedHelperSources = [
+  'docs/testing/STRICT-SOURCE-FAILURES.md',
+  'src/shared/context-gate.ts',
+  'src/claude/watcher-claude/hooks/register.ts',
+  'src/cli/assets.ts',
+  'src/cli/controls.ts',
+  'src/cli/github.ts',
+  'src/cli/providers.ts',
+  'src/cli/setup.ts',
+  'src/cli/integration-state.ts',
+  'src/codex/codex-hook-setup.ts',
+  'src/codex/codex-hook-state.ts',
+  'src/codex/codex-native-diagnostics.ts',
+  'src/codex/codex-native-identity.ts',
+  'src/codex/codex-native-ipc.ts',
+  'src/codex/codex-native-setup.ts',
+  'src/codex/codex-runtime-status.ts',
+  'src/codex/vesta-codex/handler.mjs',
   ...[
     'types',
     'links',
