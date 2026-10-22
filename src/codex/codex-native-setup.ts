@@ -8,115 +8,244 @@ import { fileURLToPath } from 'node:url';
 import { codexPluginId, nativeRequest } from './codex-native-ipc.ts';
 import { shellQuote as quote } from '../lib/shell.ts';
 
+export type NativeCodexState = {
+  provider?: string;
+  integrationMode?: string;
+  native?: string;
+  shellFile?: string;
+  block?: string;
+  createdConfig?: unknown;
+  nativePluginId?: string;
+  nativeCodexHome?: string;
+  nativeMarketplaceRoot?: string;
+  nativeMarketplaceOwned?: boolean;
+  nativeHookCommand?: string;
+  nativeHomes?: NativeCodexState[];
+};
+export type OwnedNativeHome = NativeCodexState & { nativeCodexHome: string };
+export type NativePluginRegistration = {
+  pluginId: string;
+  source?: { path?: string };
+  enabled?: boolean;
+};
+export type NativeMarketplaceRegistration = { name: string; marketplaceSource: { source: string } };
+export type NativeRegistrationSnapshot = {
+  nativeHome?: string;
+  plugin?: NativePluginRegistration;
+  marketplace?: NativeMarketplaceRegistration;
+  nativeHomes?: { state: NativeCodexState; snapshot: NativeRegistrationSnapshot }[];
+};
+type NativeInstallation = OwnedNativeHome & {
+  nativePluginId: string;
+  nativeMarketplaceRoot: string;
+  nativeMarketplaceOwned: boolean;
+  nativeHookCommand: string;
+};
+type PluginListing = { installed: NativePluginRegistration[] };
+type MarketplaceListing = { marketplaces: NativeMarketplaceRegistration[] };
+type RegistryCommand = {
+  child: ReturnType<typeof spawn>;
+  stdout: Buffer[];
+  stdoutBytes: number;
+  stderrBytes: number;
+  closed: boolean;
+  code: number | null;
+  signal: string | null;
+  failure: string;
+};
+const MAXIMUM_COMMAND_BYTES = 4000000;
+const COMMAND_TIMEOUT_MS = 30000;
+const COMMAND_POLL_MS = 25;
+const TERMINATE_GRACE_MS = 500;
+const KILL_GRACE_MS = 1000;
+const CATALOG_DIGEST_CHARACTERS = 16;
+const NATIVE_HOOK_TIMEOUT_SECONDS = 3;
+const PRIVATE_DIRECTORY_MODE = 0o700;
+const PRIVATE_FILE_MODE = 0o600;
 const here = dirname(fileURLToPath(import.meta.url));
 const home = () => resolve(process.env.CODEX_HOME ?? join(homedir(), '.codex'));
-const json = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
-async function call(native: string, argv: string[], nativeHome: string) {
-  // Stream through the recorded launcher and wait for pipe closure as well as
-  // process exit. The npm launcher can itself own a native child process.
+const json = <Value = unknown>(path: string): Value => JSON.parse(readFileSync(path, 'utf8'));
+function startRegistryCommand(native: string, argv: string[], nativeHome: string): RegistryCommand {
+  // Wait for pipe closure as well as exit: the recorded npm launcher can own a native child.
   const child = spawn(native, argv, {
     env: { ...process.env, CODEX_HOME: nativeHome },
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  const stdout: Buffer[] = [];
-  let stdoutBytes = 0;
-  let stderrBytes = 0;
-  let closed = false;
-  let code: number | null = null;
-  let signal: string | null = null;
-  let failure = '';
-  child.on('error', error => {
-    failure ||= error.message;
+  const command: RegistryCommand = {
+    child,
+    stdout: [],
+    stdoutBytes: 0,
+    stderrBytes: 0,
+    closed: false,
+    code: null,
+    signal: null,
+    failure: '',
+  };
+  const failed = (error: Error) => {
+    command.failure ||= error.message;
+  };
+  child.on('error', failed);
+  child.stdout!.on('error', failed);
+  child.stderr!.on('error', failed);
+  child.stdout!.on('data', data => {
+    command.stdoutBytes += data.length;
+    if (command.stdoutBytes + command.stderrBytes > MAXIMUM_COMMAND_BYTES)
+      command.failure ||= 'native registry output exceeded bound';
+    else command.stdout.push(Buffer.from(data));
   });
-  child.stdout.on('error', error => {
-    failure ||= error.message;
-  });
-  child.stderr.on('error', error => {
-    failure ||= error.message;
-  });
-  child.stdout.on('data', data => {
-    stdoutBytes += data.length;
-    if (stdoutBytes + stderrBytes > 4000000) failure ||= 'native registry output exceeded bound';
-    else stdout.push(Buffer.from(data));
-  });
-  child.stderr.on('data', data => {
-    stderrBytes += data.length;
-    if (stdoutBytes + stderrBytes > 4000000) failure ||= 'native registry output exceeded bound';
+  child.stderr!.on('data', data => {
+    command.stderrBytes += data.length;
+    if (command.stdoutBytes + command.stderrBytes > MAXIMUM_COMMAND_BYTES)
+      command.failure ||= 'native registry output exceeded bound';
   });
   child.on('close', (status, reason) => {
-    closed = true;
-    code = status;
-    signal = reason;
+    command.closed = true;
+    command.code = status;
+    command.signal = reason;
   });
-  const wait = async (ms: number) => {
-    const until = Date.now() + ms;
-    while (!closed && Date.now() < until) await new Promise(done => setTimeout(done, 25));
-  };
-  const deadline = Date.now() + 30000;
-  while (!closed && !failure && Date.now() < deadline)
-    await new Promise(done => setTimeout(done, 25));
-  if (!closed) {
-    failure ||= 'native registry command timed out';
-    const kill = (value: NodeJS.Signals) => {
-      if (child.pid) {
-        try {
-          process.kill(-child.pid, value);
-        } catch {}
-      }
-    };
-    kill('SIGTERM');
-    await wait(500);
-    if (!closed) {
-      kill('SIGKILL');
-      await wait(1000);
-    }
-    if (!closed) {
-      failure += '; owned process cleanup did not complete';
-      child.stdout.destroy();
-      child.stderr.destroy();
-      child.unref();
-    }
+  return command;
+}
+async function waitRegistry(command: RegistryCommand, milliseconds: number) {
+  const until = Date.now() + milliseconds;
+  while (!command.closed && Date.now() < until)
+    await new Promise(done => setTimeout(done, COMMAND_POLL_MS));
+}
+function signalRegistry(command: RegistryCommand, value: NodeJS.Signals) {
+  if (command.child.pid) {
+    try {
+      process.kill(-command.child.pid, value);
+    } catch {}
   }
-  const receipt =
+}
+async function cleanupRegistry(command: RegistryCommand) {
+  command.failure ||= 'native registry command timed out';
+  signalRegistry(command, 'SIGTERM');
+  await waitRegistry(command, TERMINATE_GRACE_MS);
+  if (!command.closed) {
+    signalRegistry(command, 'SIGKILL');
+    await waitRegistry(command, KILL_GRACE_MS);
+  }
+  if (!command.closed) {
+    command.failure += '; owned process cleanup did not complete';
+    command.child.stdout!.destroy();
+    command.child.stderr!.destroy();
+    command.child.unref();
+  }
+}
+function commandReceipt(native: string, argv: string[], command: RegistryCommand) {
+  return (
     native +
     ' ' +
     argv.join(' ') +
     '; pid=' +
-    child.pid +
+    command.child.pid +
     '; exit=' +
-    code +
+    command.code +
     '; signal=' +
-    signal +
+    command.signal +
     '; stdoutBytes=' +
-    stdoutBytes +
+    command.stdoutBytes +
     '; stderrBytes=' +
-    stderrBytes;
-  if (failure || code !== 0)
+    command.stderrBytes
+  );
+}
+async function call<Result = unknown>(
+  native: string,
+  argv: string[],
+  nativeHome: string,
+): Promise<Result> {
+  const command = startRegistryCommand(native, argv, nativeHome);
+  const deadline = Date.now() + COMMAND_TIMEOUT_MS;
+  while (!command.closed && !command.failure && Date.now() < deadline)
+    await new Promise(done => setTimeout(done, COMMAND_POLL_MS));
+  if (!command.closed) await cleanupRegistry(command);
+  const receipt = commandReceipt(native, argv, command);
+  if (command.failure || command.code !== 0)
     throw new Error(
-      'Native Codex registration failed: ' + receipt + (failure ? '; ' + failure : ''),
+      'Native Codex registration failed: ' +
+        receipt +
+        (command.failure ? '; ' + command.failure : ''),
     );
   try {
-    return JSON.parse(Buffer.concat(stdout).toString('utf8'));
+    return JSON.parse(Buffer.concat(command.stdout).toString('utf8')) as Result;
   } catch {
     throw new Error('Native Codex returned invalid JSON: ' + receipt);
   }
 }
-// `recorded` is every home already owned by this Vesta installation. A home with no state row of its own may still see the Vesta
-// marketplace/plugin through a `config.toml` shared with a recorded home (xswap managed accounts); that is adopted only when the
-// native source is exactly a recorded owned catalog root and that catalog still validates. Any other source stays foreign.
+function validateCatalog(path: string) {
+  const catalog = json<{ name: string; plugins?: { name: string; source: string }[] }>(
+    join(path, '.agents/plugins/marketplace.json'),
+  );
+  if (
+    catalog.name !== 'vesta-local' ||
+    catalog.plugins?.length !== 1 ||
+    catalog.plugins[0]!.name !== 'vesta' ||
+    catalog.plugins[0]!.source !== './plugin'
+  )
+    throw new Error('Owned native catalog changed; refusing removal');
+}
+function adoptable(root: unknown, state: NativeCodexState | null, recorded: NativeCodexState[]) {
+  if (
+    state ||
+    typeof root !== 'string' ||
+    !recorded.some(row => row?.nativeMarketplaceOwned && row.nativeMarketplaceRoot === root)
+  )
+    return false;
+  try {
+    validateCatalog(root);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function foreignPlugin(
+  plugin: NativePluginRegistration | undefined,
+  state: NativeCodexState | null,
+  recorded: NativeCodexState[],
+) {
+  return (
+    plugin &&
+    (state?.nativePluginId !== codexPluginId ||
+      plugin.source?.path !== join(state!.nativeMarketplaceRoot!, 'plugin')) &&
+    !(
+      adoptable(
+        typeof plugin.source?.path === 'string' ? dirname(plugin.source.path) : undefined,
+        state,
+        recorded,
+      ) && plugin.source!.path === join(dirname(plugin.source!.path!), 'plugin')
+    )
+  );
+}
+function foreignMarketplace(
+  marketplace: NativeMarketplaceRegistration | undefined,
+  state: NativeCodexState | null,
+  recorded: NativeCodexState[],
+) {
+  return (
+    marketplace &&
+    (!state?.nativeMarketplaceOwned ||
+      marketplace.marketplaceSource?.source !== state.nativeMarketplaceRoot) &&
+    !adoptable(marketplace.marketplaceSource?.source, state, recorded)
+  );
+}
+// Shared native configs may expose registrations from another recorded home.
+// Adopt only exact recorded catalog roots that still pass their existing validation.
+function multipleHomes(state: NativeCodexState | null, selectedHome: string | undefined) {
+  return state?.integrationMode === 'hook' && Array.isArray(state.nativeHomes) && !selectedHome;
+}
 export async function codexRegistration(
   native: string,
-  state: any,
+  state: NativeCodexState | null,
   selectedHome?: string,
-  recorded: any[] = [],
-) {
-  if (state?.integrationMode === 'hook' && Array.isArray(state.nativeHomes) && !selectedHome)
+  recorded: NativeCodexState[] = [],
+): Promise<NativeRegistrationSnapshot> {
+  if (multipleHomes(state, selectedHome))
     return {
       nativeHomes: await Promise.all(
-        state.nativeHomes.map(async (row: any) => ({
+        state!.nativeHomes!.map(async row => ({
           state: row,
-          snapshot: await codexRegistration(native, row, row.nativeCodexHome, state.nativeHomes),
+          snapshot: await codexRegistration(native, row, row.nativeCodexHome, state!.nativeHomes),
         })),
       ),
     };
@@ -125,105 +254,89 @@ export async function codexRegistration(
     throw new Error('Owned native Codex home cannot be relocated implicitly');
   if (!existsSync(nativeHome)) return { nativeHome, plugin: undefined, marketplace: undefined };
   const plugin = (
-    await call(native, ['plugin', 'list', '--marketplace', 'vesta-local', '--json'], nativeHome)
-  ).installed.find((row: any) => row.pluginId === codexPluginId);
+    await call<PluginListing>(
+      native,
+      ['plugin', 'list', '--marketplace', 'vesta-local', '--json'],
+      nativeHome,
+    )
+  ).installed.find(row => row.pluginId === codexPluginId);
   const marketplace = (
-    await call(native, ['plugin', 'marketplace', 'list', '--json'], nativeHome)
-  ).marketplaces.find((row: any) => row.name === 'vesta-local');
-  const adoptable = (root: any) => {
-    if (
-      state ||
-      typeof root !== 'string' ||
-      !recorded.some(row => row?.nativeMarketplaceOwned && row.nativeMarketplaceRoot === root)
-    )
-      return false;
-    try {
-      validateCatalog(root);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  if (
-    plugin &&
-    (state?.nativePluginId !== codexPluginId ||
-      plugin.source?.path !== join(state.nativeMarketplaceRoot, 'plugin')) &&
-    !(
-      adoptable(
-        typeof plugin.source?.path === 'string' ? dirname(plugin.source.path) : undefined,
-      ) && plugin.source.path === join(dirname(plugin.source.path), 'plugin')
-    )
-  )
+    await call<MarketplaceListing>(native, ['plugin', 'marketplace', 'list', '--json'], nativeHome)
+  ).marketplaces.find(row => row.name === 'vesta-local');
+  if (foreignPlugin(plugin, state, recorded))
     throw new Error('Foreign native Codex Vesta plugin ownership');
-  if (
-    marketplace &&
-    (!state?.nativeMarketplaceOwned ||
-      marketplace.marketplaceSource?.source !== state.nativeMarketplaceRoot) &&
-    !adoptable(marketplace.marketplaceSource?.source)
-  )
+  if (foreignMarketplace(marketplace, state, recorded))
     throw new Error('Foreign native Codex Vesta marketplace ownership');
   return { nativeHome, plugin, marketplace };
 }
 const registry = async (native: string, nativeHome: string) => ({
   nativeHome,
   plugin: (
-    await call(native, ['plugin', 'list', '--marketplace', 'vesta-local', '--json'], nativeHome)
-  ).installed.find((row: any) => row.pluginId === codexPluginId),
+    await call<PluginListing>(
+      native,
+      ['plugin', 'list', '--marketplace', 'vesta-local', '--json'],
+      nativeHome,
+    )
+  ).installed.find(row => row.pluginId === codexPluginId),
   marketplace: (
-    await call(native, ['plugin', 'marketplace', 'list', '--json'], nativeHome)
-  ).marketplaces.find((row: any) => row.name === 'vesta-local'),
+    await call<MarketplaceListing>(native, ['plugin', 'marketplace', 'list', '--json'], nativeHome)
+  ).marketplaces.find(row => row.name === 'vesta-local'),
 });
-function validateCatalog(path: string) {
-  const catalog = json(join(path, '.agents/plugins/marketplace.json'));
-  if (
-    catalog.name !== 'vesta-local' ||
-    catalog.plugins?.length !== 1 ||
-    catalog.plugins[0].name !== 'vesta' ||
-    catalog.plugins[0].source !== './plugin'
-  )
-    throw new Error('Owned native catalog changed; refusing removal');
-}
-export async function restoreNativeCodex(native: string, currentState: any, previous: any) {
-  if (previous?.nativeHomes) {
-    for (const row of previous.nativeHomes)
-      await restoreNativeCodex(
-        native,
-        currentState?.nativeHomes?.find(
-          (h: any) => h.nativeCodexHome === row.state.nativeCodexHome,
-        ) ?? row.state,
-        row.snapshot,
-      );
-    return;
-  }
-  const nativeHome = currentState.nativeCodexHome;
-  const roots = new Set(
-    [currentState.nativeMarketplaceRoot, previous?.marketplace?.marketplaceSource?.source].filter(
-      Boolean,
-    ),
-  );
-  const current = await registry(native, nativeHome);
+function verifyCompensationOwnership(current: NativeRegistrationSnapshot, roots: Set<string>) {
   if (
     current.plugin &&
-    ![...roots].some(root => current.plugin.source?.path === join(root, 'plugin'))
+    ![...roots].some(root => current.plugin!.source?.path === join(root, 'plugin'))
   )
     throw new Error('Native plugin ownership changed during compensation');
   if (current.marketplace && !roots.has(current.marketplace.marketplaceSource?.source))
     throw new Error('Native marketplace ownership changed during compensation');
   for (const root of roots) validateCatalog(root);
+}
+function removePlugin(
+  current: NativeRegistrationSnapshot,
+  changeCatalog: boolean,
+  previous: NativeRegistrationSnapshot | undefined,
+) {
+  return current.plugin && (changeCatalog || !previous?.plugin);
+}
+function removeMarketplace(current: NativeRegistrationSnapshot, changeCatalog: boolean) {
+  return current.marketplace && changeCatalog;
+}
+function addMarketplace(targetRoot: string | undefined, current: NativeRegistrationSnapshot) {
+  return targetRoot && !current.marketplace;
+}
+function addPlugin(
+  previous: NativeRegistrationSnapshot | undefined,
+  current: NativeRegistrationSnapshot,
+) {
+  return previous?.plugin && !current.plugin;
+}
+async function restoreCatalog(
+  native: string,
+  nativeHome: string,
+  current: NativeRegistrationSnapshot,
+  previous: NativeRegistrationSnapshot | undefined,
+) {
   const targetRoot = previous?.marketplace?.marketplaceSource?.source;
   const changeCatalog = current.marketplace?.marketplaceSource?.source !== targetRoot;
-  if (current.plugin && (changeCatalog || !previous?.plugin)) {
+  if (removePlugin(current, changeCatalog, previous)) {
     await call(native, ['plugin', 'remove', codexPluginId, '--json'], nativeHome);
     current.plugin = undefined;
   }
-  if (current.marketplace && changeCatalog) {
+  if (removeMarketplace(current, changeCatalog)) {
     await call(native, ['plugin', 'marketplace', 'remove', 'vesta-local', '--json'], nativeHome);
     current.marketplace = undefined;
   }
-  if (targetRoot && !current.marketplace)
-    await call(native, ['plugin', 'marketplace', 'add', targetRoot, '--json'], nativeHome);
-  if (previous?.plugin && !current.plugin)
+  if (addMarketplace(targetRoot, current))
+    await call(native, ['plugin', 'marketplace', 'add', targetRoot!, '--json'], nativeHome);
+  if (addPlugin(previous, current))
     await call(native, ['plugin', 'add', codexPluginId, '--json'], nativeHome);
+}
+async function restoreDisabled(
+  native: string,
+  nativeHome: string,
+  previous: NativeRegistrationSnapshot | undefined,
+) {
   if (previous?.plugin?.enabled === false)
     await nativeRequest(
       native,
@@ -237,36 +350,54 @@ export async function restoreNativeCodex(native: string, currentState: any, prev
       undefined,
       { env: { ...(process.env as Record<string, string>), CODEX_HOME: nativeHome } },
     );
-  const restored = await registry(native, nativeHome);
+}
+function compensationRoots(
+  currentState: NativeCodexState,
+  previous: NativeRegistrationSnapshot | undefined,
+) {
+  return new Set(
+    [currentState.nativeMarketplaceRoot, previous?.marketplace?.marketplaceSource?.source].filter(
+      Boolean,
+    ) as string[],
+  );
+}
+function verifyRestored(
+  restored: NativeRegistrationSnapshot,
+  previous: NativeRegistrationSnapshot | undefined,
+) {
   if (
     JSON.stringify(restored.plugin) !== JSON.stringify(previous?.plugin) ||
     JSON.stringify(restored.marketplace) !== JSON.stringify(previous?.marketplace)
   )
     throw new Error('Native registration compensation did not restore prior state');
 }
-export async function installNativeCodex(
+export async function restoreNativeCodex(
   native: string,
-  configDir: string,
-  node: string,
-  state: any,
-  hookConfig?: string,
-  selectedHome?: string,
-  recorded: any[] = [],
+  currentState: NativeCodexState,
+  previous: NativeRegistrationSnapshot | undefined,
 ) {
-  const previous = await codexRegistration(native, state, selectedHome, recorded);
-  mkdirSync(previous.nativeHome, { recursive: true, mode: 0o700 });
-  const effective = await nativeRequest(
-    native,
-    'config/read',
-    { includeLayers: false },
-    undefined,
-    { env: { ...(process.env as Record<string, string>), CODEX_HOME: previous.nativeHome } },
-  );
-  if (effective.config.features?.plugins === false || effective.config.features?.hooks === false)
-    return undefined;
-  const version = json(join(here, '../../package.json')).version;
-  const handler = readFileSync(join(here, 'vesta-codex/handler.mjs'));
-  const closure = hookConfig
+  if (previous?.nativeHomes) {
+    for (const row of previous.nativeHomes)
+      await restoreNativeCodex(
+        native,
+        currentState?.nativeHomes?.find(
+          home => home.nativeCodexHome === row.state.nativeCodexHome,
+        ) ?? row.state,
+        row.snapshot,
+      );
+    return;
+  }
+  const nativeHome = currentState.nativeCodexHome!;
+  const roots = compensationRoots(currentState, previous);
+  const current = await registry(native, nativeHome);
+  verifyCompensationOwnership(current, roots);
+  await restoreCatalog(native, nativeHome, current, previous);
+  await restoreDisabled(native, nativeHome, previous);
+  const restored = await registry(native, nativeHome);
+  verifyRestored(restored, previous);
+}
+function runtimeClosure(hookConfig: string | undefined): [string, Buffer][] {
+  return hookConfig
     ? [
         'codex/codex-hook-watcher.ts',
         'codex/codex-hook-types.ts',
@@ -284,19 +415,11 @@ export async function installNativeCodex(
         'lib/metadata-files.ts',
         'lib/process-identity.ts',
         'lib/digest.ts',
-      ].map(file => [file, readFileSync(join(here, '..', file))] as [string, Buffer])
+      ].map(file => [file, readFileSync(join(here, '..', file))])
     : [];
-  const hash = createHash('sha256')
-    .update(handler)
-    .update(node)
-    .update(version)
-    .update(hookConfig ?? '')
-    .update(native);
-  for (const [file, bytes] of closure) hash.update(file).update(bytes);
-  const digest = hash.digest('hex').slice(0, 16);
-  const catalog = join(configDir, 'codex-native-assets', version + '-' + digest);
-  const plugin = join(catalog, 'plugin');
-  const command = hookConfig
+}
+function hookCommand(node: string, plugin: string, hookConfig: string | undefined, native: string) {
+  return hookConfig
     ? [
         node,
         '--disable-warning=ExperimentalWarning',
@@ -311,10 +434,59 @@ export async function installNativeCodex(
         .map(quote)
         .join(' ')
     : quote(node) + ' ' + quote(join(plugin, 'handler.mjs'));
+}
+function writeAssets(plugin: string, assets: [string, Buffer | string][]) {
+  for (const [path, bytes] of assets) {
+    const file = join(plugin, path);
+    if (existsSync(file) && !readFileSync(file).equals(Buffer.from(bytes)))
+      throw new Error('Retained native Codex asset integrity conflict');
+    if (!existsSync(file)) {
+      mkdirSync(dirname(file), { recursive: true, mode: PRIVATE_DIRECTORY_MODE });
+      writeFileSync(file, bytes, { mode: PRIVATE_FILE_MODE });
+    }
+  }
+}
+function writeCatalog(catalog: string, version: string) {
+  const catalogFile = join(catalog, '.agents/plugins/marketplace.json');
+  mkdirSync(dirname(catalogFile), { recursive: true, mode: PRIVATE_DIRECTORY_MODE });
+  const catalogBytes =
+    JSON.stringify(
+      { name: 'vesta-local', plugins: [{ name: 'vesta', source: './plugin', version }] },
+      null,
+      2,
+    ) + '\n';
+  if (existsSync(catalogFile) && readFileSync(catalogFile, 'utf8') !== catalogBytes)
+    throw new Error('Retained native catalog integrity conflict');
+  if (!existsSync(catalogFile)) writeFileSync(catalogFile, catalogBytes);
+}
+function prepareNativeAssets(
+  configDir: string,
+  node: string,
+  native: string,
+  hookConfig: string | undefined,
+  previous: NativeRegistrationSnapshot,
+): NativeInstallation {
+  const version = json<{ version: string }>(join(here, '../../package.json')).version;
+  const handler = readFileSync(join(here, 'vesta-codex/handler.mjs'));
+  const closure = runtimeClosure(hookConfig);
+  const hash = createHash('sha256')
+    .update(handler)
+    .update(node)
+    .update(version)
+    .update(hookConfig ?? '')
+    .update(native);
+  for (const [file, bytes] of closure) hash.update(file).update(bytes);
+  const digest = hash.digest('hex').slice(0, CATALOG_DIGEST_CHARACTERS);
+  const catalog = join(configDir, 'codex-native-assets', version + '-' + digest);
+  const plugin = join(catalog, 'plugin');
+  const command = hookCommand(node, plugin, hookConfig, native);
   const hooks = {
     hooks: Object.fromEntries(
       ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'Stop', 'Interrupt', 'PostCompact'].map(
-        event => [event, [{ hooks: [{ type: 'command', command, timeout: 3 }] }]],
+        event => [
+          event,
+          [{ hooks: [{ type: 'command', command, timeout: NATIVE_HOOK_TIMEOUT_SECONDS }] }],
+        ],
       ),
     ),
   };
@@ -327,64 +499,71 @@ export async function installNativeCodex(
       readFileSync(join(here, 'vesta-codex/.codex-plugin/plugin.json')),
     ],
   ];
-  for (const [path, bytes] of assets) {
-    const file = join(plugin, path);
-    if (existsSync(file) && !readFileSync(file).equals(Buffer.from(bytes)))
-      throw new Error('Retained native Codex asset integrity conflict');
-    if (!existsSync(file)) {
-      mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-      writeFileSync(file, bytes, { mode: 0o600 });
-    }
-  }
-  const catalogFile = join(catalog, '.agents/plugins/marketplace.json');
-  mkdirSync(dirname(catalogFile), { recursive: true, mode: 0o700 });
-  const catalogBytes =
-    JSON.stringify(
-      { name: 'vesta-local', plugins: [{ name: 'vesta', source: './plugin', version }] },
-      null,
-      2,
-    ) + '\n';
-  if (existsSync(catalogFile) && readFileSync(catalogFile, 'utf8') !== catalogBytes)
-    throw new Error('Retained native catalog integrity conflict');
-  if (!existsSync(catalogFile)) writeFileSync(catalogFile, catalogBytes);
-  const registration = {
+  writeAssets(plugin, assets);
+  writeCatalog(catalog, version);
+  return {
     nativePluginId: codexPluginId,
-    nativeCodexHome: previous.nativeHome,
+    nativeCodexHome: previous.nativeHome!,
     nativeMarketplaceRoot: catalog,
     nativeMarketplaceOwned: true,
     nativeHookCommand: command,
   };
+}
+function catalogChanged(previous: NativeRegistrationSnapshot, registration: NativeInstallation) {
+  return (
+    previous.marketplace &&
+    previous.marketplace.marketplaceSource.source !== registration.nativeMarketplaceRoot
+  );
+}
+function needsCatalog(previous: NativeRegistrationSnapshot, removed: boolean) {
+  return !previous.marketplace || removed;
+}
+function needsPlugin(previous: NativeRegistrationSnapshot, removed: boolean) {
+  return !previous.plugin || removed;
+}
+function needsDisable(previous: NativeRegistrationSnapshot, addedPlugin: boolean) {
+  return previous.plugin?.enabled === false && addedPlugin;
+}
+async function registerAssets(
+  native: string,
+  previous: NativeRegistrationSnapshot,
+  registration: NativeInstallation,
+) {
   let removed = false;
   let addedCatalog = false;
   let addedPlugin = false;
   try {
-    if (previous.marketplace && previous.marketplace.marketplaceSource.source !== catalog) {
-      validateCatalog(previous.marketplace.marketplaceSource.source);
+    if (catalogChanged(previous, registration)) {
+      validateCatalog(previous.marketplace!.marketplaceSource.source);
       if (previous.plugin) {
-        await call(native, ['plugin', 'remove', codexPluginId, '--json'], previous.nativeHome);
+        await call(native, ['plugin', 'remove', codexPluginId, '--json'], previous.nativeHome!);
         removed = true;
       }
       await call(
         native,
         ['plugin', 'marketplace', 'remove', 'vesta-local', '--json'],
-        previous.nativeHome,
+        previous.nativeHome!,
       );
       removed = true;
     }
-    if (!previous.marketplace || removed) {
-      await call(native, ['plugin', 'marketplace', 'add', catalog, '--json'], previous.nativeHome);
+    if (needsCatalog(previous, removed)) {
+      await call(
+        native,
+        ['plugin', 'marketplace', 'add', registration.nativeMarketplaceRoot, '--json'],
+        previous.nativeHome!,
+      );
       addedCatalog = true;
     }
-    if (!previous.plugin || removed) {
-      await call(native, ['plugin', 'add', codexPluginId, '--json'], previous.nativeHome);
+    if (needsPlugin(previous, removed)) {
+      await call(native, ['plugin', 'add', codexPluginId, '--json'], previous.nativeHome!);
       addedPlugin = true;
     }
-    if (previous.plugin?.enabled === false && addedPlugin)
+    if (needsDisable(previous, addedPlugin))
       await nativeRequest(native, 'config/value/write', {
         keyPath: 'plugins.' + codexPluginId + '.enabled',
         value: false,
         mergeStrategy: 'replace',
-        filePath: join(previous.nativeHome, 'config.toml'),
+        filePath: join(previous.nativeHome!, 'config.toml'),
       });
     return registration;
   } catch (error) {
@@ -398,17 +577,40 @@ export async function installNativeCodex(
     throw new Error(String(error) + '; prior native registrations restored');
   }
 }
-export async function uninstallNativeCodex(native: string, state: any) {
+export async function installNativeCodex(
+  native: string,
+  configDir: string,
+  node: string,
+  state: NativeCodexState | null,
+  hookConfig?: string,
+  selectedHome?: string,
+  recorded: NativeCodexState[] = [],
+) {
+  const previous = await codexRegistration(native, state, selectedHome, recorded);
+  mkdirSync(previous.nativeHome!, { recursive: true, mode: PRIVATE_DIRECTORY_MODE });
+  const effective = await nativeRequest(
+    native,
+    'config/read',
+    { includeLayers: false },
+    undefined,
+    { env: { ...(process.env as Record<string, string>), CODEX_HOME: previous.nativeHome! } },
+  );
+  if (effective.config.features?.plugins === false || effective.config.features?.hooks === false)
+    return undefined;
+  const registration = prepareNativeAssets(configDir, node, native, hookConfig, previous);
+  return registerAssets(native, previous, registration);
+}
+export async function uninstallNativeCodex(native: string, state: NativeCodexState | null) {
   if (state?.nativePluginId !== codexPluginId) return;
   const current = await codexRegistration(native, state, state.nativeCodexHome);
   if (current.marketplace) validateCatalog(current.marketplace.marketplaceSource.source);
   if (current.plugin)
-    await call(native, ['plugin', 'remove', codexPluginId, '--json'], current.nativeHome);
+    await call(native, ['plugin', 'remove', codexPluginId, '--json'], current.nativeHome!);
   if (current.marketplace)
     await call(
       native,
       ['plugin', 'marketplace', 'remove', 'vesta-local', '--json'],
-      current.nativeHome,
+      current.nativeHome!,
     );
-  // Native trust/preferences and immutable assets remain; only owned registrations are removed.
+  // Native trust/preferences and immutable assets remain; remove only owned registrations.
 }

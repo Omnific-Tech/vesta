@@ -1,4 +1,6 @@
 // Observations only: never consult leases, advance policy, or authorize dispatch.
+import type { WatcherState } from '../core/watcher-policy.ts';
+const MAXIMUM_DECISIONS = 32;
 export type LeaseBlocker = { ownerId: string; pid: number; birth: string; kind: string };
 export const diagnosticReasons = new Set([
   'owner-unbound',
@@ -36,6 +38,15 @@ type Measurement = {
   generation: number;
   current: boolean;
 };
+function obsoleteMeasurement(last: Measurement, state: WatcherState) {
+  return (
+    last.sessionId !== state.sessionId ||
+    last.turnId !== state.turnId ||
+    last.generation !== state.generation ||
+    state.tokens === null ||
+    state.busy
+  );
+}
 export class NativeDiagnostics {
   pid: number;
   birth: string;
@@ -60,15 +71,15 @@ export class NativeDiagnostics {
     this.lastDecision = row;
     if (['skip', 'busy', 'expired', 'cancel', 'ended'].includes(action)) this.lastSkip = row;
     this.decisions.push(row);
-    if (this.decisions.length > 32) this.decisions.shift();
+    if (this.decisions.length > MAXIMUM_DECISIONS) this.decisions.shift();
   }
   invalidate() {
     if (this.lastMeasurement) this.lastMeasurement.current = false;
   }
-  measure(state: any, at: number) {
+  measure(state: WatcherState, at: number) {
     if (
       !Number.isSafeInteger(state.tokens) ||
-      state.tokens < 0 ||
+      state.tokens! < 0 ||
       state.busy ||
       !state.sessionId ||
       !state.turnId
@@ -76,7 +87,7 @@ export class NativeDiagnostics {
       return;
     this.lastMeasurement = {
       at,
-      inputTokens: state.tokens,
+      inputTokens: state.tokens!,
       sessionId: state.sessionId,
       turnId: state.turnId,
       generation: state.generation,
@@ -93,17 +104,16 @@ export class NativeDiagnostics {
     this.ambiguous = value;
     this.ambiguousBlocker = value ? blocker : null;
   }
-  snapshot(state: any, idleMs: number, sessionId: string) {
+  ownership(sessionId: string) {
+    return this.ambiguous
+      ? { state: 'ambiguous', blocker: this.ambiguousBlocker }
+      : this.conflict
+        ? { state: 'conflict', blocker: this.conflictBlocker }
+        : { state: sessionId ? 'owned' : 'unbound', blocker: null };
+  }
+  snapshot(state: WatcherState, idleMs: number, sessionId: string) {
     const last = this.lastMeasurement;
-    if (
-      last &&
-      (last.sessionId !== state.sessionId ||
-        last.turnId !== state.turnId ||
-        last.generation !== state.generation ||
-        state.tokens === null ||
-        state.busy)
-    )
-      last.current = false;
+    if (last && obsoleteMeasurement(last, state)) last.current = false;
     return {
       schema: 1,
       pid: this.pid,
@@ -116,11 +126,7 @@ export class NativeDiagnostics {
           ? state.warmAt + idleMs
           : null,
       lastMeasurement: last ? { ...last } : null,
-      ownership: this.ambiguous
-        ? { state: 'ambiguous', blocker: this.ambiguousBlocker }
-        : this.conflict
-          ? { state: 'conflict', blocker: this.conflictBlocker }
-          : { state: sessionId ? 'owned' : 'unbound', blocker: null },
+      ownership: this.ownership(sessionId),
       decisions: this.decisions.map(row => ({ ...row })),
     };
   }

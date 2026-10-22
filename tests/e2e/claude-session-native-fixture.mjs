@@ -1,0 +1,37 @@
+#!/usr/bin/env node
+// Registration-only native substitute. No provider or model is invoked.
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+const args = process.argv.slice(2);
+const config = process.env.CLAUDE_CONFIG_DIR;
+const save = (file, value) => writeFileSync(join(config, file), JSON.stringify(value));
+mkdirSync(join(config, 'plugins'), { recursive: true });
+if (args[1] === 'marketplace' && args[2] === 'add') {
+  save('plugins/known_marketplaces.json', { 'vesta-local': { installLocation: args[3] } });
+} else if (args[1] === 'install') {
+  const registry = JSON.parse(readFileSync(join(config, 'plugins/known_marketplaces.json')));
+  const marketplace = registry['vesta-local'].installLocation;
+  const catalog = JSON.parse(readFileSync(join(marketplace, '.claude-plugin/marketplace.json')));
+  const source = join(marketplace, catalog.plugins[0].source);
+  const destination = join(config, 'plugins/cache/vesta-local/vesta/fixture');
+  cpSync(source, destination, { recursive: true });
+  save('plugins/installed_plugins.json', {
+    plugins: { 'vesta@vesta-local': [{ scope: 'user', installPath: destination }] },
+  });
+  save('settings.json', { enabledPlugins: { 'vesta@vesta-local': true } });
+} else if (args[1] === 'configure') {
+  const settings = JSON.parse(readFileSync(join(config, 'settings.json')));
+  const values = JSON.parse(readFileSync(0, 'utf8'));
+  settings.pluginConfigs = { 'vesta@vesta-local': { options: { warm: values.warm === 'true' } } };
+  save('settings.json', settings);
+} else if (args[1] === 'list') {
+  const registry = JSON.parse(readFileSync(join(config, 'plugins/installed_plugins.json')));
+  const installed = registry.plugins['vesta@vesta-local'][0];
+  const plugin = JSON.parse(
+    readFileSync(join(installed.installPath, '.claude-plugin/plugin.json')),
+  );
+  console.log(JSON.stringify([{ ...installed, id: 'vesta@vesta-local', version: plugin.version }]));
+  process.exit(0);
+} else if (args[1] !== 'validate')
+  throw new Error('unexpected registration request: ' + JSON.stringify(args));
+console.log('{}');

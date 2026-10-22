@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parseClaudeStatuses, verifyClaudeAutoload } from './setup-acceptance.ts';
 import { marker, verifyInstruction, claudePluginBody, noncePrompt } from './marker-acceptance.ts';
 import type { InstructionEvidence } from './marker-acceptance.ts';
+import { claudePluginHooks } from './shared-helper-sources.ts';
 
 export type ClaudeProfileSnapshot = {
   sha256: string;
@@ -278,7 +279,7 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
       c.pluginTreeBefore,
       'native cached package unchanged after initialization',
     );
-    for (const file of ['hooks/register.ts', 'hooks/policy.ts']) {
+    for (const file of claudePluginHooks) {
       const source = e.sourceFiles.find(row => row.path.endsWith('/vesta-claude/' + file));
       assert.ok(source);
       assert.equal(
@@ -390,6 +391,11 @@ export function verifySetupLiveEvidence(e: SetupLiveEvidence, directory: string)
       e.claude.pluginTreeBefore,
       'shared cached plugin remains immutable',
     );
+    for (const path of claudePluginHooks) {
+      const source = e.sourceFiles.find(file => file.path.endsWith('/vesta-claude/' + path));
+      assert.ok(source, 'fingerprinted Claude runtime closure: ' + path);
+      assert.equal(e.claude.pluginTreeBefore[path], source.sha256);
+    }
     const policy = e.sourceFiles.find(file => file.path.endsWith('/watcher-policy.ts'))!;
     const pluginPolicy = e.sourceFiles.find(file =>
       file.path.endsWith('/vesta-claude/hooks/policy.ts'),
