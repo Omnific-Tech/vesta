@@ -8,6 +8,34 @@ import { fileURLToPath } from 'node:url';
 import { codexPluginId, nativeRequest } from './codex-native-ipc.ts';
 import { shellQuote as quote } from '../lib/shell.ts';
 
+export type NativeCodexState = {
+  provider?: string;
+  integrationMode?: string;
+  native?: string;
+  shellFile?: string;
+  block?: string;
+  createdConfig?: unknown;
+  nativePluginId?: string;
+  nativeCodexHome?: string;
+  nativeMarketplaceRoot?: string;
+  nativeMarketplaceOwned?: boolean;
+  nativeHookCommand?: string;
+  nativeHomes?: NativeCodexState[];
+};
+export type OwnedNativeHome = NativeCodexState & { nativeCodexHome: string };
+export type NativePluginRegistration = {
+  pluginId: string;
+  source?: { path?: string };
+  enabled?: boolean;
+};
+export type NativeMarketplaceRegistration = { name: string; marketplaceSource: { source: string } };
+export type NativeRegistrationSnapshot = {
+  nativeHome?: string;
+  plugin?: NativePluginRegistration;
+  marketplace?: NativeMarketplaceRegistration;
+  nativeHomes?: { state: NativeCodexState; snapshot: NativeRegistrationSnapshot }[];
+};
+
 const here = dirname(fileURLToPath(import.meta.url));
 const home = () => resolve(process.env.CODEX_HOME ?? join(homedir(), '.codex'));
 const json = (path: string) => JSON.parse(readFileSync(path, 'utf8'));

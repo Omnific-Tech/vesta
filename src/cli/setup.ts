@@ -17,10 +17,11 @@ import { readJsonFile } from '../lib/json-files.ts';
 const args = process.argv.slice(2);
 const operation = args[0];
 const value = (flag: string) => {
-  const i = args.indexOf(flag);
-  if (i < 0) return undefined;
-  if (!args[i + 1] || args[i + 1]!.startsWith('--')) throw new Error('Missing value: ' + flag);
-  return args[i + 1]!;
+  const index = args.indexOf(flag);
+  if (index < 0) return undefined;
+  if (!args[index + 1] || args[index + 1]!.startsWith('--'))
+    throw new Error('Missing value: ' + flag);
+  return args[index + 1]!;
 };
 const provider = value('--provider') ?? 'all';
 if (
@@ -36,14 +37,48 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../..');
 const pluginId = 'vesta@vesta-local';
 const marketplace = 'vesta-local';
-const read = (path: string, fallback: any = {}) => readJsonFile(path, fallback);
-const save = (path: string, data: any) => {
+const CLAUDE_IDLE_MS = 3000000;
+const MAXIMUM_BUDGET_MS = 14400000;
+const INPUT_THRESHOLD = 100000;
+const NATIVE_COMMAND_TIMEOUT_MS = 30000;
+type SetupState = { native?: string; shellFile?: string; marketplaceOwned?: boolean };
+type ClaudeOptions = { warm?: boolean; idle_ms?: number; budget_ms?: number };
+type ClaudeSettings = {
+  enabledPlugins?: Record<string, boolean>;
+  pluginConfigs?: Record<string, { options?: ClaudeOptions }>;
+};
+type ClaudeRegistry = { plugins?: Record<string, { scope?: string }[]> };
+type ClaudeResult = {
+  operation: string | undefined;
+  provider: string;
+  configDir: string;
+  pluginId: string;
+  installed: boolean;
+  warmEnabled: boolean;
+  idleMs: number;
+  budgetMs: number;
+  threshold: number;
+  changes?: object[];
+};
+type ClaudeSetup = {
+  configDir: string;
+  statePath: string;
+  settingsPath: string;
+  state: SetupState | null;
+  settings: ClaudeSettings;
+  installed: boolean;
+  options: ClaudeOptions;
+  result: ClaudeResult;
+};
+const read = <Value = unknown>(path: string, fallback: Value = {} as Value): Value =>
+  readJsonFile(path, fallback);
+const save = (path: string, data: unknown) => {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
 };
 const executable = (name: string) => {
-  for (const dir of (process.env.PATH ?? '').split(':')) {
-    const path = resolve(dir || '.', name);
+  for (const directory of (process.env.PATH ?? '').split(':')) {
+    const path = resolve(directory || '.', name);
     try {
       accessSync(path, constants.X_OK);
       return path;
@@ -53,7 +88,7 @@ const executable = (name: string) => {
 };
 function codexOptions() {
   const configDir = value('--config-dir') ?? join(homedir(), '.config/vesta');
-  const state = read(join(configDir, '.vesta-setup-codex.json'), null);
+  const state = read<SetupState | null>(join(configDir, '.vesta-setup-codex.json'), null);
   return {
     operation,
     configDir,
@@ -65,33 +100,36 @@ function codexOptions() {
     state,
   };
 }
-async function handle(selected: string) {
-  if (selected === 'codex') return handleHookSetup(codexOptions());
+function configuredWarm(options: ClaudeOptions, installed: boolean, settings: ClaudeSettings) {
+  return options.warm === true && installed && settings.enabledPlugins?.[pluginId] !== false;
+}
+function claudeSetup(selected: string): ClaudeSetup {
   const configDir =
     value('--config-dir') ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude');
   const statePath = join(configDir, '.vesta-setup-claude.json');
-  const state = read(statePath, null);
+  const state = read<SetupState | null>(statePath, null);
   const settingsPath = join(configDir, 'settings.json');
-  const settings = read(settingsPath);
-  const registry = read(join(configDir, 'plugins/installed_plugins.json')).plugins?.[
-    pluginId
-  ]?.find((p: any) => p.scope === 'user');
+  const settings = read<ClaudeSettings>(settingsPath);
+  const registry = read<ClaudeRegistry>(
+    join(configDir, 'plugins/installed_plugins.json'),
+  ).plugins?.[pluginId]?.find(entry => entry.scope === 'user');
   const installed = !!registry;
   const options = settings.pluginConfigs?.[pluginId]?.options ?? {};
-  const result: any = {
+  const result = {
     operation,
     provider: selected,
     configDir,
     pluginId,
     installed,
-    warmEnabled:
-      options.warm === true && installed && settings.enabledPlugins?.[pluginId] !== false,
-    idleMs: options.idle_ms ?? 3000000,
-    budgetMs: options.budget_ms ?? 14400000,
-    threshold: 100000,
+    warmEnabled: configuredWarm(options, installed, settings),
+    idleMs: options.idle_ms ?? CLAUDE_IDLE_MS,
+    budgetMs: options.budget_ms ?? MAXIMUM_BUDGET_MS,
+    threshold: INPUT_THRESHOLD,
   };
-  if (operation === 'status') return result;
-  result.changes = [
+  return { configDir, statePath, state, settingsPath, settings, installed, options, result };
+}
+function plannedChanges(configDir: string, statePath: string) {
+  return [
     {
       action: 'native-user-marketplace',
       configDir,
@@ -105,87 +143,115 @@ async function handle(selected: string) {
     { action: 'ownership-record', path: statePath },
     ...(args.includes('--warm') ? [{ action: 'native-plugin-option', pluginId, warm: true }] : []),
   ];
-  if (operation === 'plan') return result;
-  const native = (argv: string[], input?: string) => {
-    const out = spawnSync(
-      state?.native ?? process.env.VESTA_RECORDED_NATIVE ?? executable('claude'),
-      argv,
-      {
-        cwd: root,
-        env: { ...process.env, CLAUDE_CONFIG_DIR: configDir },
-        input,
-        encoding: 'utf8',
-        timeout: 30000,
-      },
-    );
-    if (out.status !== 0)
-      throw new Error(`Native Claude ${argv.join(' ')}: ${out.stderr || out.stdout || out.error}`);
-  };
-  if (operation === 'install') {
-    if (installed && !state)
-      throw new Error(
-        'Existing Vesta plugin is not owned by this setup; uninstall it explicitly or retain it',
-      );
-    if (!installed) {
-      if (read(join(configDir, 'plugins/known_marketplaces.json'))[marketplace] && !state)
-        throw new Error('Existing vesta-local marketplace is not owned by this setup');
-      save(statePath, {
-        ...state,
-        provider: selected,
-        native: state?.native ?? process.env.VESTA_RECORDED_NATIVE ?? executable('claude'),
-        marketplaceOwned: true,
-      });
-      native([
-        'plugin',
-        'marketplace',
-        'add',
-        process.env.VESTA_MARKETPLACE_ROOT ?? root,
-        '--scope',
-        'user',
-        '--json',
-      ]);
-      native(['plugin', 'install', pluginId, '--scope', 'user', '--json']);
-      const current = read(settingsPath);
-      for (const field of ['enabledPlugins', 'pluginConfigs'])
-        if (settings[field]?.[pluginId] !== undefined) {
-          (current[field] ??= {})[pluginId] = settings[field][pluginId];
-        }
-      save(settingsPath, current);
-    }
-    if (args.includes('--warm') && options.warm !== true)
-      native(
-        ['plugin', 'configure', pluginId, '--values-stdin', '--json'],
-        JSON.stringify({ warm: 'true' }),
-      );
-    if (state && !state.native)
-      save(statePath, {
-        ...read(statePath),
-        native: process.env.VESTA_RECORDED_NATIVE ?? executable('claude'),
-      });
-    result.installed = true;
-    result.warmEnabled =
-      (options.warm === true || args.includes('--warm')) &&
-      read(settingsPath).enabledPlugins?.[pluginId] !== false;
-  } else if (state) {
-    if (installed)
-      native(['plugin', 'uninstall', pluginId, '--scope', 'user', '--keep-data', '--json']);
-    if (
-      state.marketplaceOwned &&
-      read(join(configDir, 'plugins/known_marketplaces.json'))[marketplace]
-    )
-      native(['plugin', 'marketplace', 'remove', marketplace, '--scope', 'user', '--json']);
-    unlinkSync(statePath);
-    result.installed = false;
-  }
-  return result;
 }
-if (provider === 'all' && ['install', 'uninstall'].includes(operation)) {
+function native(setup: ClaudeSetup, argv: string[], input?: string) {
+  const output = spawnSync(
+    setup.state?.native ?? process.env.VESTA_RECORDED_NATIVE ?? executable('claude'),
+    argv,
+    {
+      cwd: root,
+      env: { ...process.env, CLAUDE_CONFIG_DIR: setup.configDir },
+      input,
+      encoding: 'utf8',
+      timeout: NATIVE_COMMAND_TIMEOUT_MS,
+    },
+  );
+  if (output.status !== 0)
+    throw new Error(
+      `Native Claude ${argv.join(' ')}: ${output.stderr || output.stdout || output.error}`,
+    );
+}
+function restoreSettings(setup: ClaudeSetup) {
+  const current = read<ClaudeSettings>(setup.settingsPath);
+  for (const field of ['enabledPlugins', 'pluginConfigs'] as const)
+    if (setup.settings[field]?.[pluginId] !== undefined) {
+      const target = (current[field] ??= {}) as Record<string, unknown>;
+      target[pluginId] = setup.settings[field]![pluginId];
+    }
+  save(setup.settingsPath, current);
+}
+function registerClaude(setup: ClaudeSetup, selected: string) {
+  const { installed, state, configDir, statePath } = setup;
+  if (installed && !state)
+    throw new Error(
+      'Existing Vesta plugin is not owned by this setup; uninstall it explicitly or retain it',
+    );
+  if (!installed) {
+    if (
+      read<Record<string, unknown>>(join(configDir, 'plugins/known_marketplaces.json'))[
+        marketplace
+      ] &&
+      !state
+    )
+      throw new Error('Existing vesta-local marketplace is not owned by this setup');
+    save(statePath, {
+      ...state,
+      provider: selected,
+      native: state?.native ?? process.env.VESTA_RECORDED_NATIVE ?? executable('claude'),
+      marketplaceOwned: true,
+    });
+    native(setup, [
+      'plugin',
+      'marketplace',
+      'add',
+      process.env.VESTA_MARKETPLACE_ROOT ?? root,
+      '--scope',
+      'user',
+      '--json',
+    ]);
+    native(setup, ['plugin', 'install', pluginId, '--scope', 'user', '--json']);
+    restoreSettings(setup);
+  }
+}
+function installClaude(setup: ClaudeSetup, selected: string) {
+  registerClaude(setup, selected);
+  if (args.includes('--warm') && setup.options.warm !== true)
+    native(
+      setup,
+      ['plugin', 'configure', pluginId, '--values-stdin', '--json'],
+      JSON.stringify({ warm: 'true' }),
+    );
+  if (setup.state && !setup.state.native)
+    save(setup.statePath, {
+      ...read<SetupState>(setup.statePath),
+      native: process.env.VESTA_RECORDED_NATIVE ?? executable('claude'),
+    });
+  setup.result.installed = true;
+  setup.result.warmEnabled =
+    (setup.options.warm === true || args.includes('--warm')) &&
+    read<ClaudeSettings>(setup.settingsPath).enabledPlugins?.[pluginId] !== false;
+}
+function uninstallClaude(setup: ClaudeSetup) {
+  if (!setup.state) return;
+  if (setup.installed)
+    native(setup, ['plugin', 'uninstall', pluginId, '--scope', 'user', '--keep-data', '--json']);
+  if (
+    setup.state.marketplaceOwned &&
+    read<Record<string, unknown>>(join(setup.configDir, 'plugins/known_marketplaces.json'))[
+      marketplace
+    ]
+  )
+    native(setup, ['plugin', 'marketplace', 'remove', marketplace, '--scope', 'user', '--json']);
+  unlinkSync(setup.statePath);
+  setup.result.installed = false;
+}
+async function handle(selected: string) {
+  if (selected === 'codex') return handleHookSetup(codexOptions());
+  const setup = claudeSetup(selected);
+  if (operation === 'status') return setup.result;
+  setup.result.changes = plannedChanges(setup.configDir, setup.statePath);
+  if (operation === 'plan') return setup.result;
+  if (operation === 'install') installClaude(setup, selected);
+  else uninstallClaude(setup);
+  return setup.result;
+}
+if (provider === 'all' && ['install', 'uninstall'].includes(operation!)) {
   const options = codexOptions();
   await preflightHookSetup(
     options.native,
     options.state,
     options.shell,
-    options.ownedOnly ? 'repair' : operation,
+    options.ownedOnly ? 'repair' : operation!,
   );
 }
 const output = [];
@@ -194,5 +260,5 @@ for (const selected of provider === 'all' ? ['claude', 'codex'] : [provider])
 console.log(
   args.includes('--json')
     ? JSON.stringify(provider === 'all' ? output : output[0])
-    : output.map(r => JSON.stringify(r, null, 2)).join('\n'),
+    : output.map(result => JSON.stringify(result, null, 2)).join('\n'),
 );
