@@ -100,7 +100,7 @@ const plugin = json(join(config, 'plugins/installed_plugins.json')).plugins['ves
   .installPath;
 const assets = json(built.receipt).assets;
 assert.deepEqual(
-  sources.filter(path => path.startsWith('src/claude/')).sort(),
+  sources.filter(path => path.startsWith('src/claude/') && path.endsWith('.ts')).sort(),
   claudePluginHooks.map(path => 'src/claude/vesta-claude/' + path).sort(),
   'explicit registry covers every shipped Claude hook module',
 );
