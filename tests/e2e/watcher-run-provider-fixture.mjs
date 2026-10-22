@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 // Controlled native process fixture: no model, account, provider install or network.
+// Failure contract: independent proxy and PTY startups/input can interleave in the
+// shared log. Gate loaded/list on actual PTY input and terminal startup on native
+// initialization so replay compares a controlled order without sorting observations.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -15,8 +18,8 @@ if (args[0] === '--version') {
   console.log('controlled-provider 1.0');
   process.exit(0);
 }
-record({ kind: 'launch' });
 if (args[0] === 'plugin' && args[1] === 'validate') {
+  record({ kind: 'launch' });
   const plugin = args[2];
   record({
     kind: 'validate',
@@ -33,10 +36,13 @@ if (args[0] === 'plugin' && args[1] === 'validate') {
   process.exit(0);
 }
 if (args[0] === 'app-server' && args[1] !== 'proxy') {
+  record({ kind: 'launch' });
   const endpoint = args[args.indexOf('--listen') + 1];
   writeFileSync(endpoint.slice('unix://'.length), 'controlled socket sentinel');
   setInterval(() => {}, 1000);
 } else if (args[0] === 'app-server') {
+  record({ kind: 'launch' });
+  const socket = args[args.indexOf('--sock') + 1];
   let buffer = Buffer.alloc(0);
   let upgraded = false;
   const send = row => {
@@ -57,7 +63,16 @@ if (args[0] === 'app-server' && args[1] !== 'proxy') {
   };
   writeFileSync(thread.path, 'controlled transcript sentinel\n');
   const request = row => {
+    if (row.method === 'thread/loaded/list' && !existsSync(socket + '.input-ready')) {
+      const inputReady = setInterval(() => {
+        if (!existsSync(socket + '.input-ready')) return;
+        clearInterval(inputReady);
+        request(row);
+      }, 5);
+      return;
+    }
     record({ kind: 'rpc', row });
+    if (row.method === 'initialized') writeFileSync(socket + '.initialized', 'ready');
     if (!row.id) return;
     const result =
       row.method === 'thread/loaded/list'
@@ -112,10 +127,38 @@ if (args[0] === 'app-server' && args[1] !== 'proxy') {
     }
   });
 } else {
-  record({ kind: 'terminal', term: process.env.TERM });
-  if (process.stdin.isTTY) process.stdin.setRawMode(true);
-  process.stdin.resume();
-  process.stdin.on('data', data => record({ kind: 'terminal-input', text: data.toString() }));
-  process.stdout.write('CONTROLLED_OWNER_READY\r\n\x1b[6n');
-  setTimeout(() => process.exit(7), 1200);
+  const remote = args.indexOf('--remote');
+  const socket = remote < 0 ? undefined : args[remote + 1].slice('unix://'.length);
+  const start = () => {
+    record({ kind: 'launch' });
+    record({ kind: 'terminal', term: process.env.TERM });
+    if (process.stdin.isTTY) process.stdin.setRawMode(true);
+    process.stdin.resume();
+    let input = '';
+    let cursorAnswered = false;
+    process.stdin.on('data', data => {
+      appendFileSync(join(folder, 'terminal-input-' + process.pid + '.txt'), data);
+      input += data.toString();
+      if (!cursorAnswered && input.endsWith('R')) {
+        record({ kind: 'terminal-input', text: input });
+        input = '';
+        cursorAnswered = true;
+        process.stdout.write('CONTROLLED_OWNER_READY\r\n');
+      } else if (cursorAnswered && input.endsWith('\r')) {
+        record({ kind: 'terminal-input', text: input });
+        input = '';
+        if (socket) writeFileSync(socket + '.input-ready', 'ready');
+      }
+    });
+    process.stdout.write('\x1b[6n');
+    setTimeout(() => process.exit(7), 1200);
+  };
+  if (!socket) start();
+  else {
+    const initialized = setInterval(() => {
+      if (!existsSync(socket + '.initialized')) return;
+      clearInterval(initialized);
+      start();
+    }, 5);
+  }
 }
