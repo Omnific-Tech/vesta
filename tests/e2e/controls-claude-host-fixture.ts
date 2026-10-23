@@ -14,6 +14,9 @@
 // - a native reload during a verified fresh post-control user turn invalidates
 //   that legitimate turn forever. Carry only still-active verified user-turn
 //   provenance, then require its actual completion; never carry token metrics.
+// - CLAUDE-IDLE-TIMER: idle measured from completion alone warms a returning owner
+//   mid-typing (after an expired budget or any time after a completion); typing must
+//   restart idle, repeated typing keep deferring, and warming resume once typing stops.
 // Only host APIs are simulated. This is not evidence of actual Claude execution.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -317,6 +320,7 @@ export async function claudeControlHostFixture(input: {
     reloadScenarios.push({ variant, sessionId, before, restored, completed });
   }
   const clockScenarios: any[] = [];
+  const typingScenarios: any[] = [];
   for (const variant of [
     'meta',
     'equal',
@@ -329,6 +333,8 @@ export async function claudeControlHostFixture(input: {
     'foreign',
     'budget',
     'controls',
+    'typing-restarts-idle',
+    'typing-after-expiry',
   ] as const) {
     currentStage = 'clock-' + variant;
     cli(['resume']);
@@ -396,6 +402,34 @@ export async function claudeControlHostFixture(input: {
     await fire('turn.start', { turnId: 'seed', text: 'seed' });
     await fire('turn.complete', { turnId: 'seed', reason: 'answer' });
     const seed = state();
+    if (variant === 'typing-restarts-idle' || variant === 'typing-after-expiry') {
+      // CLAUDE-IDLE-TIMER: idle elapses from the later of user activity and completion.
+      // Typing after the budget expired renews the budget and must not warm mid-typing.
+      if (variant === 'typing-after-expiry') {
+        now = seed.warmAt + 4000;
+        await tick();
+        assert.equal(submissions.length, 0, 'exhausted inactivity budget blocks warming');
+        now += 5;
+      } else now = seed.warmAt + 799;
+      await fire('prompt.edit');
+      const firstEdit = now;
+      now = firstEdit + 1;
+      await tick();
+      assert.equal(submissions.length, 0, 'typing restarts idle instead of warming mid-typing');
+      now = firstEdit + 400;
+      await fire('prompt.edit');
+      const lastEdit = now;
+      now = lastEdit + 799;
+      await tick();
+      assert.equal(submissions.length, 0, 'repeated typing keeps deferring warming');
+      now = lastEdit + 800;
+      await tick();
+      assert.equal(submissions.length, 1, 'idle elapsed since last typing warms once');
+      assert.equal(state().userAt, lastEdit, 'last typing is the budget clock');
+      typingScenarios.push({ variant, seed, final: state(), submissions });
+      await fire('session.end', { reason: 'exit' });
+      continue;
+    }
     if (variant === 'idle-reload-meta') {
       for (const row of timers) row.cancelled = true;
       await load(1);
@@ -466,7 +500,6 @@ export async function claudeControlHostFixture(input: {
     }
     assert.equal(completed.tokens, variant === 'controls' ? null : tokens === 1 ? 200000 : tokens);
     now = completed.warmAt + 799;
-    await fire('prompt.edit');
     await tick();
     assert.equal(submissions.length, initialSubmissions, 'completion starts idle');
     now += 1;
@@ -634,6 +667,7 @@ export async function claudeControlHostFixture(input: {
     scenarios,
     reloadScenarios,
     clockScenarios,
+    typingScenarios,
     isolationScenarios,
   };
   writeFileSync(join(input.directory, 'summary.json'), JSON.stringify(summary, null, 2));

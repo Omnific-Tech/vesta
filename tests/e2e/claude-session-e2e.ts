@@ -128,6 +128,12 @@ const summary = await claudeControlHostFixture({
 assert.equal(summary.scenarios.length, 4);
 assert.equal(summary.reloadScenarios.length, 3);
 assert.equal(summary.clockScenarios.length, 11);
+assert.deepEqual(
+  summary.typingScenarios.map((row: any) => row.variant),
+  ['typing-restarts-idle', 'typing-after-expiry'],
+);
+for (const row of summary.typingScenarios)
+  assert.equal(row.submissions.length, 1, 'typing defers warming until idle elapses once');
 assert.equal(summary.isolationScenarios.length, 2);
 if (!verifying)
   writeFileSync(
