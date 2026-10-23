@@ -129,10 +129,19 @@ Claude retains its editing activity observations: `prompt.edit`
 renews Claude's activity budget, as do `command.run` and `prompt.submit`
 events whose origin is `composer` or `bridge`. That includes a user invoking
 `/vesta-status` from the composer. Other non-Vesta prompts, including system/meta
-notifications, also renew the budget. Activity cancels a pending reservation;
-the idle interval is measured from the latest owned completion. A Vesta keepalive
-restarts idle when it completes but never renews the budget, including after
-replay or recovery. Warming stops after four hours without non-Vesta activity.
+notifications, also renew the budget. Activity cancels a pending reservation, and
+typing restarts idle: the idle interval is measured from the later of the latest
+owned completion and the latest user activity, so an owner who returns after the
+window expired is not warmed mid-typing, and repeated typing keeps deferring the
+next keepalive. A Vesta keepalive restarts idle when it completes but never renews
+the budget, including after replay or recovery. Warming stops after four hours
+without non-Vesta activity.
+
+Vesta cannot detect when a background session's terminal is detached. The plugin
+API reports attach and detach for remote clients only, so closing the tab or pane of
+a Claude Code background session leaves it running and warming until the four-hour
+inactivity window ends. End background sessions with `/exit`, or stop them from the
+session list, to stop warming.
 
 A busy turn cannot receive a new ping. User activity observed before dispatch can
 cancel the reservation. Once native submission is committed, removal is not

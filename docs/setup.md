@@ -145,7 +145,9 @@ Defaults remain Claude 50 minutes idle, Codex 20 minutes idle, and a four-hour
 user inactivity budget. Codex measures that budget from the latest verified
 non-Vesta submission, including another tool's submitted message. Typing, drafts,
 scrolling and navigation are not observed. Each successful completed reply starts
-a fresh idle interval. Claude's activity policy is unchanged.
+a fresh idle interval. For Claude, typing restarts idle: idle is measured from the
+later of the last completion and the last user activity (drafts, submitted prompts,
+commands). Codex hook mode observes only submitted prompts, which precede completion.
 Only fresh native last-response input strictly above
 100,000 tokens qualifies; cache input counts once, output and cumulative counts
 do not qualify. A busy, stale, ended or unknown backend skips. Native submission
