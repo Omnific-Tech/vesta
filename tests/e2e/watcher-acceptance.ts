@@ -152,11 +152,78 @@ for (const provider of ['claude', 'codex']) {
     [...ready(provider), e('tick', 100)],
     [{ index: 3, action: 'expired', state: { pending: false } }],
   );
+  // CLAUDE-IDLE-TIMER: idle elapses from the later of user activity and completion.
   add(
     provider,
-    'input-preserves-completion-idle',
-    [...ready(provider), e('activity', 11), e('tick', 12)],
-    [{ index: 4, action: 'reserve', state: { userAt: 11, warmAt: 2 } }],
+    'input-restarts-idle',
+    [...ready(provider), e('activity', 11), e('tick', 12), e('tick', 20), e('tick', 21)],
+    [
+      { index: 4, action: 'skip', state: { userAt: 11, warmAt: 2, pending: false } },
+      { index: 5, action: 'skip' },
+      { index: 6, action: 'reserve', state: { pending: true } },
+    ],
+  );
+  add(
+    provider,
+    'input-before-completion-keeps-completion-idle',
+    [...ready(provider), e('tick', 11), e('tick', 12)],
+    [
+      { index: 3, action: 'skip', state: { userAt: 0, warmAt: 2 } },
+      { index: 4, action: 'reserve' },
+    ],
+  );
+  add(
+    provider,
+    'input-after-expired-budget-restarts-idle',
+    [...ready(provider), e('tick', 100), e('activity', 101), e('tick', 102), e('tick', 111)],
+    [
+      { index: 3, action: 'expired', state: { pending: false } },
+      { index: 4, action: 'observe', state: { userAt: 101, warmAt: 2 } },
+      { index: 5, action: 'skip', state: { pending: false } },
+      { index: 6, action: 'reserve', state: { pending: true } },
+    ],
+  );
+  add(
+    provider,
+    'repeated-input-keeps-deferring-idle',
+    [
+      ...ready(provider),
+      e('activity', 9),
+      e('activity', 18),
+      e('tick', 27),
+      e('activity', 28),
+      e('tick', 37),
+      e('tick', 38),
+    ],
+    [
+      { index: 5, action: 'skip', state: { userAt: 18 } },
+      { index: 7, action: 'skip', state: { userAt: 28 } },
+      { index: 8, action: 'reserve' },
+    ],
+  );
+  add(
+    provider,
+    'warm-completion-restarts-idle-after-input',
+    [
+      ...ready(provider),
+      e('activity', 5),
+      e('tick', 15),
+      e('dispatch', 16),
+      e('turn-start', 17, { sessionId: S, turnId: 'warm-turn', source: 'warm' }),
+      e('turn-complete', 18, {
+        sessionId: S,
+        turnId: 'warm-turn',
+        source: 'warm',
+        raw: raw(provider, 100001),
+      }),
+      e('tick', 27),
+      e('tick', 28),
+    ],
+    [
+      { index: 4, action: 'reserve', state: { userAt: 5, warmAt: 2 } },
+      { index: 8, action: 'skip', state: { userAt: 5, warmAt: 18 } },
+      { index: 9, action: 'reserve' },
+    ],
   );
   add(
     provider,
