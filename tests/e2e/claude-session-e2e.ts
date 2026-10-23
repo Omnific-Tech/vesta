@@ -16,7 +16,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
-import { buildRelocated, hash, root } from './e2e-common.ts';
+import { buildRelocated, hash, root, sealEvidence } from './e2e-common.ts';
 import { claudeControlHostFixture } from './controls-claude-host-fixture.ts';
 import { claudePluginHooks, sharedHelperSources } from './shared-helper-sources.ts';
 
@@ -152,4 +152,7 @@ if (!verifying)
       2,
     ),
   );
+// Telos archives regular evidence files only: seal the installed fixture's live links
+// after the receipt, which already excludes them.
+if (!verifying) sealEvidence(artifacts);
 console.log(JSON.stringify({ verified: true, artifacts, replay: verifying ? run : undefined }));
