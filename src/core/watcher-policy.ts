@@ -404,7 +404,10 @@ export class Watcher {
       state.pending = false;
       return decision('skip', 'unknown or ineligible current input');
     }
-    if (state.warmAt === null || event.at - state.warmAt < this.defaults.idleMs)
+    // Idle restarts on the later of a completion and verified user activity, so an owner
+    // returning after an expired window is not warmed mid-typing.
+    const idleStartedAt = state.warmAt === null ? null : Math.max(state.userAt, state.warmAt);
+    if (idleStartedAt === null || event.at - idleStartedAt < this.defaults.idleMs)
       return decision('skip', 'idle interval not elapsed');
   }
 
