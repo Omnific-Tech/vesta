@@ -43,7 +43,10 @@ const verifying = process.argv[2] === '--verify';
 const artifacts = resolve(
   verifying
     ? process.argv[3]
-    : (process.env.TELOS_RUN_DIR ?? mkdtempSync(join(tmpdir(), 'vesta-claude-session-'))),
+    : process.env.TELOS_RUN_DIR
+      ? // Telos grows stdout.log/stderr.log beside the run directory, so keep the hashed tree below it.
+        join(process.env.TELOS_RUN_DIR, 'artifacts')
+      : mkdtempSync(join(tmpdir(), 'vesta-claude-session-')),
 );
 mkdirSync(artifacts, { recursive: true });
 const json = (file: string) => JSON.parse(readFileSync(file, 'utf8'));
