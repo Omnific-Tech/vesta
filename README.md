@@ -171,7 +171,10 @@ backend in the TUI. See the
 Warming uses the latest completed owned request's input usage, strictly above
 100,000 tokens by default. Cached input counts once (Claude: input + cache read +
 cache creation); output and cumulative lifetime usage do not qualify. Every owned
-completion restarts idle, regardless of origin. Compaction, session resume and
+completion restarts idle, regardless of origin, and so does user activity: typing restarts idle
+(Claude observes drafts, submitted prompts and commands; Codex hook mode observes only
+submitted prompts), so returning to a session after its window expired never warms it
+mid-typing. Compaction, session resume and
 reconnect invalidate old usage only; the next completion of any origin supplies
 a valid new measurement. Controls/config changes still require a fresh user
 prompt and reply. Subagent/sidechain turns and other sessions do not update the
@@ -190,6 +193,11 @@ After four hours without non-Vesta activity warming stops. A submitted message
 can cancel a pending Codex ping before
 dispatch; once submitted to a native queue, retraction is not guaranteed. Native
 hook mode does not observe draft input.
+
+Vesta cannot detect when a Claude Code background session's terminal is detached
+(closing the tab or cmux pane leaves the session running), so it keeps warming until the
+four-hour inactivity window ends. End background sessions with `/exit`, or stop them
+from the session list, to stop warming.
 
 Codex selects and validates all launch options itself. Vesta has no argument
 filter; warming requires a live native backend with trusted session hooks and a

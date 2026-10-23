@@ -16,7 +16,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
-import { buildRelocated, hash, root } from './e2e-common.ts';
+import { buildRelocated, hash, root, sealEvidence } from './e2e-common.ts';
 import { claudeControlHostFixture } from './controls-claude-host-fixture.ts';
 import { claudePluginHooks, sharedHelperSources } from './shared-helper-sources.ts';
 
@@ -43,7 +43,10 @@ const verifying = process.argv[2] === '--verify';
 const artifacts = resolve(
   verifying
     ? process.argv[3]
-    : (process.env.TELOS_RUN_DIR ?? mkdtempSync(join(tmpdir(), 'vesta-claude-session-'))),
+    : process.env.TELOS_RUN_DIR
+      ? // Telos grows stdout.log/stderr.log beside the run directory, so keep the hashed tree below it.
+        join(process.env.TELOS_RUN_DIR, 'artifacts')
+      : mkdtempSync(join(tmpdir(), 'vesta-claude-session-')),
 );
 mkdirSync(artifacts, { recursive: true });
 const json = (file: string) => JSON.parse(readFileSync(file, 'utf8'));
@@ -128,6 +131,12 @@ const summary = await claudeControlHostFixture({
 assert.equal(summary.scenarios.length, 4);
 assert.equal(summary.reloadScenarios.length, 3);
 assert.equal(summary.clockScenarios.length, 11);
+assert.deepEqual(
+  summary.typingScenarios.map((row: any) => row.variant),
+  ['typing-restarts-idle', 'typing-after-expiry'],
+);
+for (const row of summary.typingScenarios)
+  assert.equal(row.submissions.length, 1, 'typing defers warming until idle elapses once');
 assert.equal(summary.isolationScenarios.length, 2);
 if (!verifying)
   writeFileSync(
@@ -146,4 +155,7 @@ if (!verifying)
       2,
     ),
   );
+// Telos archives regular evidence files only: seal the installed fixture's live links
+// after the receipt, which already excludes them.
+if (!verifying) sealEvidence(artifacts);
 console.log(JSON.stringify({ verified: true, artifacts, replay: verifying ? run : undefined }));

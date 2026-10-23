@@ -19,6 +19,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { cases } from './watcher-acceptance.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -55,6 +56,22 @@ const commandRecord = (result: ReturnType<typeof spawnSync>) => ({
   stdout: String(result.stdout),
   stderr: String(result.stderr),
 });
+// CLAUDE-IDLE-TIMER: idle elapses from the later of user activity and completion, so
+// these timelines intentionally differ from the refactor baseline. Every other case,
+// including malformed inputs and both providers' unchanged timelines, stays identical.
+const intentionalIdleDivergences = ['claude', 'codex'].flatMap(provider => [
+  provider + ':input-restarts-idle',
+  provider + ':input-after-expired-budget-restarts-idle',
+  provider + ':repeated-input-keeps-deferring-idle',
+  provider + ':input-cancels-reserved-warm',
+]);
+const divergentNames = (actual: unknown[], expected: unknown[], rows: { name: string }[]) => {
+  assert.equal(actual.length, expected.length);
+  assert.equal(rows.length, expected.length);
+  return rows
+    .filter((_, index) => !isDeepStrictEqual(actual[index], expected[index]))
+    .map(row => row.name);
+};
 
 function verify(artifacts: string) {
   const receipt = JSON.parse(readFileSync(join(artifacts, 'receipt.json'), 'utf8'));
@@ -76,26 +93,29 @@ function verify(artifacts: string) {
   assert.equal(readFileSync(join(artifacts, 'baseline-policy.ts'), 'utf8'), baselineSource.stdout);
   const expected = JSON.parse(readFileSync(join(artifacts, 'baseline.json'), 'utf8'));
   assert.equal(expected.length, receipt.cases);
-  assert.equal(
-    JSON.parse(readFileSync(join(artifacts, 'inputs.json'), 'utf8')).length,
-    receipt.cases,
-  );
+  const rows = JSON.parse(readFileSync(join(artifacts, 'inputs.json'), 'utf8'));
+  assert.equal(rows.length, receipt.cases);
+  assert.deepEqual(receipt.intentionalIdleDivergences, intentionalIdleDivergences);
   for (const [name, policy] of [
     ['baseline', join(artifacts, 'baseline-policy.ts')],
     ['candidate', join(root, 'src/core/watcher-policy.ts')],
     ['plugin', join(root, 'src/claude/vesta-claude/hooks/policy.ts')],
   ]) {
-    assert.deepEqual(JSON.parse(readFileSync(join(artifacts, name + '.json'), 'utf8')), expected);
+    const recorded = JSON.parse(readFileSync(join(artifacts, name + '.json'), 'utf8'));
+    assert.deepEqual(
+      divergentNames(recorded, expected, rows),
+      name === 'baseline' ? [] : intentionalIdleDivergences,
+    );
     const rerun = spawnSync(
       process.execPath,
       ['--experimental-strip-types', self, '--worker', policy, join(artifacts, 'inputs.json')],
       { encoding: 'utf8' },
     );
     assert.equal(rerun.status, 0, rerun.stderr);
-    assert.deepEqual(JSON.parse(rerun.stdout), expected);
+    assert.deepEqual(JSON.parse(rerun.stdout), recorded);
     const retained = JSON.parse(readFileSync(join(artifacts, name + '-worker.json'), 'utf8'));
     assert.equal(retained.status, 0, retained.stderr);
-    assert.deepEqual(JSON.parse(retained.stdout), expected);
+    assert.deepEqual(JSON.parse(retained.stdout), recorded);
   }
   const commands = JSON.parse(readFileSync(join(artifacts, 'commands.json'), 'utf8'));
   assert.notEqual(commands.build.status, 0);
@@ -276,8 +296,8 @@ if (process.argv[2] === '--worker') {
   writeFileSync(join(artifacts, 'baseline.json'), JSON.stringify(expected, null, 2));
   writeFileSync(join(artifacts, 'candidate.json'), JSON.stringify(actual, null, 2));
   writeFileSync(join(artifacts, 'plugin.json'), JSON.stringify(plugin, null, 2));
-  assert.deepEqual(actual, expected);
-  assert.deepEqual(plugin, expected);
+  assert.deepEqual(divergentNames(actual, expected, rows), intentionalIdleDivergences);
+  assert.deepEqual(plugin, actual);
   assert.equal(hash(canonical), hash(generated));
   const sandbox = join(artifacts, 'build-drift-sandbox');
   for (const file of [
@@ -333,6 +353,7 @@ if (process.argv[2] === '--worker') {
         liveNativeProof: false,
         cases: rows.length,
         baselineRevision: '90f2c4f',
+        intentionalIdleDivergences,
         baseline: hash(baseline),
         canonical: hash(canonical),
         generated: hash(generated),

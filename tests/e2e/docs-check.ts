@@ -19,6 +19,16 @@ const paths = [
     .sort()
     .map(name => 'docs/testing/' + name),
 ];
+// CLAUDE-IDLE-TIMER: idle follows user activity, and a detached Claude Code background
+// session cannot be detected, so it keeps warming until its inactivity window ends.
+const requiredStatements: [string, RegExp][] = [
+  ['README.md', /cannot detect when a Claude Code background session's terminal is detached/],
+  ['README.md', /\/exit/],
+  ['README.md', /typing restarts idle/i],
+  ['docs/claude.md', /typing restarts idle/i],
+  ['docs/claude.md', /cannot detect when a background session's terminal is detached/],
+  ['docs/setup.md', /typing restarts idle/i],
+];
 const digest = (bytes: string) => createHash('sha256').update(bytes).digest('hex');
 const slug = (heading: string) =>
   heading
@@ -34,6 +44,8 @@ function inspect() {
     assert.ok(existsSync(absolute), `missing guide: ${path}`);
     const body = readFileSync(absolute, 'utf8');
     assert.ok(!/\/(?:Users|home)\/[^\s/]+\//.test(body), `private home path: ${path}`);
+    for (const [required, statement] of requiredStatements)
+      if (required === path) assert.match(body, statement, `missing statement in ${path}`);
     assert.ok(
       !/\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/i.test(body),
       `copied session/artifact UUID: ${path}`,
